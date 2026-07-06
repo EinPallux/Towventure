@@ -215,6 +215,43 @@ d('server API — the Heartbeat loop', () => {
     expect(stale.statusCode).toBe(409);
   });
 
+  it('serializes concurrent commands at the same version (one 200, one clean 409)', async () => {
+    const name = `hb_race_${Date.now().toString(36)}`;
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'hunter2hunter2' },
+    });
+    const cookie = cookieFrom(reg);
+    const start = await app.inject({
+      method: 'POST',
+      url: '/api/run/start',
+      headers: { cookie },
+      payload: { classId: 'vanguard', vows: [] },
+    });
+    const version = start.json().stateVersion as number;
+
+    // Fire two commands with the SAME expected version, racing.
+    const [a, b] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/api/run/command',
+        headers: { cookie },
+        payload: { expectedStateVersion: version, command: { type: 'chooseDoor', doorIndex: 0 } },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/run/command',
+        headers: { cookie },
+        payload: { expectedStateVersion: version, command: { type: 'chooseDoor', doorIndex: 0 } },
+      }),
+    ]);
+    const codes = [a.statusCode, b.statusCode].sort();
+    // Exactly one applies (200); the loser gets a clean 409, never a 500.
+    expect(codes).toEqual([200, 409]);
+    expect(codes).not.toContain(500);
+  });
+
   it('rejects unauthenticated run access with 401', async () => {
     const r = await app.inject({ method: 'GET', url: '/api/run' });
     expect(r.statusCode).toBe(401);

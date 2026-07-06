@@ -24,6 +24,9 @@ import { fights, runEvents, runs } from '../db/schema.js';
 import { awardClimbHonor } from '../services/honor.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
+/** Thrown inside a run transaction when the optimistic version guard loses a race. */
+class StaleRunError extends Error {}
+
 interface RunRow {
   id: string;
   seed: number;
@@ -128,24 +131,41 @@ export function runRoutes(ctx: AppContext) {
       const vowCount = next.vows.length;
       const floorAdvanced = next.floor > run.floor;
 
-      await ctx.db.transaction(async (tx) => {
-        await tx
-          .update(runs)
-          .set({
-            state: next,
-            stateVersion: newVersion,
-            floor: next.floor,
-            status: next.status,
-            endedAt: next.status === 'active' ? null : new Date(),
-          })
-          .where(eq(runs.id, run.id));
-        await tx
-          .insert(runEvents)
-          .values({ runId: run.id, seq: newVersion, command: body.command });
-        if (floorAdvanced) {
-          await awardClimbHonor(tx, account.id, season, next.floor, vowCount, run.id);
+      try {
+        await ctx.db.transaction(async (tx) => {
+          // Optimistic lock at the row: only advance if the version is still what we
+          // read. A concurrent command loses this race → 0 rows → clean 409, never a
+          // partial write (the run_events PK also backstops double-apply).
+          const upd = await tx
+            .update(runs)
+            .set({
+              state: next,
+              stateVersion: newVersion,
+              floor: next.floor,
+              status: next.status,
+              endedAt: next.status === 'active' ? null : new Date(),
+            })
+            .where(and(eq(runs.id, run.id), eq(runs.stateVersion, run.stateVersion)))
+            .returning({ id: runs.id });
+          if (upd.length === 0) throw new StaleRunError();
+          await tx
+            .insert(runEvents)
+            .values({ runId: run.id, seq: newVersion, command: body.command });
+          if (floorAdvanced) {
+            await awardClimbHonor(tx, account.id, season, next.floor, vowCount, run.id);
+          }
+        });
+      } catch (err) {
+        if (err instanceof StaleRunError) {
+          const fresh = await activeRun(ctx.db, account.id);
+          return reply.code(409).send({
+            error: 'stale',
+            state: fresh?.state ?? run.state,
+            stateVersion: fresh?.stateVersion ?? run.stateVersion,
+          });
         }
-      });
+        throw err;
+      }
       return reply.send({ state: next, stateVersion: newVersion });
     });
 
@@ -170,26 +190,40 @@ export function runRoutes(ctx: AppContext) {
       const newVersion = run.stateVersion + 1;
       const kind = run.state.pendingFight?.kind ?? 'battle';
 
-      await ctx.db.transaction(async (tx) => {
-        await tx.insert(fights).values({
-          runId: run.id,
-          floor: run.state.floor,
-          kind,
-          seed: prepared.seed,
-          result: fightSummary(prepared.seed, result),
-          logHash: result.logHash,
+      try {
+        await ctx.db.transaction(async (tx) => {
+          const upd = await tx
+            .update(runs)
+            .set({
+              state: next,
+              stateVersion: newVersion,
+              floor: next.floor,
+              status: next.status,
+              endedAt: next.status === 'active' ? null : new Date(),
+            })
+            .where(and(eq(runs.id, run.id), eq(runs.stateVersion, run.stateVersion)))
+            .returning({ id: runs.id });
+          if (upd.length === 0) throw new StaleRunError();
+          await tx.insert(fights).values({
+            runId: run.id,
+            floor: run.state.floor,
+            kind,
+            seed: prepared.seed,
+            result: fightSummary(prepared.seed, result),
+            logHash: result.logHash,
+          });
         });
-        await tx
-          .update(runs)
-          .set({
-            state: next,
-            stateVersion: newVersion,
-            floor: next.floor,
-            status: next.status,
-            endedAt: next.status === 'active' ? null : new Date(),
-          })
-          .where(eq(runs.id, run.id));
-      });
+      } catch (err) {
+        if (err instanceof StaleRunError) {
+          const fresh = await activeRun(ctx.db, account.id);
+          return reply.code(409).send({
+            error: 'stale',
+            state: fresh?.state ?? run.state,
+            stateVersion: fresh?.stateVersion ?? run.stateVersion,
+          });
+        }
+        throw err;
+      }
 
       const dead = next.status === 'dead';
       return reply.send({
