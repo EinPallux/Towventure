@@ -10,7 +10,15 @@
 
 ## Status
 
-**Phase 0 — planning complete.** No code yet; the next session starts Roadmap Phase 1 ("The Heartbeat").
+**Phase 1 — The Heartbeat: code complete.** The online vertical slice is built and
+green end-to-end on a local stack — register, climb the Gatehouse, watch deterministic
+seed-replayed fights, fuse gear, die, and rank on the global ladder. What remains for
+the Phase 1 exit contract is the parts that only a live VPS can prove: the staging
+deploy, the 200-VU k6 smoke, the restore-from-backup drill, and cross-device play.
+
+Quick start (local): `pnpm install`, point `DATABASE_URL` at a Postgres 16, then
+`pnpm dev` (server + client). `pnpm test` runs the unit + golden + integration suites;
+`pnpm harness` prints death-floor distributions.
 
 ## The documents
 
