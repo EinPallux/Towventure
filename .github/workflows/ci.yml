@@ -1,0 +1,69 @@
+# CI (OPERATIONS.md §3): typecheck → lint → format → tests (unit + golden replay +
+# server integration vs a real Postgres) → harness smoke → build. Any gate red = no
+# merge. The balance-harness *gates* (BALANCE §9) turn on in Phase 2; here it only
+# smoke-runs so regressions in the sim/run at scale surface early.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: towventure
+          POSTGRES_PASSWORD: towventure
+          POSTGRES_DB: towventure
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U towventure"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://towventure:towventure@localhost:5432/towventure
+      SESSION_SECRET: ci-session-secret-at-least-16-chars-long
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Tests (unit + golden replay + server integration)
+        run: pnpm test
+
+      - name: Balance harness smoke (non-gating in Phase 1)
+        run: pnpm harness -- --runs 100
+
+      - name: Build (shared lib, client bundle, server/harness typecheck)
+        run: pnpm build

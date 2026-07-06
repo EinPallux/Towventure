@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --port 5173 --host",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@towventure/shared": "workspace:*",

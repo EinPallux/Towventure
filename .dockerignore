@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/build
+**/coverage
+.git
+.github
+*.log
+backups
+postgres-data
+.env
+.env.*
+!.env.example
