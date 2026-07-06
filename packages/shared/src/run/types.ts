@@ -1,0 +1,136 @@
+/**
+ * Run-state types. `RunState` is the JSONB blob the server persists per run
+ * (ARCHITECTURE.md §6). Commands are pure functions of `(state, command)` → new
+ * state; the same reducers run on client (optimistic UI) and server (authority).
+ * Everything here is integer/enumerable — no floats, no wall-clock (AGENTS §3.1).
+ */
+
+import type { ClassId } from '../content/types.js';
+
+/** An item instance in a run: a content id + fusion tier + a run-unique id. */
+export interface InventoryItem {
+  uid: string;
+  itemId: string;
+  star: number;
+}
+
+/** The 8 equip slots (GDD §3.4). A 2-hand weapon lives in `weapon1`; `weapon2` is then blocked. */
+export interface EquipState {
+  weapon1: InventoryItem | null;
+  weapon2: InventoryItem | null;
+  helm: InventoryItem | null;
+  armor: InventoryItem | null;
+  boots: InventoryItem | null;
+  trinket1: InventoryItem | null;
+  trinket2: InventoryItem | null;
+  relic: InventoryItem | null;
+}
+
+export type EquipSlotId = keyof EquipState;
+
+export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss';
+
+export interface DoorOffer {
+  kind: DoorKind;
+  enemyIds: string[];
+  /** Honest-but-partial preview string (GDD §3.2). */
+  preview: string;
+}
+
+export type FightKind = 'battle' | 'elite' | 'boss';
+
+export interface PendingFight {
+  kind: FightKind;
+  enemyIds: string[];
+}
+
+export type ShopSlotKind = 'item' | 'material' | 'consumable' | 'requestedCopy';
+
+export interface ShopSlot {
+  kind: ShopSlotKind;
+  refId: string;
+  star: number;
+  price: number;
+  sold: boolean;
+}
+
+export interface ShopState {
+  slots: ShopSlot[];
+  rerollCount: number;
+  rerollPrice: number;
+}
+
+export interface DeathInfo {
+  floor: number;
+  killerEnemyId: string;
+  endTick: number;
+}
+
+export type RunPhase = 'doors' | 'fight' | 'reward' | 'shop' | 'ended';
+
+export type RunStatus = 'active' | 'dead' | 'abandoned';
+
+export interface RunState {
+  v: 1;
+  seed: number;
+  classId: ClassId;
+  vows: string[];
+  floor: number;
+  gold: number;
+  status: RunStatus;
+  phase: RunPhase;
+  nextUid: number;
+  equipment: EquipState;
+  backpack: InventoryItem[];
+  backpackSize: number;
+  doors: DoorOffer[] | null;
+  pendingFight: PendingFight | null;
+  /** Monotonic fight index; derives fight + loot seeds so resume stays deterministic. */
+  fightCounter: number;
+  /** Item id of the drop awaiting a takeLoot decision (gold is auto-credited). */
+  pendingItem: string | null;
+  /** Gold credited by the most recent fight (for the reward screen). */
+  lastGold: number;
+  shop: ShopState | null;
+  // run stats / summary
+  floorsCleared: number;
+  bestFloor: number;
+  damageDealt: number;
+  fightsWon: number;
+  /** Bad-luck protection counter (shop item slots since an Epic+ was offered). */
+  shopSlotsSinceEpic: number;
+  /** Requested-copy escalation counter. */
+  requestsThisRun: number;
+  deathInfo: DeathInfo | null;
+}
+
+// ─── Commands (the one gameplay mutation surface; validated by protocol zod) ──
+
+export type Command =
+  | { type: 'chooseDoor'; doorIndex: number }
+  | { type: 'takeLoot'; take: boolean }
+  | { type: 'equip'; uid: string; slot?: EquipSlotId }
+  | { type: 'unequip'; slot: EquipSlotId }
+  | { type: 'fuse'; uid1: string; uid2: string }
+  | { type: 'sell'; uid: string }
+  | { type: 'buy'; slotIndex: number }
+  | { type: 'reroll' }
+  | { type: 'leaveShop' }
+  | { type: 'proceed' }
+  | { type: 'abandonRun' };
+
+export type CommandType = Command['type'];
+
+/** Result of applying a command: either the new state or a rejection reason. */
+export type CommandResult = { ok: true; state: RunState } | { ok: false; error: string };
+
+/** Summary shown on the death screen / share card (GDD §7.1). */
+export interface RunSummary {
+  floor: number;
+  bestFloor: number;
+  fightsWon: number;
+  damageDealt: number;
+  gold: number;
+  climbHonor: number;
+  tier: string;
+}
