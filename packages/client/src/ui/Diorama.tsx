@@ -63,6 +63,15 @@ export function Diorama({
       cancelAnimationFrame(raf);
       ro.disconnect();
       handle.dispose?.();
+      // Free GPU resources so many fights in a session don't leak (ART pass Phase 4
+      // refines this; the correctness of releasing geometries/materials is here now).
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        mesh.geometry?.dispose?.();
+        const mat = mesh.material;
+        if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+        else mat?.dispose?.();
+      });
       scene.clear();
       renderer.dispose();
     };
