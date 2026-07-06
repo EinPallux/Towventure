@@ -1,0 +1,82 @@
+{
+  "basic-melee": {
+    "hash": 154490472,
+    "endTick": 60,
+    "winner": "hero"
+  },
+  "crit": {
+    "hash": 2635742849,
+    "endTick": 120,
+    "winner": "hero"
+  },
+  "dodge-and-ondodge": {
+    "hash": 1614997476,
+    "endTick": 408,
+    "winner": "hero"
+  },
+  "bleed-every-3rd": {
+    "hash": 3157431429,
+    "endTick": 230,
+    "winner": "hero"
+  },
+  "burn-chance": {
+    "hash": 3321668884,
+    "endTick": 310,
+    "winner": "hero"
+  },
+  "chill-slows": {
+    "hash": 3216927059,
+    "endTick": 204,
+    "winner": "hero"
+  },
+  "regen-onhurt": {
+    "hash": 992462962,
+    "endTick": 600,
+    "winner": "enemies"
+  },
+  "ward-absorb-decay": {
+    "hash": 1169052778,
+    "endTick": 430,
+    "winner": "enemies"
+  },
+  "armor-onhit-maul": {
+    "hash": 3114015123,
+    "endTick": 408,
+    "winner": "hero"
+  },
+  "onblock-retaliate-thorns": {
+    "hash": 3893351668,
+    "endTick": 100,
+    "winner": "hero"
+  },
+  "onfightstart-armor": {
+    "hash": 3014871789,
+    "endTick": 120,
+    "winner": "hero"
+  },
+  "onhpbelow-buff": {
+    "hash": 3660368673,
+    "endTick": 108,
+    "winner": "enemies"
+  },
+  "ondoomfall-burnup": {
+    "hash": 3248260907,
+    "endTick": 540,
+    "winner": "hero"
+  },
+  "every-cinder-dart": {
+    "hash": 2590370938,
+    "endTick": 280,
+    "winner": "hero"
+  },
+  "stun-toll-bell": {
+    "hash": 2737445624,
+    "endTick": 320,
+    "winner": "hero"
+  },
+  "multi-enemy-focus": {
+    "hash": 311248149,
+    "endTick": 108,
+    "winner": "hero"
+  }
+}

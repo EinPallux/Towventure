@@ -1,0 +1,394 @@
+/**
+ * Golden scenarios — scripted fights covering every Phase 1 trigger, status, and
+ * the boss stun mechanic (ARCHITECTURE.md §4.4). Each is a fixed `(spec, seed)`;
+ * the committed `golden.json` pins the resulting hash/outcome. A sim change that
+ * moves any hash must be intentional and regenerated via `pnpm goldens:update`.
+ */
+
+import { DOOMFALL_START_TICKS } from '../constants.js';
+import type { CombatSpec, CombatantSpec, EffectBinding } from '../types.js';
+
+function c(over: Partial<CombatantSpec> & Pick<CombatantSpec, 'id' | 'name'>): CombatantSpec {
+  return {
+    maxHp: 120,
+    armor: 0,
+    speedPct: 0,
+    critChancePct: 0,
+    critDamagePct: 0,
+    dodgePct: 0,
+    lifestealPct: 0,
+    thorns: 0,
+    weapons: [{ name: 'Blade', cooldownTicks: 12, damage: 12 }],
+    effects: [],
+    ...over,
+  };
+}
+
+function fight(
+  hero: CombatantSpec,
+  enemies: CombatantSpec[],
+  doom = DOOMFALL_START_TICKS,
+): CombatSpec {
+  return { hero, enemies, doomfallStartTicks: doom };
+}
+
+const bindOnHit = (
+  ops: EffectBinding['ops'],
+  extra: Partial<EffectBinding> = {},
+): EffectBinding => ({
+  source: 'test',
+  trigger: { kind: 'OnHit' },
+  ops,
+  ...extra,
+});
+
+export interface Scenario {
+  name: string;
+  seed: number;
+  spec: CombatSpec;
+}
+
+export const SCENARIOS: Scenario[] = [
+  {
+    name: 'basic-melee',
+    seed: 101,
+    spec: fight(c({ id: 'hero', name: 'Hero' }), [
+      c({ id: 'e0', name: 'Dummy', maxHp: 60, weapons: [] }),
+    ]),
+  },
+  {
+    name: 'crit',
+    seed: 202,
+    spec: fight(c({ id: 'hero', name: 'Hero', critChancePct: 60, critDamagePct: 50 }), [
+      c({ id: 'e0', name: 'Sack', maxHp: 200, weapons: [] }),
+    ]),
+  },
+  {
+    name: 'dodge-and-ondodge',
+    seed: 303,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        dodgePct: 40,
+        effects: [
+          { source: 'Rumor', trigger: { kind: 'OnDodge' }, ops: [{ op: 'gainArmor', amount: 3 }] },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Puncher',
+          maxHp: 400,
+          weapons: [{ name: 'Jab', cooldownTicks: 8, damage: 8 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'bleed-every-3rd',
+    seed: 404,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Dirk', cooldownTicks: 13, damage: 8 }],
+        effects: [
+          bindOnHit([{ op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' }], {
+            everyNthHit: 3,
+          }),
+        ],
+      }),
+      [c({ id: 'e0', name: 'Bleeder', maxHp: 300, armor: 4, weapons: [] })],
+    ),
+  },
+  {
+    name: 'burn-chance',
+    seed: 505,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Whip', cooldownTicks: 18, damage: 10 }],
+        effects: [
+          bindOnHit([{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }], {
+            chancePct: 40,
+          }),
+        ],
+      }),
+      [c({ id: 'e0', name: 'Kindling', maxHp: 250, weapons: [] })],
+    ),
+  },
+  {
+    name: 'chill-slows',
+    seed: 606,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 500,
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'chill', stacks: 2, to: 'target' }])],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Frostable',
+          maxHp: 200,
+          weapons: [{ name: 'Claw', cooldownTicks: 12, damage: 9 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'regen-onhurt',
+    seed: 707,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 300,
+        weapons: [],
+        effects: [
+          {
+            source: 'Chime',
+            trigger: { kind: 'OnHurt' },
+            ops: [{ op: 'applyStatus', status: 'regen', stacks: 3, to: 'self' }],
+            minHitPctMax: 5,
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Beater',
+          maxHp: 999,
+          weapons: [{ name: 'Club', cooldownTicks: 15, damage: 20 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'ward-absorb-decay',
+    seed: 808,
+    spec: fight(c({ id: 'hero', name: 'Hero', maxHp: 200, startWardPct: 30, weapons: [] }), [
+      c({
+        id: 'e0',
+        name: 'Chipper',
+        maxHp: 999,
+        weapons: [{ name: 'Tap', cooldownTicks: 10, damage: 6 }],
+      }),
+    ]),
+  },
+  {
+    name: 'armor-onhit-maul',
+    seed: 909,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Maul', cooldownTicks: 34, damage: 34 }],
+        effects: [bindOnHit([{ op: 'gainArmor', amount: 4 }])],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Ferryman',
+          maxHp: 400,
+          weapons: [{ name: 'Oar', cooldownTicks: 14, damage: 12 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'onblock-retaliate-thorns',
+    seed: 111,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 300,
+        armor: 8,
+        thorns: 5,
+        weapons: [],
+        effects: [
+          {
+            source: 'Bulwark Sigil',
+            trigger: { kind: 'OnBlock' },
+            ops: [{ op: 'retaliateThorns', mult: 3 }],
+            chancePct: 100,
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Puncher',
+          maxHp: 200,
+          weapons: [{ name: 'Fist', cooldownTicks: 10, damage: 12 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'onfightstart-armor',
+    seed: 222,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        effects: [
+          {
+            source: 'Shovel',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'gainArmor', amount: 15 }],
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Grave',
+          maxHp: 120,
+          weapons: [{ name: 'Spade', cooldownTicks: 12, damage: 10 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'onhpbelow-buff',
+    seed: 333,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 120,
+        weapons: [{ name: 'Sword', cooldownTicks: 12, damage: 10 }],
+        effects: [
+          {
+            source: 'Standard',
+            trigger: { kind: 'OnHpBelow', pct: 50 },
+            ops: [{ op: 'buffDamagePct', pct: 50 }],
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Rival',
+          maxHp: 250,
+          weapons: [{ name: 'Sword', cooldownTicks: 12, damage: 14 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'ondoomfall-burnup',
+    seed: 444,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 400,
+        weapons: [{ name: 'Brand', cooldownTicks: 20, damage: 8 }],
+        effects: [
+          {
+            source: 'Argument of Ash',
+            trigger: { kind: 'OnDoomfall' },
+            ops: [{ op: 'buffDamagePct', pct: 100 }],
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Endurer',
+          maxHp: 260,
+          armor: 2,
+          weapons: [{ name: 'Poke', cooldownTicks: 16, damage: 6 }],
+        }),
+      ],
+      DOOMFALL_START_TICKS,
+    ),
+  },
+  {
+    name: 'every-cinder-dart',
+    seed: 555,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 300,
+        weapons: [{ name: 'Rod', cooldownTicks: 20, damage: 10 }],
+        effects: [
+          {
+            source: 'Singed Grimoire',
+            trigger: { kind: 'Every', seconds: 7 },
+            ops: [
+              { op: 'damageWeaponPct', pct: 80, to: 'target' },
+              { op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' },
+            ],
+          },
+        ],
+      }),
+      [c({ id: 'e0', name: 'Study', maxHp: 220, weapons: [] })],
+    ),
+  },
+  {
+    name: 'stun-toll-bell',
+    seed: 666,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 400,
+        weapons: [{ name: "Toll-Keeper's Bell", cooldownTicks: 40, damage: 40 }],
+        effects: [
+          bindOnHit([
+            { op: 'stun', ticks: 6, to: 'target' },
+            { op: 'gainArmor', amount: 10 },
+          ]),
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Stunnable',
+          maxHp: 300,
+          weapons: [{ name: 'Swipe', cooldownTicks: 12, damage: 8 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'multi-enemy-focus',
+    seed: 777,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 300,
+        weapons: [{ name: 'Cleaver', cooldownTicks: 12, damage: 16 }],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Rat A',
+          maxHp: 40,
+          weapons: [{ name: 'Bite', cooldownTicks: 14, damage: 5 }],
+        }),
+        c({
+          id: 'e1',
+          name: 'Rat B',
+          maxHp: 55,
+          weapons: [{ name: 'Bite', cooldownTicks: 14, damage: 5 }],
+        }),
+        c({
+          id: 'e2',
+          name: 'Rat C',
+          maxHp: 30,
+          weapons: [{ name: 'Bite', cooldownTicks: 14, damage: 5 }],
+        }),
+      ],
+    ),
+  },
+];
