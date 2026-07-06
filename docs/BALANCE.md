@@ -1,0 +1,84 @@
+# Towventure — Balance & Systems Math
+
+> Companion to [GDD.md](GDD.md). Every tunable number lives here (and later, in `packages/shared/src/content/constants.ts`, which must mirror this file — **when code and this doc disagree, fix one immediately; PRs that change either without the other are rejected**).
+> All sim math is **integer** (HP in whole points, damage in whole points, time in ticks). See [ARCHITECTURE.md](ARCHITECTURE.md) §4 for why.
+
+---
+
+## 1. Sim fundamentals
+
+| Constant | Value |
+|---|---|
+| Tick rate | 10 ticks/s (100ms) |
+| Fight hard cap | 60s (600 ticks) |
+| **Doomfall** start | 45s (35s under Vow of Haste; 35s on Torment ≥3) |
+| Doomfall damage | 2% of each side's Max HP per second, +1%/s each 5s (true damage, unmitigable, un-Wardable) |
+| Cooldown floor | no weapon may go below 0.6s effective cooldown |
+| Proc chance stacking | additive within a line, independent rolls between lines |
+| Crit default | ×1.5 damage (Crit damage stat adds to the multiplier) |
+| Dodge cap | 40% · Speed cap +150% · Lifesteal cap 35% (per-source caps prevent degenerate stacking; Warden of Chains caps Speed at +25% locally) |
+
+**Attack resolution order:** dodge roll → crit roll → base damage × modifiers → Armor flat reduction (min 1 damage) → Ward absorbs → HP; then `OnHit`/`OnCrit` (attacker), `OnHurt`/`OnBlock`/`OnDodge` (defender), then on-status hooks. Simultaneous triggers resolve in slot order: weapons L→R, helm, armor, boots, trinkets L→R, relic — **deterministic, documented, and shown in the UI** (slot order is a real theorycrafting lever).
+
+## 2. Hero base stats (floor-1, ★-independent)
+
+| Stat | Vanguard | Duelist | Arcanist |
+|---|---|---|---|
+| Max HP | 120 | 90 | 95 |
+| Armor | 6 | 0 | 0 |
+| Speed | −10% | +10% | 0% |
+| Crit / Crit dmg | 5% / +0% | 12% / +25% | 5% / +0% |
+| Dodge | 0% | 6% | 3% |
+
+Heroes gain **+6 Max HP per floor cleared** (the only free scaling; everything else is gear).
+
+## 3. Statuses (all stack-count based; 1 stack = listed base)
+
+| Status | Rule (per stack unless noted) |
+|---|---|
+| **Bleed** | 2 dmg/s for 4s; refreshing adds stacks, refreshes duration; physical |
+| **Burn** | 3 dmg/s for 3s; re-application refreshes all; *detonation effects consume stacks* |
+| **Venom** | 1 dmg/s, **never expires**, +1 dmg/s every 5s it stays on (ramping) |
+| **Chill** | −4% Speed for 4s (max 8 stacks) |
+| **Shock** | next incoming hit cannot miss and is a guaranteed crit; consumed on use; max 3 |
+| **Weaken** | −5% damage dealt for 5s (max 5) |
+| **Sunder** | −3 Armor for 6s (can push negative to −15: negative Armor adds damage taken) |
+| **Regen** | +2 HP/s for 4s |
+| **Haste** | +5% Speed for 3s (max 6) |
+| **Ward** | absorbs damage 1:1 before HP; decays 5%/s of remaining; not stackable past 40% Max HP |
+
+## 4. Item & fusion scaling
+
+- Base item power `P(rarity)`: C=100, U=135, R=185, E=255, M=350 (arbitrary units driving each item's numeric fields via per-item multipliers).
+- **★ scaling: ×1.35 per star** (compounding; ★5 = ×3.32 base). Copies needed: ★2=2, ★3=4, ★4=8, ★5=16 total.
+- Enemy stat growth per floor `f`: HP ×(1.06)^f with a soft-knee at 50 (exponent eases to 1.045), damage ×(1.05)^f. Elites ×1.8 HP ×1.35 dmg. Bosses ×4.5 HP ×1.5 dmg. Torments (each, floors 100+): +8% HP, +6% dmg, plus one *mechanical* modifier from the Torment deck.
+- Sanity target: a median-skill build fusing consistently should first die around **floor 25–40**; a tuned tag build reaches 60–80; floor 100 first-season clears should be **rare and newsworthy** (<2% of accounts, per harness §9).
+
+## 5. Drops & shop economy
+
+- Fight drop roll: 100% gold `10 + 2×floor ± 20%`; item drop 45% (Elite 100% + material 100%; Boss 100% Epic-biased + full heal).
+- Rarity weights by floor band (C/U/R/E/M %): floors 1–10 `70/25/5/0/0` · 11–30 `45/35/17/3/0.2` · 31–60 `25/38/27/9/1` · 61–100 `12/30/35/19/4` · 100+ `8/24/36/25/7`.
+- Shop stock: 6 items (one is **Requested Copy** — §GDD 5), 2 materials, 1 consumable. Prices: `P(rarity)/2 × (1 + floor×0.03)` gold, sell-back 40%. Reroll: 15 gold, ×1.6 each, resets per shop. Requested Copy price: item's price ×1.5, ×1.4 per prior request this run.
+- Pity: no Epic+ seen in 12 consecutive shop item slots → next shop force-includes one.
+
+## 6. Echo & Skirmish math
+
+- **Echo bounty (Honor)**: `B = 12 + 1.1×echoFloor + 25×max(0, (echoHonorTier − yourTier))`, ×0.5 if the Echo is ≥2 tiers below you. Valor Marks: `5 + echoFloor/4`. Grave-Copy: choose 1 of 3 items from the Echo's equip slots, granted ★1.
+- Echo AI stat bonus: +10% fresh, decaying −2%/day to 0. Echo lifecycle: 3 defeats or 14 days. One Echo/account.
+- **Skirmish rating:** attacker-only Elo, K=24, floor 0: `ΔH = K × (S − E)`, `E = 1/(1+10^((H_def−H_att)/400))`. Defender on win: +8 Honor +10 Marks; on loss: nothing. Champion's Key on win vs `H_def ≥ H_att − 50`; 3 Keys open the Vault.
+- Tickets: 5/day (7 at tiers 4/6+), same defender ≤1/day, Honor from same defender ×1 → ×0.5 → ×0.25 → 0 within a rolling week.
+
+## 7. Honor & tiers
+
+- **Climb Honor** (first time per season at each floor `f`): `h(f) = 3×f^1.35 − 3×(f−1)^1.35` per new floor (i.e., cumulative `3×f^1.35`), ×(1 + 0.15×vows).
+- Cumulative sanity: floor 20 ≈ 170 · floor 50 ≈ 590 · floor 100 ≈ 1500 (before Vows, Echoes, Skirmishes).
+- **Tiers:** Ashbound 0 · Stairborn 200 · Gatekeeper 500 · Vaultbreaker 1 000 · Lanternbearer 1 800 · Wardenslayer 3 000 · Crownseeker 5 000 · **The Unnumbered** = top 100 by Honor (min 5 000).
+- Season reset (8 weeks): new Honor = `√(old) × 12` (Crownseeker 5 000 → ~850, lands Gatekeeper+). Lifetime Honor never resets.
+
+## 8. Daily systems
+
+Daily Gauntlet: 1 attempt/day, shared seed, fixed class rotation (V→D→A), Honor pot: top 1% +100, top 10% +50, top 50% +20, finisher +5 (flat, small — the leaderboard *is* the prize). Resets 00:00 UTC.
+
+## 9. The Balance Harness (how numbers get tuned — build in Phase 2, mandatory thereafter)
+
+`pnpm harness` — a headless CLI over the shared sim: plays N thousand seeded runs with scripted "player policies" (greedy-DPS bot, tag-committed bot, fuse-everything bot, random bot) and outputs: death-floor distributions per class/policy, item pick/win-rate deltas, fight-duration histograms, Doomfall-death %, status uptime, gold curves. **Release gates:** every item within ±8% win-rate delta of its rarity cohort at equal floor; no class >55% of top-decile deaths; Doomfall causes 5–12% of deaths (it must matter but not dominate); median fight 8–20s at 1×. Every content PR runs the harness in CI; regressions outside gates block merge. Humans decide *feel*; the harness catches *lies*.
