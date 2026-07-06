@@ -33,7 +33,12 @@ export const classIdSchema = z.enum(['vanguard']);
 
 export const runStartSchema = z.object({
   classId: classIdSchema,
-  vows: z.array(z.string()).max(5).default([]),
+  // Vows are locked empty in Phase 1. Each vow multiplies climb Honor (+15%), but the
+  // vow catalog, per-vow penalties, and Honor-tier unlock gating are Phase 2/3
+  // (ROADMAP). Accepting arbitrary/duplicate vow strings now would hand out free Honor
+  // for penalties that aren't implemented — an economy/ladder exploit. When vows ship,
+  // this becomes a validated, de-duplicated, tier-gated enum.
+  vows: z.array(z.string()).max(0).default([]),
 });
 
 export const equipSlotSchema = z.enum([

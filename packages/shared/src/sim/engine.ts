@@ -462,12 +462,21 @@ class Sim {
 
   // ─── death + end conditions ─────────────────────────────────────────────────
 
-  private checkDeath(c: Combatant, t: number): void {
+  private registerDeathIfDown(c: Combatant, t: number): void {
     if (c.alive && c.hp <= 0) {
       c.hp = 0;
       c.alive = false;
       this.emit({ type: 'death', t, who: c.idx });
     }
+  }
+
+  private checkDeath(c: Combatant, t: number): void {
+    this.registerDeathIfDown(c, t);
+    // Also settle the hero's death before deciding: on a simultaneous KO (e.g. the
+    // enemy's lethal hit and the hero's Thorns land together) the hero LOSES the tie
+    // — "the Tower keeps what it kills" (BALANCE §1). Without this, whoever swung last
+    // could let a 0-HP hero "win".
+    this.registerDeathIfDown(this.hero, t);
     if (!this.hero.alive) this.finish('enemies', t);
     else if (this.enemies.every((e) => !e.alive)) this.finish('hero', t);
   }

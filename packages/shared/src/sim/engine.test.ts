@@ -84,4 +84,24 @@ describe('sim outcomes', () => {
     const hit = r.events.find((e) => e.type === 'hit');
     expect(hit && hit.type === 'hit' ? hit.dmg : 0).toBe(1);
   });
+
+  it('a simultaneous KO (lethal hit + fatal Thorns) resolves as a hero loss', () => {
+    // The enemy lands a lethal blow on the hero; the hero's Thorns kill the enemy the
+    // same instant. The hero must LOSE the tie — a 0-HP hero never "wins" (BALANCE §1).
+    const s = spec({
+      hero: combatant({ id: 'hero', name: 'Hero', maxHp: 10, thorns: 999, weapons: [] }),
+      enemies: [
+        combatant({
+          id: 'e0',
+          name: 'Kamikaze',
+          maxHp: 5,
+          weapons: [{ name: 'Lethal', cooldownTicks: 10, damage: 100 }],
+        }),
+      ],
+    });
+    const r = simulate(s, 1);
+    expect(r.winner).toBe('enemies');
+    expect(r.heroHpRemaining).toBe(0);
+    expect(r.enemyHpRemaining[0]).toBe(0); // both fell
+  });
 });

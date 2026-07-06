@@ -252,6 +252,23 @@ d('server API — the Heartbeat loop', () => {
     expect(codes).not.toContain(500);
   });
 
+  it('rejects a run start carrying vows (Phase 1 locks them empty — no free Honor)', async () => {
+    const name = `hb_vow_${Date.now().toString(36)}`;
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'hunter2hunter2' },
+    });
+    const cookie = cookieFrom(reg);
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/run/start',
+      headers: { cookie },
+      payload: { classId: 'vanguard', vows: ['vow_of_haste', 'made_up', 'made_up'] },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
   it('rejects unauthenticated run access with 401', async () => {
     const r = await app.inject({ method: 'GET', url: '/api/run' });
     expect(r.statusCode).toBe(401);
