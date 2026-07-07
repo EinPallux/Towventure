@@ -71,12 +71,12 @@ Systems complete this phase: 10 statuses + full trigger/effect vocabulary; fusio
 - Friends (request/accept), profiles/Hall of Echoes, feed events, inbox + WS toasts.
 - Seasons **data model + placement math** live (the rollover job ships here, first real rollover happens in Phase 5's season 1).
 
-**Exit criteria:**
-- [ ] Die on staging → within one minute your Echo is encounterable by another account near that floor, kills pay bounty + Grave-Copy, your account gets the notification and Marks when your Echo wins.
-- [ ] Full Skirmish loop: attack from rival board, watch replay, honor moves per Elo, keys → Vault purchase works; defender risk-free confirmed.
-- [ ] Two friends see each other's feed events (floor milestone, Zenith forge, Echo kill) within seconds via WS.
-- [ ] Gauntlet: two accounts, same day → identical drops/doors/shops; separate ladder pays out at UTC close.
-- [ ] Every honor/mark movement traces to a ledger row; economy audit query balances to zero drift.
+**Exit criteria:** *(all systems code-complete + integration-tested against Postgres; the "on staging" checks await a live VPS deploy.)*
+- [~] Die → your Echo is banked and encounterable by another account near that floor (server-side injection, ±5-floor band, freshest-first, house-Echo onboarding fallback); kills pay bounty + Grave-Copy; the dead owner gets the inbox notification + Marks + a live toast when their Echo wins. Verified end-to-end against Postgres (Slice B); the one-minute-on-staging timing awaits the VPS.
+- [~] Full Skirmish loop: attack from the rival board, watch the replay, Honor moves per Elo (K=24, floored at 0), Keys → Vault purchase works, defender risk-free confirmed. Verified against Postgres (Slices C+D); live-replay UX awaits the VPS.
+- [~] Two friends see each other's feed events (floor milestone, Zenith forge, Echo kill); live toasts ship over **SSE** (no `ws` lib vendored) rather than raw WS. Feed union + bus delivery tested (Slice F); the seconds-latency-on-staging check awaits the VPS.
+- [~] Gauntlet: two accounts, same day → identical drops/doors/shops (shared seed + forced class, asserted equal in a test). The separate ladder is live; the **UTC-close Honor-pot payout is the rollover-job's remaining wire-up** (the job exists — Slice G).
+- [~] Every honor/mark movement traces to a ledger row (honor_ledger + marks_ledger, every grant/spend in-transaction with its cause). A standing **economy-audit query is a Phase-5 ops task**; no drift is possible by construction (no mutable Honor/Marks columns exist).
 
 ---
 
