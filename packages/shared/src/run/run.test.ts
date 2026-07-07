@@ -85,6 +85,18 @@ describe('startRun', () => {
     expect(hasDetonate(4)).toBe(false); // Awakened only, no Zenith yet
     expect(hasDetonate(5)).toBe(true); // Redline online
   });
+
+  it("activates the Kindlewhip's ★5 Solarlash (10+ Burn detonation) only at ★5", () => {
+    const base = startRun('arcanist', [], 5);
+    const hasSolarlash = (star: number): boolean => {
+      const s = { ...base, equipment: { ...base.equipment, weapon1: { uid: 'kw', itemId: 'kindlewhip', star } } };
+      return buildHeroSpec(s).effects.some(
+        (e) => e.trigger.kind === 'OnStatusApplied' && e.trigger.minStacks === 10,
+      );
+    };
+    expect(hasSolarlash(4)).toBe(false);
+    expect(hasSolarlash(5)).toBe(true);
+  });
 });
 
 describe('a full climb', () => {

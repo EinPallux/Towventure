@@ -19,8 +19,11 @@ export type Trigger =
   | { kind: 'OnFightStart' }
   | { kind: 'OnHpBelow'; pct: number }
   | { kind: 'OnDoomfall' }
-  /** Fires on the applier when it applies status X (Phase 2 vocabulary). */
-  | { kind: 'OnStatusApplied'; status: StatusKind }
+  /**
+   * Fires on the applier when it applies status X. With `minStacks`, only when the
+   * target's resulting stack count is ≥ that threshold (Solarlash: at 10+ Burn).
+   */
+  | { kind: 'OnStatusApplied'; status: StatusKind; minStacks?: number }
   /** Fires on this combatant when an opposing combatant dies. */
   | { kind: 'OnEnemyDeath' };
 

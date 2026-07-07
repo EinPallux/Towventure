@@ -143,5 +143,10 @@
     "hash": 1715003042,
     "endTick": 340,
     "winner": "hero"
+  },
+  "solarlash-threshold-detonate": {
+    "hash": 3319583108,
+    "endTick": 152,
+    "winner": "hero"
   }
 }

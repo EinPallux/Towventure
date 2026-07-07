@@ -362,3 +362,36 @@ describe('one-shot (consumable) reporting', () => {
     expect(r.firedOneShots).not.toContain('b');
   });
 });
+
+describe('OnStatusApplied stack threshold', () => {
+  it('fires only once the target reaches the minStacks threshold', () => {
+    function detonationsAtStart(applied: number): number {
+      const s = spec({
+        hero: combatant({
+          id: 'hero',
+          name: 'Hero',
+          weapons: [],
+          effects: [
+            {
+              source: 'seed',
+              trigger: { kind: 'OnFightStart' },
+              ops: [{ op: 'applyStatus', status: 'burn', stacks: applied, to: 'target' }],
+            },
+            {
+              source: 'Solarlash',
+              trigger: { kind: 'OnStatusApplied', status: 'burn', minStacks: 10 },
+              ops: [{ op: 'detonateStatus', status: 'burn', pctPerStack: 200, to: 'allEnemies' }],
+            },
+          ],
+        }),
+        enemies: [combatant({ id: 'e0', name: 'Kindling', maxHp: 9999, weapons: [] })],
+      });
+      const r = simulate(s, 1);
+      // The detonation is the only hero→enemy hit, and it lands at fight start.
+      return r.events.filter((e) => e.type === 'hit' && e.from === 0 && e.to === 1 && e.t === 0)
+        .length;
+    }
+    expect(detonationsAtStart(8)).toBe(0); // below 10 → the gate holds
+    expect(detonationsAtStart(10)).toBe(1); // reaches 10 → detonates once
+  });
+});

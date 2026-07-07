@@ -4,12 +4,12 @@
  *
  * ★1 lines are always active; Awakened lines (Phase 2, marked `minStar: 3`) activate
  * on fusing to ★3, and Zenith lines (`minStar: 5`) at ★5. The next-hit-buffer,
- * conditional-vs-status-damage, and detonate/consume ops have since landed — the
- * Sawtooth Dirk's ★5 **Redline** is the first live Zenith transform. Lines whose
- * CONTENT.md text still needs new ops (per-Armor damage, weapon-echo/chain, spread,
- * stack-threshold triggers for Solarlash) stay deferred with a note. `zenithName` is
- * the ★5 display rename. Weapon per-hit damage is derived from rarity power × cooldown
- * in the registry (see deriveWeaponDamage).
+ * conditional-vs-status-damage, detonate/consume ops and the stack-threshold trigger
+ * have since landed — the Sawtooth Dirk's ★5 **Redline** and the Kindlewhip's ★5
+ * **Solarlash** are the first live Zenith transforms. Lines whose CONTENT.md text still
+ * needs new ops (per-Armor damage, weapon-echo/chain, Burn-spread) stay deferred with a
+ * note. `zenithName` is the ★5 display rename. Weapon per-hit damage is derived from
+ * rarity power × cooldown in the registry (see deriveWeaponDamage).
  */
 
 import type { ItemDef } from './types.js';
@@ -85,6 +85,14 @@ export const ITEMS: ItemDef[] = [
         trigger: { kind: 'OnHit' },
         chancePct: 40,
         ops: [{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }],
+      },
+      // [Zenith ★5 — Solarlash] At 10+ Burn, detonate it AoE for 200%/stack of its
+      // damage (CONTENT §3.1). The 2nd live Zenith, on the new stack-threshold trigger.
+      {
+        trigger: { kind: 'OnStatusApplied', status: 'burn', minStacks: 10 },
+        minStar: 5,
+        scales: false,
+        ops: [{ op: 'detonateStatus', status: 'burn', pctPerStack: 200, to: 'allEnemies' }],
       },
     ],
   },

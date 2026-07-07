@@ -673,4 +673,26 @@ export const SCENARIOS: Scenario[] = [
       [c({ id: 'e0', name: 'Bleeder', maxHp: 300, weapons: [] })],
     ),
   },
+  {
+    // Solarlash (Kindlewhip ★5): each hit stacks Burn; once it hits 10 the whole
+    // stack detonates AoE. Uses the OnStatusApplied minStacks gate.
+    name: 'solarlash-threshold-detonate',
+    seed: 2424,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Kindlewhip', cooldownTicks: 8, damage: 4 }],
+        effects: [
+          bindOnHit([{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }]),
+          {
+            source: 'Solarlash',
+            trigger: { kind: 'OnStatusApplied', status: 'burn', minStacks: 10 },
+            ops: [{ op: 'detonateStatus', status: 'burn', pctPerStack: 200, to: 'allEnemies' }],
+          },
+        ],
+      }),
+      [c({ id: 'e0', name: 'Kindling', maxHp: 400, weapons: [] })],
+    ),
+  },
 ];

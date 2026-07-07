@@ -368,6 +368,8 @@ class Sim {
     for (const eff of applier.effects) {
       const trig = eff.binding.trigger;
       if (trig.kind !== 'OnStatusApplied' || trig.status !== kind) continue;
+      // Stack-threshold gate: only once the target reaches N stacks (Solarlash).
+      if (trig.minStacks !== undefined && target.statuses[kind].stacks < trig.minStacks) continue;
       if (eff.binding.chancePct !== undefined && !this.rng.chance(eff.binding.chancePct)) continue;
       this.runOps(applier, eff.binding, t, target);
     }

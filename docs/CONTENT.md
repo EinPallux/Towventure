@@ -67,7 +67,7 @@ Design constraint: **no tag's (6) may be strictly mandatory** for its archetype 
 
 Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may reference one status or one trigger interaction; Epics may cross two systems (e.g., gold + combat); Mythics may bend a rule of the game (and there are only 7 of them). **Every item gets:** a unique procedural model recipe, a signature VFX, one line of flavor, and a Zenith transformation (name + visual). Anchor set below; remaining items are authored here in Phase 2 under the same table format before any code.
 
-*Implementation status (Phase 2):* ★1 and Awakened (★3) lines are live for the anchor set. **Zenith (★5) transforms** are now activatable in code (gated at `minStar: 5`); the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) is the first one wired, via the `detonateStatus` op. Zenith/Awakened lines whose text needs ops not yet in the vocabulary (weapon-echo/chain, per-Armor damage, Burn-spread, stack-threshold triggers like Solarlash's "at 10+ Burn") are noted deferred in `content/items.ts` and light up as those ops land.
+*Implementation status (Phase 2):* ★1 and Awakened (★3) lines are live for the anchor set. **Zenith (★5) transforms** are now activatable in code (gated at `minStar: 5`): the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) and the Kindlewhip's **Solarlash** (at 10+ Burn → detonate Burn 200% AoE, via the `OnStatusApplied` stack-threshold gate) are wired. Zenith/Awakened lines whose text needs ops not yet in the vocabulary (weapon-echo/chain, per-Armor damage, Burn-spread) are noted deferred in `content/items.ts` and light up as those ops land.
 
 ### 3.1 Weapons (anchor set)
 

@@ -125,7 +125,9 @@ function triggerText(e: ItemEffect): string {
     case 'OnDoomfall':
       return 'On Doomfall';
     case 'OnStatusApplied':
-      return `On applying ${STATUS_LABEL[t.status] ?? t.status}`;
+      return t.minStacks !== undefined
+        ? `At ${t.minStacks}+ ${STATUS_LABEL[t.status] ?? t.status}`
+        : `On applying ${STATUS_LABEL[t.status] ?? t.status}`;
     case 'OnEnemyDeath':
       return 'On kill';
   }
