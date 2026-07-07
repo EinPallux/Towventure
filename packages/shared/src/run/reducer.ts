@@ -15,7 +15,7 @@ import { recordCodexItem, recordCodexKills } from './codex.js';
 import { generateDoors, isShopFloor } from './doors.js';
 import { applyEvent } from './events.js';
 import { climbHonorForFrontier, honorTier } from './honor.js';
-import { equip, fuse, infuse, pushBackpack, sell, unequip } from './inventory.js';
+import { applySatchel, equip, fuse, infuse, isSatchel, pushBackpack, sell, unequip } from './inventory.js';
 import { rollLoot } from './loot.js';
 import { RNG_PURPOSE, deriveFightSeed, deriveRng } from './rng.js';
 import { generateShop } from './shop.js';
@@ -131,10 +131,14 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       if (draft.phase !== 'reward') return reject('no loot pending');
       if (!draft.pendingItem) return reject('there is nothing to take');
       if (command.take) {
-        if (draft.backpack.length >= draft.backpackSize) {
-          return reject('backpack is full — sell or fuse to make room, then take it');
+        if (isSatchel(draft.pendingItem)) {
+          applySatchel(draft, draft.pendingItem); // grows the backpack; not stored
+        } else {
+          if (draft.backpack.length >= draft.backpackSize) {
+            return reject('backpack is full — sell or fuse to make room, then take it');
+          }
+          pushBackpack(draft, draft.pendingItem, 1);
         }
-        pushBackpack(draft, draft.pendingItem, 1);
       }
       draft.pendingItem = null;
       return { ok: true, state: draft };
@@ -219,10 +223,12 @@ function buyFromShop(draft: RunState, slotIndex: number): CommandResult {
   if (!slot) return reject('no such shop slot');
   if (slot.sold) return reject('already bought');
   if (draft.gold < slot.price) return reject('not enough gold');
-  if (draft.backpack.length >= draft.backpackSize) return reject('backpack is full');
+  const satchel = isSatchel(slot.refId);
+  if (!satchel && draft.backpack.length >= draft.backpackSize) return reject('backpack is full');
   draft.gold -= slot.price;
   slot.sold = true;
-  pushBackpack(draft, slot.refId, slot.star);
+  if (satchel) applySatchel(draft, slot.refId);
+  else pushBackpack(draft, slot.refId, slot.star);
   if (slot.kind === 'requestedCopy') draft.requestsThisRun += 1;
   return { ok: true, state: draft };
 }

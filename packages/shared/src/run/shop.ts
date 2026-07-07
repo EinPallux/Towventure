@@ -5,7 +5,7 @@
  * item slots. "Shop minimal" for Phase 1 — no War Chest, no free-reroll tokens yet.
  */
 
-import { CONSUMABLES, MATERIALS, findItem, getItem } from '../content/registry.js';
+import { CONSUMABLES, ITEMS, MATERIALS, findItem, getItem } from '../content/registry.js';
 import {
   RARITY_POWER,
   REQUESTED_COPY_ESCALATE_DEN,
@@ -140,6 +140,13 @@ export function generateShop(
     price: itemPrice(cons.rarity, floor),
     sold: false,
   });
+
+  // ~1 in 6 shops offers a Satchel (backpack expansion, GDD §3.4).
+  const satchels = ITEMS.filter((i) => i.kind === 'satchel');
+  if (satchels.length > 0 && rng.chance(16)) {
+    const sat = rng.pick(satchels);
+    slots.push({ kind: 'item', refId: sat.id, star: 1, price: itemPrice(sat.rarity, floor), sold: false });
+  }
 
   return {
     shop: { slots, rerollCount: 0, rerollPrice: SHOP_REROLL_BASE },

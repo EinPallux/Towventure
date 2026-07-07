@@ -14,7 +14,7 @@ export type Tag = 'blade' | 'bulwark' | 'arcane' | 'ember' | 'venom' | 'frost' |
 /** Equip slots (GDD §3.4): 8 total — weapon×2 (or one 2-hand), helm, armor, boots, trinket×2, relic. */
 export type EquipSlot = 'weapon' | 'helm' | 'armor' | 'boots' | 'trinket' | 'relic';
 
-export type ItemKind = EquipSlot | 'weapon2h' | 'consumable' | 'material';
+export type ItemKind = EquipSlot | 'weapon2h' | 'consumable' | 'material' | 'satchel';
 
 /** Hero stat keys that item modifiers can touch. */
 export type StatKey =
@@ -64,6 +64,8 @@ export interface ItemDef {
   cooldownSeconds?: number;
   /** Weapons: explicit ★1 per-hit damage; if omitted, derived from rarity×cooldown. */
   weaponDamage?: number;
+  /** Weapons: strikes per swing (default 1), each a full hit (Choir of Nails). */
+  hitsPerSwing?: number;
   twoHanded?: boolean;
   /** Start-of-fight Ward as % of max HP (e.g. Aegis). */
   startWardPct?: number;
@@ -75,6 +77,8 @@ export interface ItemDef {
   relicOf?: ClassId;
   /** Run-level economy: bonus gold per fight won (e.g. Tax-Stamp of the Gate). Scales with ★. */
   goldPerWin?: number;
+  /** Satchels only: permanent backpack-size increase when acquired (GDD §3.4, capped at 20). */
+  backpackBonus?: number;
 }
 
 /**

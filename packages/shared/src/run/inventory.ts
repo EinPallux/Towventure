@@ -44,6 +44,22 @@ function findInstance(draft: RunState, uid: string): InventoryItem | undefined {
 
 const MATERIAL_SELL_BASE = 40;
 
+/** Backpack size ceiling — satchels expand toward it (GDD §3.4). */
+export const MAX_BACKPACK = 20;
+
+/** Is this id a satchel (a backpack-size upgrade, consumed on pickup, not stored)? */
+export function isSatchel(itemId: string): boolean {
+  return findItem(itemId)?.kind === 'satchel';
+}
+
+/** Apply a satchel's backpack-size bonus (capped). Returns true if it was a satchel. */
+export function applySatchel(draft: RunState, itemId: string): boolean {
+  const def = findItem(itemId);
+  if (!def || def.kind !== 'satchel') return false;
+  draft.backpackSize = Math.min(MAX_BACKPACK, draft.backpackSize + (def.backpackBonus ?? 0));
+  return true;
+}
+
 function backpackIndex(draft: RunState, uid: string): number {
   return draft.backpack.findIndex((i) => i.uid === uid);
 }

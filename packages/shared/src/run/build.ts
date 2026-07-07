@@ -157,11 +157,13 @@ function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
     acc.effects.push(compileEffect(def.name, e, star));
   }
   if (def.cooldownSeconds !== undefined) {
-    acc.weapons.push({
+    const weapon: WeaponSpec = {
       name: def.name,
       cooldownTicks: cooldownTicks(def.cooldownSeconds),
       damage: scaleToStar(deriveWeaponDamage(def), star),
-    });
+    };
+    if (def.hitsPerSwing !== undefined) weapon.hitsPerSwing = def.hitsPerSwing;
+    acc.weapons.push(weapon);
   }
   // Infusions: each socketed material's mods + micro-effect (GDD §4.2). Materials
   // don't scale with ★ — the socket is the same whatever tier the host item is.

@@ -500,6 +500,30 @@ describe('item catalogue', () => {
       }
     }
   });
+
+  it('meets the launch quotas per slot (CONTENT §3.0)', () => {
+    const count = (pred: (k: string) => boolean) => ITEMS.filter((i) => pred(i.kind)).length;
+    expect(count((k) => k === 'weapon' || k === 'weapon2h')).toBe(30);
+    expect(count((k) => k === 'helm')).toBe(14);
+    expect(count((k) => k === 'armor')).toBe(14);
+    expect(count((k) => k === 'boots')).toBe(14);
+    expect(count((k) => k === 'trinket')).toBe(32);
+    expect(count((k) => k === 'satchel')).toBe(3);
+    expect(count((k) => k === 'relic')).toBe(3);
+  });
+
+  it('a satchel grows the backpack instead of being stored', () => {
+    const s = structuredClone(freshVanguard());
+    s.phase = 'reward';
+    s.pendingItem = 'patched_satchel';
+    const before = s.backpackSize;
+    const res = applyCommand(s, { type: 'takeLoot', take: true });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.backpackSize).toBe(before + 2);
+    expect(res.state.backpack.some((i) => i.itemId === 'patched_satchel')).toBe(false);
+    expect(res.state.pendingItem).toBeNull();
+  });
 });
 
 describe('infusion sockets', () => {
