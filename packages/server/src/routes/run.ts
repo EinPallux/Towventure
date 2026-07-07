@@ -7,9 +7,11 @@
  */
 
 import { randomInt } from 'node:crypto';
+import { getClass } from '@towventure/shared/content';
 import { commandRequestSchema, runStartSchema } from '@towventure/shared/protocol';
 import {
   applyCommand,
+  honorTierRank,
   makeSummary,
   prepareFight,
   resolveFight,
@@ -22,7 +24,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Db } from '../db/client.js';
 import { fights, runEvents, runs } from '../db/schema.js';
 import { bankRunCodex } from '../services/codex.js';
-import { awardClimbHonor } from '../services/honor.js';
+import { awardClimbHonor, seasonHonor } from '../services/honor.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
 /** Thrown inside a run transaction when the optimistic version guard loses a race. */
@@ -76,6 +78,17 @@ export function runRoutes(ctx: AppContext) {
       if (!account) return;
       const body = parseBody(runStartSchema, req, reply);
       if (!body) return;
+      // Honor-tier unlock gate (GDD §7): a class is locked until the account's season
+      // tier rank reaches its unlockTier. Vanguard is rank 0 → always available.
+      const requiredTier = getClass(body.classId).unlockTier;
+      if (requiredTier > 0) {
+        const rank = honorTierRank(await seasonHonor(ctx.db, account.id, season));
+        if (rank < requiredTier) {
+          return reply
+            .code(403)
+            .send({ error: 'class locked', requiredTier, tierRank: rank });
+        }
+      }
       if (await activeRun(ctx.db, account.id)) {
         return reply.code(409).send({ error: 'you already have an active run' });
       }

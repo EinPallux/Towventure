@@ -3,12 +3,13 @@
  * whether a run is in progress (ARCHITECTURE §5). Inbox/tickets land in Phase 3.
  */
 
-import { honorTier } from '@towventure/shared/run';
+import { honorTier, honorTierRank } from '@towventure/shared/run';
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { runs } from '../db/schema.js';
 import { getCodex } from '../services/codex.js';
 import { seasonHonor } from '../services/honor.js';
+import { seasonMarks } from '../services/marks.js';
 import { requireAccount, type AppContext } from './helpers.js';
 
 export function meRoutes(ctx: AppContext) {
@@ -16,7 +17,9 @@ export function meRoutes(ctx: AppContext) {
     fastify.get('/', async (req, reply) => {
       const account = requireAccount(req, reply);
       if (!account) return;
-      const honor = await seasonHonor(ctx.db, account.id, ctx.env.HONOR_SEASON);
+      const season = ctx.env.HONOR_SEASON;
+      const honor = await seasonHonor(ctx.db, account.id, season);
+      const marks = await seasonMarks(ctx.db, account.id, season);
       const active = await ctx.db
         .select({ floor: runs.floor })
         .from(runs)
@@ -24,9 +27,11 @@ export function meRoutes(ctx: AppContext) {
         .limit(1);
       return reply.send({
         account: { id: account.id, name: account.name, isGuest: account.isGuest },
-        season: ctx.env.HONOR_SEASON,
+        season,
         honor,
+        marks,
         tier: honorTier(honor).name,
+        tierRank: honorTierRank(honor),
         activeRunFloor: active[0]?.floor ?? null,
       });
     });

@@ -10,7 +10,15 @@ export {
   killerName,
   type PreparedFight,
 } from './reducer.js';
-export { buildHeroSpec, buildEnemySpecs, buildCombatSpec, goldPerWin, tagCounts } from './build.js';
+export {
+  buildHeroSpec,
+  buildEnemySpecs,
+  buildCombatSpec,
+  buildDuelSpec,
+  snapshotOf,
+  goldPerWin,
+  tagCounts,
+} from './build.js';
 export { TAG_SYNERGIES, type Synergy } from '../content/synergies.js';
 export { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 export { generateShop, itemPrice, requestableOwned } from './shop.js';
@@ -31,5 +39,6 @@ export {
   climbHonorForFloor,
   climbHonorForFrontier,
   honorTier,
+  honorTierRank,
 } from './honor.js';
 export { deriveRng, deriveFightSeed, RNG_PURPOSE, type RngPurpose } from './rng.js';

@@ -32,6 +32,18 @@ export interface EquipState {
 
 export type EquipSlotId = keyof EquipState;
 
+/**
+ * The minimal slice of a run that determines a hero's combat spec — everything
+ * `buildHeroSpec` reads. A death Echo or a Skirmish defense is a snapshot of exactly
+ * this (Phase 3), so the same builder produces the fighting spec on both sides.
+ */
+export interface HeroBuild {
+  classId: ClassId;
+  floorsCleared: number;
+  equipment: EquipState;
+  vows: string[];
+}
+
 export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss' | 'event';
 
 export interface DoorOffer {

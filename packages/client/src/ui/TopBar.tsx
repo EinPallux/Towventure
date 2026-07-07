@@ -17,6 +17,9 @@ export function TopBar() {
       <div className="row">
         <span className="tier-badge">{me.tier}</span>
         <span className="muted">{me.honor} Honor</span>
+        <span className="muted" title="Valor Marks — spend at the Honor Merchant">
+          ◈ {me.marks}
+        </span>
         <span>{me.account.name}</span>
         {run && run.status === 'active' && view !== 'codex' && (
           <button className="small ghost" onClick={() => setView('codex')}>

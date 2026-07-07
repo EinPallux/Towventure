@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { VOWS } from '@towventure/shared/content';
+import { HONOR_TIERS, VOWS } from '@towventure/shared/content';
 import { buildFloor, buildHero, buildLantern } from '../engine/meshes.js';
 import { paletteForBiome } from '../engine/palettes.js';
 import { useStore } from '../store.js';
@@ -83,10 +83,20 @@ function AuthForm() {
 }
 
 const CLASS_CHOICES = [
-  { id: 'vanguard' as const, name: 'Vanguard', fantasy: 'the wall that hits back' },
-  { id: 'duelist' as const, name: 'Duelist', fantasy: 'speed, crits, bleed, greed' },
-  { id: 'arcanist' as const, name: 'Arcanist', fantasy: 'cooldowns, statuses, detonations' },
+  { id: 'vanguard' as const, name: 'Vanguard', fantasy: 'the wall that hits back', unlockTier: 0 },
+  { id: 'duelist' as const, name: 'Duelist', fantasy: 'speed, crits, bleed, greed', unlockTier: 2 },
+  {
+    id: 'arcanist' as const,
+    name: 'Arcanist',
+    fantasy: 'cooldowns, statuses, detonations',
+    unlockTier: 3,
+  },
 ];
+
+/** The tier name a class unlocks at (for the lock label). */
+function tierName(rank: number): string {
+  return HONOR_TIERS[rank]?.name ?? HONOR_TIERS[HONOR_TIERS.length - 1]!.name;
+}
 
 function Menu() {
   const me = useStore((s) => s.me)!;
@@ -97,6 +107,7 @@ function Menu() {
   const [cls, setCls] = useState<'vanguard' | 'duelist' | 'arcanist'>('vanguard');
   const [vows, setVows] = useState<string[]>([]);
   const hasRun = run && run.status === 'active';
+  const tierRank = me.tierRank;
 
   const toggleVow = (id: string) =>
     setVows((cur) =>
@@ -121,16 +132,24 @@ function Menu() {
     <div className="card col" style={{ gap: 12 }}>
       <div className="muted">Choose your Vow, {me.account.name}.</div>
       <div className="col" style={{ gap: 6 }}>
-        {CLASS_CHOICES.map((c) => (
-          <button
-            key={c.id}
-            className={cls === c.id ? 'primary' : 'ghost'}
-            style={{ textAlign: 'left' }}
-            onClick={() => setCls(c.id)}
-          >
-            <strong>{c.name}</strong> <span className="muted">— {c.fantasy}</span>
-          </button>
-        ))}
+        {CLASS_CHOICES.map((c) => {
+          const locked = c.unlockTier > tierRank;
+          return (
+            <button
+              key={c.id}
+              className={cls === c.id ? 'primary' : 'ghost'}
+              style={{ textAlign: 'left', opacity: locked ? 0.55 : 1 }}
+              disabled={locked}
+              title={locked ? `Unlocks at ${tierName(c.unlockTier)}` : undefined}
+              onClick={() => setCls(c.id)}
+            >
+              <strong>{c.name}</strong>{' '}
+              <span className="muted">
+                {locked ? `— 🔒 ${tierName(c.unlockTier)}` : `— ${c.fantasy}`}
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div className="col" style={{ gap: 4 }}>
         <div className="muted" style={{ fontSize: 12 }}>

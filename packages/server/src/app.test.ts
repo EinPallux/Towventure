@@ -59,10 +59,12 @@ d('server API — the Heartbeat loop', () => {
     expect(reg.statusCode).toBe(201);
     const cookie = cookieFrom(reg);
 
-    // /api/me: fresh account, Ashbound, no honor.
+    // /api/me: fresh account, Ashbound, no honor, no marks, tier rank 0.
     const me = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
     expect(me.statusCode).toBe(200);
     expect(me.json().tier).toBe('Ashbound');
+    expect(me.json().marks).toBe(0);
+    expect(me.json().tierRank).toBe(0);
 
     // Start a run.
     const start = await app.inject({
@@ -294,6 +296,34 @@ d('server API — the Heartbeat loop', () => {
     });
     expect(ok.statusCode).toBe(201);
     expect(ok.json().state.vows).toEqual(['vow_of_haste', 'vow_of_glass']);
+  });
+
+  it('gates locked classes behind Honor tier (GDD §7): fresh account can only take Vanguard', async () => {
+    const name = `hb_lock_${Date.now().toString(36)}`;
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'hunter2hunter2' },
+    });
+    const cookie = cookieFrom(reg);
+    // Duelist (unlockTier 2) is locked at rank 0 → 403, no run created.
+    const locked = await app.inject({
+      method: 'POST',
+      url: '/api/run/start',
+      headers: { cookie },
+      payload: { classId: 'duelist', vows: [] },
+    });
+    expect(locked.statusCode).toBe(403);
+    expect(locked.json().requiredTier).toBe(2);
+    expect(locked.json().tierRank).toBe(0);
+    // Vanguard (unlockTier 0) is always available → 201.
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/run/start',
+      headers: { cookie },
+      payload: { classId: 'vanguard', vows: [] },
+    });
+    expect(ok.statusCode).toBe(201);
   });
 
   it('rejects unauthenticated run access with 401', async () => {

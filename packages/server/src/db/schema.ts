@@ -131,6 +131,28 @@ export const honorLedger = pgTable(
 );
 
 /**
+ * The Valor Marks ledger — the soft-currency twin of the honor ledger (GDD §10.2).
+ * Marks are spent at the Honor Merchant; like Honor they are never a mutable column,
+ * only SUM(delta). Positive rows are earnings (Echo/Skirmish/climb), negative rows are
+ * Merchant purchases, all in the same transaction as their cause.
+ */
+export const marksLedger = pgTable(
+  'marks_ledger',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    season: integer('season').notNull(),
+    delta: integer('delta').notNull(),
+    reason: text('reason').notNull(),
+    refId: uuid('ref_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('marks_ledger_season_account_idx').on(t.season, t.accountId)],
+);
+
+/**
  * Lifetime Codex discovery per account (CONTENT §7). `progress` is the highest ★ seen
  * for items and cumulative kills for enemies; banked once per run at its end so kills
  * don't double-count. Not seasonal — discovery is forever.

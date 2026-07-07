@@ -32,7 +32,7 @@ import type {
   Trigger,
   WeaponSpec,
 } from '../sim/types.js';
-import type { InventoryItem, RunState } from './types.js';
+import type { HeroBuild, InventoryItem, RunState } from './types.js';
 
 const SLOT_ORDER = [
   'weapon1',
@@ -175,8 +175,18 @@ function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
   }
 }
 
+/** A minimal, portable snapshot of what determines a hero's combat spec (Phase 3). */
+export function snapshotOf(state: HeroBuild): HeroBuild {
+  return {
+    classId: state.classId,
+    floorsCleared: state.floorsCleared,
+    equipment: state.equipment,
+    vows: state.vows,
+  };
+}
+
 /** Count each tag across the 8 equip slots (CONTENT §2.2). Insertion-ordered. */
-export function tagCounts(state: RunState): Map<Tag, number> {
+export function tagCounts(state: HeroBuild): Map<Tag, number> {
   const counts = new Map<Tag, number>();
   for (const slot of SLOT_ORDER) {
     const inst = state.equipment[slot];
@@ -198,8 +208,8 @@ function applySynergies(acc: Accum, counts: Map<Tag, number>): void {
   }
 }
 
-/** Compile the hero's current class + equipment into a `CombatantSpec`. */
-export function buildHeroSpec(state: RunState): CombatantSpec {
+/** Compile a hero build (a live run or a Phase 3 snapshot) into a `CombatantSpec`. */
+export function buildHeroSpec(state: HeroBuild): CombatantSpec {
   const cls = getClass(state.classId);
   const acc: Accum = {
     maxHp: cls.base.maxHp + HP_PER_FLOOR * state.floorsCleared,
@@ -352,6 +362,29 @@ export function consumableBindings(state: RunState, enemyIds: string[]): EffectB
     });
   }
   return out;
+}
+
+/**
+ * A duel between two hero builds (Echoes/Skirmishes, Phase 3): attacker vs foe, both
+ * driven by the same sim. `foeBonusPct` is the Echo's staleness-scaled aggression
+ * bonus (BALANCE §6), applied as a fight-start damage buff on the foe.
+ */
+export function buildDuelSpec(
+  attacker: HeroBuild,
+  foe: HeroBuild,
+  foeBonusPct = 0,
+): CombatSpec {
+  const hero = buildHeroSpec(attacker);
+  const foeSpec = buildHeroSpec(foe);
+  foeSpec.id = 'e0';
+  foeSpec.name = getClass(foe.classId).name;
+  if (foeBonusPct > 0) {
+    foeSpec.effects = [
+      ...foeSpec.effects,
+      { source: 'Echo', trigger: { kind: 'OnFightStart' }, ops: [{ op: 'buffDamagePct', pct: foeBonusPct }] },
+    ];
+  }
+  return { hero, enemies: [foeSpec], doomfallStartTicks: DOOMFALL_START_TICKS };
 }
 
 /** Build the full `CombatSpec` for a pending fight (hero + scaled enemies + Doomfall). */

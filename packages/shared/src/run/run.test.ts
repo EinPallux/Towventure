@@ -10,10 +10,17 @@ import {
 } from '../content/registry.js';
 import { VOW_IDS } from '../content/vows.js';
 import { runStartSchema } from '../protocol/schemas.js';
-import { buildCombatSpec, buildHeroSpec, tagCounts } from './build.js';
+import { simulate } from '../sim/index.js';
+import { buildCombatSpec, buildDuelSpec, buildHeroSpec, snapshotOf, tagCounts } from './build.js';
 import { buildCodex } from './codex.js';
 import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
-import { climbHonorForFloor, climbHonorForFrontier, cumulativeClimbHonor, honorTier } from './honor.js';
+import {
+  climbHonorForFloor,
+  climbHonorForFrontier,
+  cumulativeClimbHonor,
+  honorTier,
+  honorTierRank,
+} from './honor.js';
 import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
 import { RNG_PURPOSE, deriveRng } from './rng.js';
 import { generateShop } from './shop.js';
@@ -780,5 +787,53 @@ describe('honor formula (BALANCE §7)', () => {
     expect(honorTier(0).id).toBe('ashbound');
     expect(honorTier(600).id).toBe('gatekeeper');
     expect(honorTier(5000).id).toBe('crownseeker');
+  });
+  it('ranks tiers 0-based for unlock gating (GDD §7)', () => {
+    expect(honorTierRank(0)).toBe(0); // Ashbound
+    expect(honorTierRank(199)).toBe(0);
+    expect(honorTierRank(200)).toBe(1); // Stairborn
+    expect(honorTierRank(500)).toBe(2); // Gatekeeper (Duelist gate is 2)
+    expect(honorTierRank(1000)).toBe(3); // Vaultbreaker (Arcanist gate is 3)
+    // The Unnumbered is rank-based, never a threshold — the ceiling is Crownseeker.
+    expect(honorTierRank(999999)).toBe(6);
+  });
+});
+
+describe('Phase 3 duel primitive (snapshotOf + buildDuelSpec)', () => {
+  it('snapshotOf captures exactly the build slice buildHeroSpec reads', () => {
+    const run = freshVanguard();
+    const snap = snapshotOf(run);
+    expect(snap).toEqual({
+      classId: run.classId,
+      floorsCleared: run.floorsCleared,
+      equipment: run.equipment,
+      vows: run.vows,
+    });
+    // The two builders produce an identical hero spec from run vs. snapshot.
+    expect(buildHeroSpec(snap)).toEqual(buildHeroSpec(run));
+  });
+
+  it('buildDuelSpec puts the foe as enemy e0 and reuses the same sim deterministically', () => {
+    const attacker = snapshotOf(startRun('vanguard', [], 111));
+    const foe = snapshotOf(startRun('duelist', [], 222));
+    const spec = buildDuelSpec(attacker, foe);
+    expect(spec.enemies).toHaveLength(1);
+    expect(spec.enemies[0]!.id).toBe('e0');
+    expect(spec.enemies[0]!.name).toBe('Duelist');
+    // Same (spec, seed) → identical outcome + hash (the duel is just a normal fight).
+    const a = simulate(spec, 42);
+    const b = simulate(spec, 42);
+    expect(a.logHash).toBe(b.logHash);
+    expect(a.winner).toBe(b.winner);
+  });
+
+  it('the Echo aggression bonus adds a fight-start damage buff to the foe only', () => {
+    const attacker = snapshotOf(startRun('vanguard', [], 1));
+    const foe = snapshotOf(startRun('vanguard', [], 2));
+    const plain = buildDuelSpec(attacker, foe, 0);
+    const buffed = buildDuelSpec(attacker, foe, 10);
+    expect(buffed.enemies[0]!.effects.length).toBe(plain.enemies[0]!.effects.length + 1);
+    // The attacker's spec is untouched by the foe bonus.
+    expect(buffed.hero.effects.length).toBe(plain.hero.effects.length);
   });
 });

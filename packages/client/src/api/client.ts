@@ -38,7 +38,10 @@ export interface MeResponse {
   account: Account;
   season: number;
   honor: number;
+  marks: number;
   tier: string;
+  /** 0-based Honor tier rank; gates class/Vow unlocks (GDD §7). */
+  tierRank: number;
   activeRunFloor: number | null;
 }
 export interface RunResponse {

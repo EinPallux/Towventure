@@ -46,3 +46,17 @@ export function honorTier(honor: number): { id: string; name: string } {
   }
   return { id: best.id, name: best.name };
 }
+
+/**
+ * The account's tier as a 0-based rank (Ashbound 0 · Stairborn 1 · Gatekeeper 2 · …),
+ * used to gate class/Vow unlocks (GDD §7, ClassDef.unlockTier is a rank).
+ */
+export function honorTierRank(honor: number): number {
+  let rank = 0;
+  for (let i = 0; i < HONOR_TIERS.length; i++) {
+    const t = HONOR_TIERS[i]!;
+    if (t.id === 'unnumbered') continue;
+    if (honor >= t.min) rank = i;
+  }
+  return rank;
+}
