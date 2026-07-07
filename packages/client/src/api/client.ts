@@ -145,7 +145,6 @@ export const api = {
   logout: () => req<{ ok: true }>('POST', '/api/auth/logout'),
   me: () => req<MeResponse>('GET', '/api/me'),
   codex: () => req<{ codex: CodexProgress }>('GET', '/api/me/codex'),
-  inbox: () => req<{ inbox: InboxEntry[] }>('GET', '/api/me/inbox'),
 
   startRun: (classId: ClassChoice, vows: string[]) =>
     req<RunResponse>('POST', '/api/run/start', { classId, vows }),
@@ -170,7 +169,34 @@ export const api = {
   merchant: () => req<MerchantData>('GET', '/api/merchant'),
   buy: (itemId: string) =>
     req<{ bought: unknown; marks: number; keys: number }>('POST', '/api/merchant/buy', { itemId }),
+
+  friends: () => req<FriendsData>('GET', '/api/friends'),
+  requestFriend: (name: string) =>
+    req<{ status: string }>('POST', '/api/friends/request', { name }),
+  acceptFriend: (requesterId: string) =>
+    req<{ ok: true }>('POST', '/api/friends/accept', { requesterId }),
+  feed: () => req<{ feed: FeedItem[] }>('GET', '/api/feed'),
+  inbox: () => req<{ inbox: InboxEntry[]; unread: number }>('GET', '/api/me/inbox'),
+  inboxRead: () => req<{ ok: true }>('POST', '/api/me/inbox/read'),
 };
+
+export interface FriendSummary {
+  id: string;
+  name: string;
+  tier: string;
+  honor: number;
+}
+export interface FriendsData {
+  friends: FriendSummary[];
+  incoming: { id: string; name: string }[];
+  outgoing: { id: string; name: string }[];
+}
+export interface FeedItem {
+  name: string;
+  kind: string;
+  body: string;
+  at: string;
+}
 
 export interface MerchantEntry {
   id: string;

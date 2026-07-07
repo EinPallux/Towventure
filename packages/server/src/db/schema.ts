@@ -289,6 +289,50 @@ export const unlocks = pgTable(
   (t) => [primaryKey({ columns: [t.accountId, t.itemId] })],
 );
 
+/**
+ * Friendships (GDD §10) — a request/accept edge. Stored once per pair (requester →
+ * addressee); an accepted edge counts in both directions. The unique index makes a
+ * duplicate request a no-op rather than a second row.
+ */
+export const friendships = pgTable(
+  'friendships',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requesterId: uuid('requester_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    addresseeId: uuid('addressee_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('pending'), // 'pending' | 'accepted'
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('friendships_pair_uq').on(t.requesterId, t.addresseeId),
+    index('friendships_addressee_idx').on(t.addresseeId, t.status),
+    index('friendships_requester_idx').on(t.requesterId, t.status),
+  ],
+);
+
+/**
+ * Feed events (GDD §10) — the bragging infrastructure. Each row is one account's
+ * milestone (floor reached, Zenith forged, Echo kill); friends read the union of each
+ * other's rows. Also the source for live toasts (pushed over the SSE stream).
+ */
+export const feed = pgTable(
+  'feed',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    body: text('body').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('feed_account_at_idx').on(t.accountId, t.at)],
+);
+
 /** Per-account, per-season climb frontier — the deepest floor banked this season. */
 export const climbFrontier = pgTable(
   'climb_frontier',

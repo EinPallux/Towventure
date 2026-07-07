@@ -32,6 +32,8 @@ import {
   recordEchoKill,
 } from './services/echoes.js';
 import { decayPct, eloDelta, ticketCap, upsertDefense } from './services/skirmish.js';
+import { publish, subscribe, subscriberCount } from './services/bus.js';
+import { emitFeed } from './services/social.js';
 
 const HAS_DB = !!process.env.DATABASE_URL;
 const d = HAS_DB ? describe : describe.skip;
@@ -818,6 +820,83 @@ d('server API — the Heartbeat loop', () => {
     // Unnumbered is capped at 100.
     const un = await app.inject({ method: 'GET', url: '/api/ladders/unnumbered' });
     expect(un.json().total).toBeLessThanOrEqual(100);
+  });
+
+  it('Friends + feed (GDD §10): request → accept → friends see each others’ feed', async () => {
+    const aName = `hb_frA_${Date.now().toString(36)}`;
+    const bName = `hb_frB_${Date.now().toString(36)}`;
+    const a = await makeSession(aName);
+    const b = await makeSession(bName);
+
+    // A asks to friend B → pending; a bad name 404s.
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/friends/request',
+      headers: { cookie: a.cookie },
+      payload: { name: 'nobody_here_xyz' },
+    });
+    expect(bad.statusCode).toBe(404);
+    const reqRes = await app.inject({
+      method: 'POST',
+      url: '/api/friends/request',
+      headers: { cookie: a.cookie },
+      payload: { name: bName },
+    });
+    expect(reqRes.statusCode).toBe(200);
+    expect(reqRes.json().status).toBe('pending');
+
+    // B sees an incoming request and accepts it.
+    const bFriends = await app.inject({ method: 'GET', url: '/api/friends', headers: { cookie: b.cookie } });
+    expect(bFriends.json().incoming.some((r: { id: string }) => r.id === a.id)).toBe(true);
+    const acc = await app.inject({
+      method: 'POST',
+      url: '/api/friends/accept',
+      headers: { cookie: b.cookie },
+      payload: { requesterId: a.id },
+    });
+    expect(acc.statusCode).toBe(200);
+
+    // Now each lists the other as a friend.
+    const aFriends = await app.inject({ method: 'GET', url: '/api/friends', headers: { cookie: a.cookie } });
+    expect(aFriends.json().friends.some((f: { name: string }) => f.name === bName)).toBe(true);
+
+    // B hits a milestone → A's feed shows it (friends' union).
+    await emitFeed(database.db, b.id, 'floor', 'reached Floor 30');
+    const aFeed = await app.inject({ method: 'GET', url: '/api/feed', headers: { cookie: a.cookie } });
+    expect(aFeed.json().feed.some((f: { name: string; body: string }) => f.name === bName && f.body.includes('Floor 30'))).toBe(true);
+
+    // Public profile resolves by name.
+    const prof = await app.inject({ method: 'GET', url: `/api/profile/${bName}`, headers: { cookie: a.cookie } });
+    expect(prof.statusCode).toBe(200);
+    expect(prof.json().name).toBe(bName);
+  });
+
+  it('Inbox: unread count + mark-read (GDD §11)', async () => {
+    const me = await makeSession(`hb_inbox_${Date.now().toString(36)}`);
+    await database.db
+      .insert(inbox)
+      .values({ accountId: me.id, kind: 'echo_defense', body: 'Your Echo slew someone.', refId: null });
+    const before = await app.inject({ method: 'GET', url: '/api/me/inbox', headers: { cookie: me.cookie } });
+    expect(before.json().unread).toBe(1);
+    const read = await app.inject({ method: 'POST', url: '/api/me/inbox/read', headers: { cookie: me.cookie } });
+    expect(read.statusCode).toBe(200);
+    const after = await app.inject({ method: 'GET', url: '/api/me/inbox', headers: { cookie: me.cookie } });
+    expect(after.json().unread).toBe(0);
+  });
+
+  it('live bus: subscribers receive published toasts and clean up on unsubscribe', () => {
+    const acc = 'bus-test-account';
+    const got: string[] = [];
+    expect(subscriberCount(acc)).toBe(0);
+    const off = subscribe(acc, (e) => got.push(e.body));
+    expect(subscriberCount(acc)).toBe(1);
+    publish(acc, { kind: 'floor', body: 'reached Floor 40' });
+    publish('someone-else', { kind: 'floor', body: 'not for us' });
+    expect(got).toEqual(['reached Floor 40']);
+    off();
+    expect(subscriberCount(acc)).toBe(0);
+    publish(acc, { kind: 'floor', body: 'after unsubscribe' });
+    expect(got).toEqual(['reached Floor 40']); // no delivery after unsubscribe
   });
 
   it('rejects unauthenticated run access with 401', async () => {

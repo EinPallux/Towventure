@@ -26,7 +26,7 @@ import {
 import type { ClassId } from '@towventure/shared/content';
 import { and, eq, gte, lte, ne, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { echoes, inbox } from '../db/schema.js';
+import { echoes, feed, inbox } from '../db/schema.js';
 import { awardHonor, type Tx } from './honor.js';
 import { awardMarks } from './marks.js';
 
@@ -204,24 +204,23 @@ export async function recordEchoDefense(
   echo: EchoRef,
   slainName: string,
   season: number,
-): Promise<void> {
-  if (isHouse(echo.echoId)) return;
+): Promise<{ ownerId: string; body: string } | null> {
+  if (isHouse(echo.echoId)) return null;
   const rows = await tx
     .select({ accountId: echoes.accountId, floor: echoes.floor })
     .from(echoes)
     .where(eq(echoes.id, echo.echoId))
     .limit(1);
   const owner = rows[0];
-  if (!owner) return;
+  if (!owner) return null;
+  const body = `Your Echo on Floor ${owner.floor} has slain ${slainName}.`;
   await tx.update(echoes).set({ kills: sql`${echoes.kills} + 1` }).where(eq(echoes.id, echo.echoId));
   await awardHonor(tx, owner.accountId, season, ECHO_DEFENSE_HONOR, 'echo_defense', echo.echoId);
   await awardMarks(tx, owner.accountId, season, ECHO_DEFENSE_MARKS, 'echo_defense', echo.echoId);
-  await tx.insert(inbox).values({
-    accountId: owner.accountId,
-    kind: 'echo_defense',
-    body: `Your Echo on Floor ${owner.floor} has slain ${slainName}.`,
-    refId: echo.echoId,
-  });
+  await tx.insert(inbox).values({ accountId: owner.accountId, kind: 'echo_defense', body, refId: echo.echoId });
+  // A feed milestone friends can see ("Your Echo slew Bram").
+  await tx.insert(feed).values({ accountId: owner.accountId, kind: 'echo_kill', body });
+  return { ownerId: owner.accountId, body };
 }
 
 /** The account's own Echo (for the profile header / death ritual placement line). */

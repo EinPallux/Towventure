@@ -31,9 +31,11 @@ import {
   recordEchoDefense,
   recordEchoKill,
 } from '../services/echoes.js';
+import { publish } from '../services/bus.js';
 import { awardClimbHonor, seasonHonor } from '../services/honor.js';
 import { consumeArmedBoon } from '../services/merchant.js';
 import { upsertDefense } from '../services/skirmish.js';
+import { emitFeed, pushFeedLive } from '../services/social.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
 /** Thrown inside a run transaction when the optimistic version guard loses a race. */
@@ -66,6 +68,14 @@ async function activeRun(db: Db, accountId: string): Promise<RunRow | null> {
 
 const ECHO_MIN_FLOOR = 3;
 const ECHO_FLOOR_SPACING = 5;
+
+/** Count ★5 (Zenith) items across a run's equipment + backpack — for the feed milestone. */
+function zenithCount(state: RunState): number {
+  let n = 0;
+  for (const inst of Object.values(state.equipment)) if (inst && inst.star >= 5) n++;
+  for (const inst of state.backpack) if (inst.star >= 5) n++;
+  return n;
+}
 
 /**
  * After a floor advance lands on a doors phase, maybe replace one battle door with a
@@ -196,6 +206,15 @@ export function runRoutes(ctx: AppContext) {
         await maybeInjectEcho(ctx.db, account.id, next, season);
       }
 
+      // Feed milestones friends can see (GDD §10): every 10th floor, and forging a Zenith.
+      const feedEvents: { kind: string; body: string }[] = [];
+      if (floorAdvanced && next.floor % 10 === 0) {
+        feedEvents.push({ kind: 'floor', body: `reached Floor ${next.floor}` });
+      }
+      if (body.command.type === 'fuse' && zenithCount(next) > zenithCount(run.state)) {
+        feedEvents.push({ kind: 'zenith', body: 'forged a Zenith (★5)' });
+      }
+
       try {
         await ctx.db.transaction(async (tx) => {
           // Optimistic lock at the row: only advance if the version is still what we
@@ -221,6 +240,7 @@ export function runRoutes(ctx: AppContext) {
           }
           // Abandoning (or otherwise ending) a run banks its Codex discovery.
           if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
+          for (const ev of feedEvents) await emitFeed(tx, account.id, ev.kind, ev.body);
         });
       } catch (err) {
         if (err instanceof StaleRunError) {
@@ -233,6 +253,8 @@ export function runRoutes(ctx: AppContext) {
         }
         throw err;
       }
+      // Post-commit: fan feed milestones out as live toasts to self + friends (GDD §10).
+      for (const ev of feedEvents) await pushFeedLive(ctx.db, account.id, ev.kind, ev.body);
       return reply.send({ state: next, stateVersion: newVersion });
     });
 
@@ -266,9 +288,10 @@ export function runRoutes(ctx: AppContext) {
       const needHonor = echo != null || died || bossWin;
       const myHonor = needHonor ? await seasonHonor(ctx.db, account.id, season) : 0;
       let echoReward: { bounty: number; marks: number } | null = null;
+      let defenseToast: { ownerId: string; body: string } | null = null;
 
       try {
-        await ctx.db.transaction(async (tx) => {
+        const settled = await ctx.db.transaction(async (tx) => {
           const upd = await tx
             .update(runs)
             .set({
@@ -293,16 +316,21 @@ export function runRoutes(ctx: AppContext) {
           if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
           // Echo settlement (GDD §8): a win pays the hunter a bounty + Marks; a loss to
           // an Echo credits its dead owner. Any death leaves behind this hero's Echo.
+          let reward: { bounty: number; marks: number } | null = null;
+          let toast: { ownerId: string; body: string } | null = null;
           if (echo && heroWon) {
-            echoReward = await recordEchoKill(tx, echo, account.id, myHonor, season);
+            reward = await recordEchoKill(tx, echo, account.id, myHonor, season);
           }
           if (died) {
-            if (echo) await recordEchoDefense(tx, echo, account.name, season);
+            if (echo) toast = await recordEchoDefense(tx, echo, account.name, season);
             await bankEcho(tx, account.id, account.name, season, next, myHonor);
           }
           // A boss kill refreshes the Skirmish defense to this stronger build (GDD §9).
           if (bossWin) await upsertDefense(tx, account.id, account.name, season, next, myHonor);
+          return { reward, toast };
         });
+        echoReward = settled.reward;
+        defenseToast = settled.toast;
       } catch (err) {
         if (err instanceof StaleRunError) {
           const fresh = await activeRun(ctx.db, account.id);
@@ -314,6 +342,9 @@ export function runRoutes(ctx: AppContext) {
         }
         throw err;
       }
+
+      // Post-commit live toast: the Echo's owner learns their corpse just won (GDD §10).
+      if (defenseToast) publish(defenseToast.ownerId, { kind: 'echo_kill', body: defenseToast.body });
 
       const dead = next.status === 'dead';
       return reply.send({

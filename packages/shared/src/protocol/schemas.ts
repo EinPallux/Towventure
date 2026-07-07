@@ -111,6 +111,10 @@ export const skirmishAttackSchema = z.object({ defenderId: z.string().uuid() });
 /** Buy a Merchant/Vault item by its catalogue id (GDD §10.2). */
 export const merchantBuySchema = z.object({ itemId: z.string().min(1).max(64) });
 
+/** Friend request by name; accept by the requester's account id (GDD §10). */
+export const friendRequestSchema = z.object({ name: nameSchema });
+export const friendAcceptSchema = z.object({ requesterId: z.string().uuid() });
+
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
 export type RegisterInput = z.infer<typeof registerSchema>;

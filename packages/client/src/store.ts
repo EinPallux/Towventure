@@ -10,7 +10,10 @@ import {
   api,
   type ApiError,
   type ClassChoice,
+  type FeedItem,
   type FightResult,
+  type FriendsData,
+  type InboxEntry,
   type MeResponse,
   type MerchantData,
   type SkirmishBoard,
@@ -29,7 +32,7 @@ interface Store {
   me: MeResponse | null;
   run: RunState | null;
   version: number;
-  view: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant';
+  view: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant' | 'social';
   playback: FightPlayback | null;
   accountCodex: CodexProgress | null;
   /** The bounty from the most recent Echo kill, shown on the Grave-Copy screen. */
@@ -37,6 +40,12 @@ interface Store {
   skirmishBoard: SkirmishBoard | null;
   skirmishResult: SkirmishResult | null;
   merchant: MerchantData | null;
+  friends: FriendsData | null;
+  feedItems: FeedItem[];
+  inboxItems: InboxEntry[];
+  unread: number;
+  /** Ephemeral live-toast bodies pushed over SSE (GDD §10). */
+  toasts: { id: number; body: string }[];
   busy: boolean;
   error: string | null;
 
@@ -52,13 +61,20 @@ interface Store {
   fight: () => Promise<void>;
   endPlayback: () => void;
   dismissRun: () => void;
-  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant') => void;
+  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant' | 'social') => void;
   fetchCodex: () => Promise<void>;
   fetchSkirmish: () => Promise<void>;
   attack: (defenderId: string) => Promise<void>;
   clearSkirmishResult: () => void;
   fetchMerchant: () => Promise<void>;
   buy: (itemId: string) => Promise<void>;
+  fetchSocial: () => Promise<void>;
+  addFriend: (name: string) => Promise<void>;
+  acceptFriend: (requesterId: string) => Promise<void>;
+  markInboxRead: () => Promise<void>;
+  connectStream: () => void;
+  pushToast: (body: string) => void;
+  dismissToast: (id: number) => void;
   clearError: () => void;
 }
 
@@ -66,6 +82,10 @@ function messageOf(err: unknown): string {
   if (err && typeof err === 'object' && 'error' in err) return (err as ApiError).error;
   return err instanceof Error ? err.message : 'something went wrong';
 }
+
+// A single live-toast stream (SSE) per session; opened once the account is known.
+let stream: EventSource | null = null;
+let toastSeq = 0;
 
 export const useStore = create<Store>((set, get) => ({
   me: null,
@@ -78,6 +98,11 @@ export const useStore = create<Store>((set, get) => ({
   skirmishBoard: null,
   skirmishResult: null,
   merchant: null,
+  friends: null,
+  feedItems: [],
+  inboxItems: [],
+  unread: 0,
+  toasts: [],
   busy: false,
   error: null,
 
@@ -85,6 +110,7 @@ export const useStore = create<Store>((set, get) => ({
     try {
       const me = await api.me();
       set({ me });
+      get().connectStream(); // open the live-toast stream once authenticated
       const run = await api.getRun();
       if ('state' in run) set({ run: run.state, version: run.stateVersion });
     } catch {
@@ -131,7 +157,9 @@ export const useStore = create<Store>((set, get) => ({
 
   logout: async () => {
     await api.logout().catch(() => {});
-    set({ me: null, run: null, version: 0, view: 'gate', playback: null });
+    stream?.close();
+    stream = null;
+    set({ me: null, run: null, version: 0, view: 'gate', playback: null, toasts: [] });
   },
 
   refreshMe: async () => {
@@ -248,6 +276,67 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
   clearSkirmishResult: () => set({ skirmishResult: null }),
+  fetchSocial: async () => {
+    try {
+      const [friends, feedRes, inboxRes] = await Promise.all([api.friends(), api.feed(), api.inbox()]);
+      set({ friends, feedItems: feedRes.feed, inboxItems: inboxRes.inbox, unread: inboxRes.unread });
+    } catch (err) {
+      set({ error: messageOf(err) });
+    }
+  },
+  addFriend: async (name) => {
+    set({ busy: true, error: null });
+    try {
+      await api.requestFriend(name);
+      await get().fetchSocial();
+    } catch (err) {
+      set({ error: messageOf(err) });
+    } finally {
+      set({ busy: false });
+    }
+  },
+  acceptFriend: async (requesterId) => {
+    try {
+      await api.acceptFriend(requesterId);
+      await get().fetchSocial();
+    } catch (err) {
+      set({ error: messageOf(err) });
+    }
+  },
+  markInboxRead: async () => {
+    try {
+      await api.inboxRead();
+      set({ unread: 0, inboxItems: get().inboxItems.map((i) => ({ ...i, read: true })) });
+    } catch {
+      /* ignore */
+    }
+  },
+  connectStream: () => {
+    if (stream || typeof EventSource === 'undefined') return;
+    try {
+      stream = new EventSource('/api/stream', { withCredentials: true });
+      stream.addEventListener('toast', (ev) => {
+        try {
+          const data = JSON.parse((ev as MessageEvent).data) as { body: string };
+          get().pushToast(data.body);
+          set({ unread: get().unread + 1 });
+        } catch {
+          /* ignore malformed frame */
+        }
+      });
+      stream.onerror = () => {
+        /* EventSource auto-reconnects; nothing to do */
+      };
+    } catch {
+      stream = null;
+    }
+  },
+  pushToast: (body) => {
+    const id = ++toastSeq;
+    set({ toasts: [...get().toasts, { id, body }] });
+    setTimeout(() => get().dismissToast(id), 6000);
+  },
+  dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
   fetchMerchant: async () => {
     try {
       set({ merchant: await api.merchant() });

@@ -6,6 +6,7 @@ export function TopBar() {
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const logout = useStore((s) => s.logout);
+  const unread = useStore((s) => s.unread);
   if (!me) return null;
 
   return (
@@ -42,6 +43,11 @@ export function TopBar() {
         {view !== 'merchant' && (
           <button className="small ghost" onClick={() => setView('merchant')}>
             Merchant
+          </button>
+        )}
+        {view !== 'social' && (
+          <button className="small ghost" onClick={() => setView('social')}>
+            Friends{unread > 0 ? ` (${unread})` : ''}
           </button>
         )}
         {view !== 'ladder' ? (

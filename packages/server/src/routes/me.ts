@@ -55,7 +55,19 @@ export function meRoutes(ctx: AppContext) {
         .where(eq(inbox.accountId, account.id))
         .orderBy(desc(inbox.createdAt))
         .limit(50);
-      return reply.send({ inbox: rows });
+      const unread = rows.filter((r) => !r.read).length;
+      return reply.send({ inbox: rows, unread });
+    });
+
+    // POST /api/me/inbox/read — mark all of the account's notifications read.
+    fastify.post('/inbox/read', async (req, reply) => {
+      const account = requireAccount(req, reply);
+      if (!account) return;
+      await ctx.db
+        .update(inbox)
+        .set({ read: true })
+        .where(and(eq(inbox.accountId, account.id), eq(inbox.read, false)));
+      return reply.send({ ok: true });
     });
 
     // GET /api/me/codex — the account's lifetime discovery progress (CONTENT §7).
