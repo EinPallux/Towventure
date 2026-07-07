@@ -1,9 +1,12 @@
 import { useCallback, useState } from 'react';
 import * as THREE from 'three';
+import { VOWS } from '@towventure/shared/content';
 import { buildFloor, buildHero, buildLantern } from '../engine/meshes.js';
 import { paletteForBiome } from '../engine/palettes.js';
 import { useStore } from '../store.js';
 import { Diorama, addLanternLighting } from './Diorama.js';
+
+const MAX_VOWS = 5;
 
 function GateScene() {
   const setup = useCallback((scene: THREE.Scene, camera: THREE.PerspectiveCamera) => {
@@ -92,7 +95,13 @@ function Menu() {
   const startRun = useStore((s) => s.startRun);
   const setView = useStore((s) => s.setView);
   const [cls, setCls] = useState<'vanguard' | 'duelist' | 'arcanist'>('vanguard');
+  const [vows, setVows] = useState<string[]>([]);
   const hasRun = run && run.status === 'active';
+
+  const toggleVow = (id: string) =>
+    setVows((cur) =>
+      cur.includes(id) ? cur.filter((v) => v !== id) : cur.length < MAX_VOWS ? [...cur, id] : cur,
+    );
 
   if (hasRun) {
     return (
@@ -123,8 +132,23 @@ function Menu() {
           </button>
         ))}
       </div>
-      <button className="primary" disabled={busy} onClick={() => void startRun(cls)}>
-        Enter the Tower
+      <div className="col" style={{ gap: 4 }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Vows — each +15% Honor, at a price ({vows.length}/{MAX_VOWS})
+        </div>
+        {VOWS.map((v) => (
+          <button
+            key={v.id}
+            className={vows.includes(v.id) ? 'primary small' : 'ghost small'}
+            style={{ textAlign: 'left' }}
+            onClick={() => toggleVow(v.id)}
+          >
+            <strong>{v.name}</strong> <span className="muted">— {v.penalty}</span>
+          </button>
+        ))}
+      </div>
+      <button className="primary" disabled={busy} onClick={() => void startRun(cls, vows)}>
+        Enter the Tower{vows.length ? ` · +${vows.length * 15}% Honor` : ''}
       </button>
       <button className="ghost" onClick={() => setView('ladder')}>
         The Ladder

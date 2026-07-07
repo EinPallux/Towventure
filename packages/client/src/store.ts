@@ -36,7 +36,7 @@ interface Store {
   login: (name: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
-  startRun: (classId?: ClassChoice) => Promise<void>;
+  startRun: (classId?: ClassChoice, vows?: string[]) => Promise<void>;
   cmd: (command: Command) => Promise<void>;
   fight: () => Promise<void>;
   endPlayback: () => void;
@@ -120,10 +120,10 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  startRun: async (classId = 'vanguard') => {
+  startRun: async (classId = 'vanguard', vows = []) => {
     set({ busy: true, error: null });
     try {
-      const res = await api.startRun(classId, []);
+      const res = await api.startRun(classId, vows);
       set({ run: res.state, version: res.stateVersion, view: 'gate' });
     } catch (err) {
       set({ error: messageOf(err) });

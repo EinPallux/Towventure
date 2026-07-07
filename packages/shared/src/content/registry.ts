@@ -13,6 +13,7 @@ import { ENEMIES } from './enemies.js';
 import { EVENTS } from './events.js';
 import { ITEMS } from './items.js';
 import { MATERIALS } from './materials.js';
+import { VOWS } from './vows.js';
 import type {
   BiomeDef,
   ClassDef,
@@ -25,6 +26,7 @@ import type {
   ItemKind,
   MaterialDef,
   Rarity,
+  VowDef,
 } from './types.js';
 
 function index<T extends { id: string }>(defs: readonly T[]): Map<string, T> {
@@ -43,6 +45,7 @@ const ENEMY_MAP = index(ENEMIES);
 const CLASS_MAP = index(CLASSES);
 const BIOME_MAP = index(BIOMES);
 const EVENT_MAP = index(EVENTS);
+const VOW_MAP = index(VOWS);
 
 export function getItem(id: string): ItemDef {
   const d = ITEM_MAP.get(id);
@@ -86,8 +89,14 @@ export function getBiome(id: string): BiomeDef {
 export function findEvent(id: string): EventDef | undefined {
   return EVENT_MAP.get(id);
 }
+export function findVow(id: string): VowDef | undefined {
+  return VOW_MAP.get(id);
+}
+export function isVow(id: string): boolean {
+  return VOW_MAP.has(id);
+}
 
-export { ITEMS, CONSUMABLES, MATERIALS, ENEMIES, CLASSES, BIOMES, EVENTS };
+export { ITEMS, CONSUMABLES, MATERIALS, ENEMIES, CLASSES, BIOMES, EVENTS, VOWS };
 
 /** Cooldown seconds → whole ticks (content authoring is in seconds; sim is ticks). */
 export function cooldownTicks(seconds: number): number {

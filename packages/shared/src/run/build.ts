@@ -211,6 +211,15 @@ export function buildHeroSpec(state: RunState): CombatantSpec {
     if (inst) applyItem(acc, getItem(inst.itemId), inst);
   }
   applySynergies(acc, tagCounts(state));
+  // Vow of Glass: −25% Max HP, +25% damage (a fight-start damage buff). CONTENT §6.
+  if (state.vows.includes('vow_of_glass')) {
+    acc.maxHp = Math.trunc((acc.maxHp * 75) / 100);
+    acc.effects.push({
+      source: 'Vow of Glass',
+      trigger: { kind: 'OnFightStart' },
+      ops: [{ op: 'buffDamagePct', pct: 25 }],
+    });
+  }
   const spec: CombatantSpec = {
     id: 'hero',
     name: cls.name,
@@ -340,8 +349,11 @@ export function consumableBindings(state: RunState, enemyIds: string[]): EffectB
 export function buildCombatSpec(state: RunState, enemyIds: string[]): CombatSpec {
   const haste = state.vows.includes('vow_of_haste');
   const hero = buildHeroSpec(state);
-  // Consumables fire after equipment/synergy effects, in backpack order.
-  hero.effects = [...hero.effects, ...consumableBindings(state, enemyIds)];
+  // Consumables fire after equipment/synergy effects, in backpack order — unless the
+  // Vow of Silence forbids them (CONTENT §6).
+  if (!state.vows.includes('vow_of_silence')) {
+    hero.effects = [...hero.effects, ...consumableBindings(state, enemyIds)];
+  }
   return {
     hero,
     enemies: buildEnemySpecs(enemyIds, state.floor),

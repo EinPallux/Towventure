@@ -160,6 +160,14 @@ export interface ClassDef {
   unlockTier: number;
 }
 
+/** A run modifier (CONTENT §6). Grants +15% Honor; the penalty is enforced in run code. */
+export interface VowDef {
+  id: string;
+  name: string;
+  flavor: string;
+  penalty: string;
+}
+
 /** One choice at an event door; its index maps to a handler in run/events. */
 export interface EventOption {
   label: string;

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { VOW_IDS } from '../content/vows.js';
 import type { Command, EquipSlotId } from '../run/types.js';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -31,14 +32,19 @@ export const guestSchema = z.object({}).optional();
 /** All three classes are playable in Phase 2; Honor-tier unlock gating is Phase 3. */
 export const classIdSchema = z.enum(['vanguard', 'duelist', 'arcanist']);
 
+/** Only vows with an enforced penalty are accepted — the +15%/vow Honor must be paid for. */
+export const vowIdSchema = z.enum(VOW_IDS);
+
 export const runStartSchema = z.object({
   classId: classIdSchema,
-  // Vows are locked empty in Phase 1. Each vow multiplies climb Honor (+15%), but the
-  // vow catalog, per-vow penalties, and Honor-tier unlock gating are Phase 2/3
-  // (ROADMAP). Accepting arbitrary/duplicate vow strings now would hand out free Honor
-  // for penalties that aren't implemented — an economy/ladder exploit. When vows ship,
-  // this becomes a validated, de-duplicated, tier-gated enum.
-  vows: z.array(z.string()).max(0).default([]),
+  // Each vow multiplies climb Honor (+15%) and carries a real, enforced penalty
+  // (run/build, shop, loot). Validated to known vow ids, de-duplicated, ≤5 (CONTENT §6).
+  // Honor-tier *unlock* gating (which vows a given tier may pick) is Phase 3.
+  vows: z
+    .array(vowIdSchema)
+    .max(5)
+    .default([])
+    .refine((v) => new Set(v).size === v.length, { message: 'vows must be unique' }),
 });
 
 export const equipSlotSchema = z.enum([

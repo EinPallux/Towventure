@@ -252,7 +252,7 @@ d('server API — the Heartbeat loop', () => {
     expect(codes).not.toContain(500);
   });
 
-  it('rejects a run start carrying vows (Phase 1 locks them empty — no free Honor)', async () => {
+  it('accepts known vows but rejects unknown or duplicate ones (no free Honor)', async () => {
     const name = `hb_vow_${Date.now().toString(36)}`;
     const reg = await app.inject({
       method: 'POST',
@@ -260,6 +260,7 @@ d('server API — the Heartbeat loop', () => {
       payload: { name, password: 'hunter2hunter2' },
     });
     const cookie = cookieFrom(reg);
+    // Unknown id + duplicate → 400.
     const bad = await app.inject({
       method: 'POST',
       url: '/api/run/start',
@@ -267,6 +268,15 @@ d('server API — the Heartbeat loop', () => {
       payload: { classId: 'vanguard', vows: ['vow_of_haste', 'made_up', 'made_up'] },
     });
     expect(bad.statusCode).toBe(400);
+    // A valid, unique vow set → 200, and the run carries the vows.
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/run/start',
+      headers: { cookie },
+      payload: { classId: 'vanguard', vows: ['vow_of_haste', 'vow_of_glass'] },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().state.vows).toEqual(['vow_of_haste', 'vow_of_glass']);
   });
 
   it('rejects unauthenticated run access with 401', async () => {

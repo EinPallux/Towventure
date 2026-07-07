@@ -2,15 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { scaleToStar } from '../content/constants.js';
 import {
   ITEMS,
+  VOWS,
   deriveWeaponDamage,
   equipSlotForKind,
   getItem,
   isEquippable,
 } from '../content/registry.js';
-import { buildHeroSpec, tagCounts } from './build.js';
+import { VOW_IDS } from '../content/vows.js';
+import { runStartSchema } from '../protocol/schemas.js';
+import { buildCombatSpec, buildHeroSpec, tagCounts } from './build.js';
 import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
-import { climbHonorForFloor, cumulativeClimbHonor, honorTier } from './honor.js';
+import { climbHonorForFloor, climbHonorForFrontier, cumulativeClimbHonor, honorTier } from './honor.js';
 import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
+import { RNG_PURPOSE, deriveRng } from './rng.js';
+import { generateShop } from './shop.js';
 import type { EquipSlotId, RunState } from './types.js';
 
 function freshVanguard(seed = 20260706): RunState {
@@ -222,6 +227,75 @@ describe('consumable auto-triggers', () => {
       condition: 'doomfall',
     });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe('vows', () => {
+  it('Vow of Glass trades Max HP for damage', () => {
+    const plain = buildHeroSpec(startRun('vanguard', [], 1));
+    const glass = buildHeroSpec(startRun('vanguard', ['vow_of_glass'], 1));
+    expect(glass.maxHp).toBe(Math.trunc((plain.maxHp * 75) / 100));
+    expect(glass.effects.some((e) => e.source === 'Vow of Glass')).toBe(true);
+  });
+
+  it('Vow of Silence keeps consumables from compiling into the fight', () => {
+    const oneShots = (vows: string[]): number =>
+      buildCombatSpec(startRun('vanguard', vows, 1), ['tunnel_rat']).hero.effects.filter(
+        (e) => e.oneShotId !== undefined,
+      ).length;
+    expect(oneShots([])).toBeGreaterThan(0); // the starting Small Ale compiles
+    expect(oneShots(['vow_of_silence'])).toBe(0);
+  });
+
+  it('Vow of Hunger stocks one fewer shop item', () => {
+    const items = (vows: string[]): number => {
+      const s = { ...startRun('vanguard', vows, 1), floor: 5 };
+      const shop = generateShop(s, deriveRng(1, 5, RNG_PURPOSE.shop, 0)).shop;
+      return shop.slots.filter((slot) => slot.kind === 'item').length;
+    };
+    expect(items([]) - items(['vow_of_hunger'])).toBe(1);
+  });
+
+  it('Vow of Haste pulls Doomfall earlier', () => {
+    const plain = buildCombatSpec(startRun('vanguard', [], 1), ['tunnel_rat']);
+    const hasted = buildCombatSpec(startRun('vanguard', ['vow_of_haste'], 1), ['tunnel_rat']);
+    expect(hasted.doomfallStartTicks).toBeLessThan(plain.doomfallStartTicks);
+  });
+
+  it('Vow of Poverty pays 40% less fight gold', () => {
+    const fightGold = (vows: string[]): number => {
+      const s0 = startRun('vanguard', vows, 555);
+      const idx = s0.doors!.findIndex((d) => d.kind === 'battle');
+      const doored = applyCommand(s0, { type: 'chooseDoor', doorIndex: idx >= 0 ? idx : 0 });
+      const out = runPendingFight(doored.ok ? doored.state : s0);
+      return out?.state.lastGold ?? -1;
+    };
+    const rich = fightGold([]);
+    expect(rich).toBeGreaterThan(0); // a real reward to reduce
+    expect(fightGold(['vow_of_poverty'])).toBe(Math.trunc((rich * 60) / 100));
+  });
+
+  it('each vow adds 15% climb Honor', () => {
+    const base = climbHonorForFrontier(0, 20, 0);
+    expect(climbHonorForFrontier(0, 20, 2)).toBe(Math.trunc((base * 130) / 100));
+  });
+
+  it('startRun sanitizes vows (drops unknown, de-dupes, keeps order)', () => {
+    const s = startRun('vanguard', ['vow_of_glass', 'vow_of_glass', 'made_up', 'vow_of_haste'], 1);
+    expect(s.vows).toEqual(['vow_of_glass', 'vow_of_haste']);
+  });
+
+  it('the run-start schema accepts known unique vows and rejects the rest', () => {
+    const parse = (vows: string[]) =>
+      runStartSchema.safeParse({ classId: 'vanguard', vows }).success;
+    expect(parse(['vow_of_haste', 'vow_of_glass'])).toBe(true);
+    expect(parse(['made_up'])).toBe(false);
+    expect(parse(['vow_of_haste', 'vow_of_haste'])).toBe(false);
+    expect(parse([...VOW_IDS, 'vow_of_haste'])).toBe(false); // 6 > max 5
+  });
+
+  it('the vow enum matches the VOWS catalogue exactly', () => {
+    expect([...VOW_IDS].sort()).toEqual(VOWS.map((v) => v.id).sort());
   });
 });
 

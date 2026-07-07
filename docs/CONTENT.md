@@ -212,6 +212,8 @@ Shrine of the Mended Blade (upgrade a random item's ★, destroy a random materi
 
 Vow of Hunger (shops stock −1 item), Vow of Haste (Doomfall at 35s), Vow of Poverty (fights pay −40% gold), Vow of the Open Door (Echo doors *cannot* be declined when offered), Vow of Silence (no consumables), Vow of the Mirror (Gallery Mirrorkin at 100% stats, all biomes can spawn 1), Vow of Rust (items drop at −1 substat until infused), Vow of the Long Night (no Sanctum heals), Vow of the Numbered (your Echo hunts *you*: your previous Echo appears once, somewhere, at full strength), Vow of Glass (you: +25% damage, −25% Max HP).
 
+*Implementation status (Phase 2):* vows are **unlocked** (Phase 1 locked them empty). Each grants +15% climb Honor — already applied by the Honor formulas via vow count and credited to the ledger by `awardClimbHonor` — so **only vows whose penalty is actually enforced may be offered**, or the bonus would be free Honor. The five enforced vows ship: **Haste** (Doomfall 35s, in `buildCombatSpec`), **Hunger** (`generateShop` stocks one fewer item), **Poverty** (`resolveFight` cuts fight gold 40%), **Silence** (`buildCombatSpec` skips consumable compilation), and **Glass** (`buildHeroSpec`: −25% Max HP, +25% damage). The protocol enum (`vowIdSchema = z.enum(VOW_IDS)`) accepts only these, de-duplicated and ≤5; `startRun` re-sanitizes defensively. The other five (Open Door, Mirror, Rust, Long Night, Numbered) depend on the Echo/Sanctum/substat systems and stay authored-but-unoffered until those land. Honor-*tier* unlock gating (which vows a tier may pick) is Phase 3. The Gate offers the five with their penalties and a live Honor-bonus readout.
+
 ---
 
 ## 7. Codex & flavor

@@ -6,7 +6,8 @@
  * resolveFight) because the sim seed is server-drawn.
  */
 
-import { findConsumable, findEvent, getClass, getEnemy } from '../content/registry.js';
+import { findConsumable, findEvent, getClass, getEnemy, isVow } from '../content/registry.js';
+import { MAX_VOWS } from '../content/vows.js';
 import { simulate } from '../sim/engine.js';
 import type { SimEvent, SimResult } from '../sim/types.js';
 import { buildCombatSpec, goldPerWin } from './build.js';
@@ -46,11 +47,14 @@ function emptyEquipment(): EquipState {
 /** Create a fresh run for a class + vows, seeded (server draws the seed). */
 export function startRun(classId: RunState['classId'], vows: string[], seed: number): RunState {
   const cls = getClass(classId);
+  // Defensive: only known vow ids, de-duplicated, capped — the +15%/vow Honor must
+  // never attach to an unknown/duplicate vow even from a non-protocol caller.
+  const cleanVows = [...new Set(vows.filter(isVow))].slice(0, MAX_VOWS);
   const state: RunState = {
     v: 1,
     seed: seed >>> 0,
     classId,
-    vows,
+    vows: cleanVows,
     floor: 1,
     gold: 0,
     status: 'active',
@@ -303,8 +307,12 @@ export function resolveFight(state: RunState, result: SimResult): RunState {
     const rng = deriveRng(draft.seed, draft.floor, RNG_PURPOSE.loot, fightCounter);
     const loot = rollLoot(draft.floor, fight.kind, rng);
     const bonus = goldPerWin(draft);
-    draft.gold += loot.gold + bonus;
-    draft.lastGold = loot.gold + bonus;
+    // Vow of Poverty: fights pay 40% less gold (the goldPerWin bonus is unaffected).
+    const fightGold = draft.vows.includes('vow_of_poverty')
+      ? Math.trunc((loot.gold * 60) / 100)
+      : loot.gold;
+    draft.gold += fightGold + bonus;
+    draft.lastGold = fightGold + bonus;
     draft.pendingItem = loot.itemId ?? null;
     draft.fightsWon += 1;
     draft.pendingFight = null;
