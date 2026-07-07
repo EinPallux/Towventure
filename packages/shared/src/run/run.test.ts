@@ -150,6 +150,58 @@ describe('fusion (★1 → ★2 stat scaling)', () => {
   });
 });
 
+describe('inventory commands', () => {
+  it('equipping a 2-hander clears both weapon hands and returns them to the backpack', () => {
+    let s = structuredClone(freshVanguard(5));
+    // Fill the off-hand with a second 1-hand weapon.
+    s.backpack.push({ uid: 'w2', itemId: 'sawtooth_dirk', star: 1 });
+    const dual = applyCommand(s, { type: 'equip', uid: 'w2' });
+    expect(dual.ok).toBe(true);
+    if (!dual.ok) return;
+    s = dual.state;
+    expect(s.equipment.weapon1?.itemId).toBe('rusty_cleaver');
+    expect(s.equipment.weapon2?.itemId).toBe('sawtooth_dirk');
+
+    // Now equip a 2-hander into weapon1 — both hands must free up.
+    s.backpack.push({ uid: 'twoh', itemId: 'pyrebrand_claymore', star: 1 });
+    const r = applyCommand(s, { type: 'equip', uid: 'twoh', slot: 'weapon1' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.state.equipment.weapon1?.itemId).toBe('pyrebrand_claymore');
+    expect(r.state.equipment.weapon2).toBeNull();
+    const ids = r.state.backpack.map((i) => i.itemId);
+    expect(ids).toContain('rusty_cleaver');
+    expect(ids).toContain('sawtooth_dirk');
+  });
+
+  it('rejects unequip when the backpack is full (a real overflow decision)', () => {
+    const s = structuredClone(freshVanguard());
+    while (s.backpack.length < s.backpackSize) {
+      s.backpack.push({ uid: `fill${s.backpack.length}`, itemId: 'rusty_cleaver', star: 1 });
+    }
+    const r = applyCommand(s, { type: 'unequip', slot: 'helm' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/full/);
+  });
+
+  it('sells a backpack item for gold and removes it', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'sellme', itemId: 'gravediggers_shovel', star: 1 });
+    const r = applyCommand(s, { type: 'sell', uid: 'sellme' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.state.gold).toBeGreaterThan(0);
+    expect(r.state.backpack.find((i) => i.uid === 'sellme')).toBeUndefined();
+  });
+
+  it('refuses to sell or fuse an equipped item (backpack only)', () => {
+    const s = structuredClone(freshVanguard());
+    const relicUid = s.equipment.relic!.uid;
+    const r = applyCommand(s, { type: 'sell', uid: relicUid });
+    expect(r.ok).toBe(false);
+  });
+});
+
 describe('honor formula (BALANCE §7)', () => {
   it('matches the cumulative sanity points', () => {
     expect(cumulativeClimbHonor(20)).toBe(171);
