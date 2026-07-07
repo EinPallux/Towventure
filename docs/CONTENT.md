@@ -67,7 +67,7 @@ Design constraint: **no tag's (6) may be strictly mandatory** for its archetype 
 
 Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may reference one status or one trigger interaction; Epics may cross two systems (e.g., gold + combat); Mythics may bend a rule of the game (and there are only 7 of them). **Every item gets:** a unique procedural model recipe, a signature VFX, one line of flavor, and a Zenith transformation (name + visual). Anchor set below; remaining items are authored here in Phase 2 under the same table format before any code.
 
-*Implementation status (Phase 2):* ★1 and Awakened (★3) lines are live for the anchor set. **Zenith (★5) transforms** are now activatable in code (gated at `minStar: 5`): the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) and the Kindlewhip's **Solarlash** (at 10+ Burn → detonate Burn 200% AoE, via the `OnStatusApplied` stack-threshold gate) are wired. Zenith/Awakened lines whose text needs ops not yet in the vocabulary (weapon-echo/chain, per-Armor damage, Burn-spread) are noted deferred in `content/items.ts` and light up as those ops land.
+*Implementation status (Phase 2):* ★1 and Awakened (★3) lines are live for the anchor set. **Zenith (★5) transforms** are now activatable in code (gated at `minStar: 5`): the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) and the Kindlewhip's **Solarlash** (at 10+ Burn → detonate Burn 200% AoE, via the `OnStatusApplied` stack-threshold gate) are wired. Zenith/Awakened lines whose text needs ops not yet in the vocabulary (weapon-echo/chain, per-Armor damage, Burn-spread) are noted deferred in `content/items.ts` and light up as those ops land. Anchor coverage in code (`content/items.ts`): all four Common/Uncommon/Rare/Epic/Mythic weapon archetypes plus Vipermaw Kris, Twin Moon Saif and Mothlight Blade; Verdigris Scale and the Aegis of the Sleepless on the armor side; the three class relics; and simple Common fillers (Rawhide Hood, Ironshod Sabatons, Boiled Leather Vest) rounding out the thin slots. Items whose *identity* is a missing mechanic (Choir of Nails' 3×-multi-hit, Cracked Hourglass' death-rewind, the Echo/Skirmish trinkets) wait for those systems. **Adding an expressible item is a pure content edit — a row here plus an entry in `items.ts`, no engine change** (ROADMAP Phase 2 criterion).
 
 ### 3.1 Weapons (anchor set)
 
@@ -94,7 +94,10 @@ Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may ref
 | Item | Effect | ★5 Zenith |
 |---|---|---|
 | **Dented Pot-Helm** (C, Bulwark, helm) | +14 HP. `[Awakened]` +6 Armor. | **The Unbowed** — first stun each fight is ignored |
+| **Rawhide Hood** (C, Shadow, helm) | +4% Dodge. `[Awakened]` +6 HP. | **Hunter's Patience** — `[OnDodge]` → +2% Crit this fight (stacks) |
 | **Quickstep Boots** (C, Shadow, boots) | +5% Speed. `[Awakened]` +4% Dodge. | **Rumor** — `[OnDodge]` → +8% Speed 3s |
+| **Ironshod Sabatons** (C, Bulwark, boots) | +4 Armor. `[Awakened]` +3 Armor. | **Standfast** — `[OnBlock]` → +1 Armor this fight (stacks) |
+| **Boiled Leather Vest** (C, Wild, armor) | +12 HP. `[Awakened]` +6 HP. | **Second Skin** — heal 4% Max HP on kill |
 | **Hearthplate** (U, Ember/Bulwark, armor) | +20 HP; attackers take 2 Burn `[OnHurt]` (melee flavor: any hit). `[Awakened]` +15% Burn damage. | **The Standing Fire** — while above 8 Armor, your Burn ticks 20% faster |
 | **Verdigris Scale** (R, Venom/Bulwark, armor) | +8 Armor. `[OnHurt]` → 30% apply 1 Venom to attacker. `[Awakened]` your Armor counts +25% vs Venomed enemies. | **Molt** — `[OnHpBelow 50%]` → shed: cleanse all statuses on you, gain 15 Armor (once) |
 | **Owl-Eyed Sallet** (R, Arcane, helm) | Your `Every(Xs)` effects run 12% faster. `[Awakened]` `[OnFightStart]` → trigger your slowest `Every` effect immediately. | **Midnight Faculty** — +1 charge: your fastest `Every` effect fires twice each cycle |

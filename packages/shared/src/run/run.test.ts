@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { scaleToStar } from '../content/constants.js';
-import { deriveWeaponDamage, getItem } from '../content/registry.js';
+import {
+  ITEMS,
+  deriveWeaponDamage,
+  equipSlotForKind,
+  getItem,
+  isEquippable,
+} from '../content/registry.js';
 import { buildHeroSpec, tagCounts } from './build.js';
 import { climbHonorForFloor, cumulativeClimbHonor, honorTier } from './honor.js';
 import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
-import type { RunState } from './types.js';
+import type { EquipSlotId, RunState } from './types.js';
 
 function freshVanguard(seed = 20260706): RunState {
   return startRun('vanguard', [], seed);
@@ -207,6 +213,37 @@ describe('consumable auto-triggers', () => {
       condition: 'doomfall',
     });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe('item catalogue', () => {
+  it('every equippable item compiles into a hero spec at ★1 and ★5', () => {
+    const base = freshVanguard();
+    for (const def of ITEMS) {
+      if (def.kind === 'relic' || !isEquippable(def)) continue;
+      const slot = equipSlotForKind(def.kind)!;
+      const key: EquipSlotId =
+        slot === 'weapon' ? 'weapon1' : slot === 'trinket' ? 'trinket1' : slot;
+      for (const star of [1, 5]) {
+        const s = { ...base, equipment: { ...base.equipment, [key]: { uid: 't', itemId: def.id, star } } };
+        expect(() => buildHeroSpec(s)).not.toThrow();
+      }
+    }
+  });
+
+  it('every weapon derives positive ★1 damage', () => {
+    for (const def of ITEMS) {
+      if (def.cooldownSeconds === undefined) continue;
+      expect(deriveWeaponDamage(def)).toBeGreaterThan(0);
+    }
+  });
+
+  it('has no empty effect lines (every authored line does something)', () => {
+    for (const def of ITEMS) {
+      for (const e of def.effects ?? []) {
+        expect(e.ops.length).toBeGreaterThan(0);
+      }
+    }
   });
 });
 

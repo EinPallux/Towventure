@@ -1,6 +1,8 @@
 /**
- * Item catalog — anchor slice (~17 equippables spanning every rarity and all 6
- * equip slots + the Vanguard relic). Transcribed from CONTENT.md §3.
+ * Item catalog — the authored anchor set spanning every rarity and all 6 equip
+ * slots, plus the three class relics. Transcribed from CONTENT.md §3 (docs first,
+ * then here). Adding an expressible item is content-only: a new entry here + its
+ * CONTENT.md row, no engine change (ROADMAP Phase 2 criterion).
  *
  * ★1 lines are always active; Awakened lines (Phase 2, marked `minStar: 3`) activate
  * on fusing to ★3, and Zenith lines (`minStar: 5`) at ★5. The next-hit-buffer,
@@ -202,6 +204,74 @@ export const ITEMS: ItemDef[] = [
     ],
   },
 
+  {
+    id: 'vipermaw_kris',
+    name: 'Vipermaw Kris',
+    kind: 'weapon',
+    rarity: 'rare',
+    tags: ['venom'],
+    cooldownSeconds: 1.5,
+    flavor: 'It bites once. The rest is patience.',
+    zenithName: "Widow's Sermon",
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }] },
+      // [Awakened] when Venom is applied, 10% to stack +1 extra (the one-level
+      // OnStatusApplied guard stops it cascading). CONTENT §3.1.
+      {
+        trigger: { kind: 'OnStatusApplied', status: 'venom' },
+        minStar: 3,
+        chancePct: 10,
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+      },
+      // [Zenith] Widow's Sermon (Venom ramps 2× vs enemies above 50% HP) needs a
+      // conditional per-tag ramp modifier — deferred.
+    ],
+  },
+  {
+    id: 'twin_moon_saif',
+    name: 'Twin Moon Saif',
+    kind: 'weapon',
+    rarity: 'rare',
+    tags: ['blade', 'shadow'],
+    cooldownSeconds: 1.6,
+    flavor: 'One edge for the moon you see, one for the one you do not.',
+    zenithName: 'Eclipse',
+    // [★1] OnCrit → an immediate echo-swing at 50% weapon damage. Modelled as a
+    // bonus hit; the "once per 2s" throttle and the Zenith echo-of-echo chain need
+    // per-effect cooldown + recursive-swing state (deferred).
+    effects: [
+      {
+        trigger: { kind: 'OnCrit' },
+        ops: [{ op: 'damageWeaponPct', pct: 50, to: 'target' }],
+      },
+    ],
+    // [Awakened] +10% Crit (CONTENT §3.1).
+    mods: [{ stat: 'critChancePct', value: 10, minStar: 3, scales: false }],
+  },
+  {
+    id: 'mothlight_blade',
+    name: 'Mothlight Blade',
+    kind: 'weapon',
+    rarity: 'mythic',
+    tags: ['frost', 'shadow'],
+    cooldownSeconds: 1.9,
+    flavor: 'It is always a little brighter than a moment ago.',
+    zenithName: 'The Patient Answer',
+    // [★1] Damage scales +2% per second of fight elapsed, no cap (CONTENT §3.1):
+    // a per-second self damage-buff. [Zenith] delay-then-400% needs a scheduled
+    // first-swing mechanic — deferred.
+    effects: [
+      { trigger: { kind: 'Every', seconds: 1 }, ops: [{ op: 'buffDamagePct', pct: 2 }], scales: false },
+      // [Awakened] OnDoomfall → +40% damage immediately (CONTENT §3.1).
+      {
+        trigger: { kind: 'OnDoomfall' },
+        minStar: 3,
+        ops: [{ op: 'buffDamagePct', pct: 40 }],
+        scales: false,
+      },
+    ],
+  },
+
   // ── Helm ─────────────────────────────────────────────────────────────────
   {
     id: 'dented_pot_helm',
@@ -215,6 +285,20 @@ export const ITEMS: ItemDef[] = [
     mods: [
       { stat: 'maxHp', value: 14 },
       { stat: 'armor', value: 6, minStar: 3 },
+    ],
+  },
+  {
+    id: 'rawhide_hood',
+    name: 'Rawhide Hood',
+    kind: 'helm',
+    rarity: 'common',
+    tags: ['shadow'],
+    flavor: 'Smells of the road and whoever wore it before.',
+    zenithName: "Hunter's Patience",
+    // [Awakened] +6 HP (CONTENT §3.2).
+    mods: [
+      { stat: 'dodgePct', value: 4, scales: false },
+      { stat: 'maxHp', value: 6, minStar: 3 },
     ],
   },
 
@@ -235,6 +319,51 @@ export const ITEMS: ItemDef[] = [
       },
     ],
   },
+  {
+    id: 'verdigris_scale',
+    name: 'Verdigris Scale',
+    kind: 'armor',
+    rarity: 'rare',
+    tags: ['venom', 'bulwark'],
+    flavor: 'The rot is load-bearing now.',
+    zenithName: 'Molt',
+    mods: [{ stat: 'armor', value: 8 }],
+    effects: [
+      {
+        trigger: { kind: 'OnHurt' },
+        chancePct: 30,
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'attacker' }],
+      },
+      // [Awakened] Armor counts +25% vs Venomed enemies — needs a conditional armor
+      // modifier (deferred). [Zenith] Molt's cleanse needs a cleanse op (deferred).
+    ],
+  },
+  {
+    id: 'aegis_of_the_sleepless',
+    name: 'Aegis of the Sleepless',
+    kind: 'armor',
+    rarity: 'mythic',
+    tags: ['bulwark', 'arcane'],
+    flavor: 'It has not closed its eye since the Tower opened.',
+    zenithName: 'The Dream Refuses',
+    // [★1] Start each fight with Ward = 20% Max HP. [Awakened] while Ward holds,
+    // +15% damage — needs a ward-conditional modifier (deferred). [Zenith] deferred.
+    startWardPct: 20,
+  },
+  {
+    id: 'boiled_leather_vest',
+    name: 'Boiled Leather Vest',
+    kind: 'armor',
+    rarity: 'common',
+    tags: ['wild'],
+    flavor: 'Boiled once, in a hurry, by someone who lived.',
+    zenithName: 'Second Skin',
+    // [Awakened] +6 HP (CONTENT §3.2).
+    mods: [
+      { stat: 'maxHp', value: 12 },
+      { stat: 'maxHp', value: 6, minStar: 3 },
+    ],
+  },
 
   // ── Boots ────────────────────────────────────────────────────────────────
   {
@@ -249,6 +378,20 @@ export const ITEMS: ItemDef[] = [
     mods: [
       { stat: 'speedPct', value: 5 },
       { stat: 'dodgePct', value: 4, minStar: 3, scales: false },
+    ],
+  },
+  {
+    id: 'ironshod_sabatons',
+    name: 'Ironshod Sabatons',
+    kind: 'boots',
+    rarity: 'common',
+    tags: ['bulwark'],
+    flavor: 'Every step announces itself. Let them come.',
+    zenithName: 'Standfast',
+    // [Awakened] +3 Armor (CONTENT §3.2).
+    mods: [
+      { stat: 'armor', value: 4 },
+      { stat: 'armor', value: 3, minStar: 3 },
     ],
   },
 
