@@ -1,8 +1,10 @@
 /**
- * Materials / infusions (CONTENT.md §3.5). Infusion itself is a Phase 2 system
- * (ROADMAP scopes Phase 1 run to loot/gold/equip/fusion/sell — no infuse), so
- * these are catalogued here as droppable/sellable items; the socket effects that
- * map cleanly to Phase 1 stats are filled in, the rest are authored in Phase 2.
+ * Materials / infusions (CONTENT.md §3.5, GDD §4.2). Materials socket permanent
+ * substats or micro-effects onto gear; run/inventory `infuse` sockets them and
+ * run/build compiles a socketed item's material mods/effects into the hero. Sockets
+ * per item = socketsFor(rarity): Common 0 · Uncommon 1 · Rare 2 · Epic/Mythic 3.
+ * Grave-Salt (Echo/Skirmish only) and Quickquill (Every-interval modifier op) await
+ * their systems and are authored later.
  */
 
 import type { MaterialDef } from './types.js';
@@ -13,7 +15,12 @@ export const MATERIALS: MaterialDef[] = [
     name: 'Whetstone',
     flavor: 'Sharper is a state of mind, mostly.',
     dropsFrom: 'everywhere',
-    // +6% weapon damage — needs the weapon-damage-% infusion path (Phase 2).
+    // +6% weapon damage, modelled as a fight-scoped damage buff (weapon swings only).
+    effect: {
+      trigger: { kind: 'OnFightStart' },
+      ops: [{ op: 'buffDamagePct', pct: 6 }],
+      scales: false,
+    },
   },
   {
     id: 'emberdust',
@@ -46,6 +53,20 @@ export const MATERIALS: MaterialDef[] = [
       { stat: 'armor', value: 8 },
       { stat: 'speedPct', value: -3 },
     ],
+  },
+  {
+    id: 'hollowfang',
+    name: 'Hollowfang',
+    flavor: 'It remembers being a tooth. It misses it.',
+    dropsFrom: 'Wild enemies',
+    mods: [{ stat: 'lifestealPct', value: 4 }],
+  },
+  {
+    id: 'glimmergrit',
+    name: 'Glimmergrit',
+    flavor: 'Grit that catches the lantern and keeps a little.',
+    dropsFrom: 'shops only',
+    mods: [{ stat: 'critChancePct', value: 5 }],
   },
   {
     id: 'blood_amber',

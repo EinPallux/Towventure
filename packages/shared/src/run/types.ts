@@ -14,6 +14,8 @@ export interface InventoryItem {
   star: number;
   /** Consumables only: the auto-fire condition (defaults to the def's, player-settable). */
   condition?: ConsumableCondition;
+  /** Infused material ids, one per filled socket (≤ socketsFor(rarity); GDD §4.2). */
+  sockets?: string[];
 }
 
 /** The 8 equip slots (GDD §3.4). A 2-hand weapon lives in `weapon1`; `weapon2` is then blocked. */
@@ -114,6 +116,7 @@ export type Command =
   | { type: 'equip'; uid: string; slot?: EquipSlotId }
   | { type: 'unequip'; slot: EquipSlotId }
   | { type: 'fuse'; uid1: string; uid2: string }
+  | { type: 'infuse'; itemUid: string; materialUid: string; socketIndex?: number }
   | { type: 'sell'; uid: string }
   | { type: 'setConsumableCondition'; uid: string; condition: ConsumableCondition }
   | { type: 'buy'; slotIndex: number }

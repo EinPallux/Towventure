@@ -138,6 +138,8 @@ Small Ale (heal 25%), Adrenal Vial (+25% Speed 6s), Cinder Phial (6 Burn to all)
 | Blood-Amber | +10 Max HP | events |
 | Void-Tallow | effect procs +5% chance (any "% chance" line) | Torment floors only |
 
+*Implementation status (Phase 2):* the **infusion socket system is live** (GDD §4.2). Sockets per item = rarity (Common 0 · Uncommon 1 · Rare 2 · Epic/Mythic 3); the `infuse` command sockets a backpack material into a backpack-or-equipped item (append or overwrite — overwriting destroys the old infusion), the material is consumed, and `run/build` compiles a socketed item's material mods/effects into the hero. **Fusing keeps the better socket set** (the copy with more infusions survives). Functional materials: Whetstone (+6% weapon damage, as a fight-start damage buff), Emberdust, Frostmote, Leadweave, Hollowfang, Glimmergrit, Blood-Amber. Materials are shop-stocked (2 slots/shop). Grave-Salt (needs the Echo/Skirmish system), Quickquill (needs an Every-interval-modifier op) and Void-Tallow (needs a proc-chance modifier) are authored and await their systems. The client backpack shows socket pips (◈ filled / ◇ empty) and offers an Infuse action on a selected material + socketable item.
+
 ---
 
 ## 4. Enemies

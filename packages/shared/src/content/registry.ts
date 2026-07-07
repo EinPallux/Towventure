@@ -62,6 +62,9 @@ export function getMaterial(id: string): MaterialDef {
   if (!d) throw new Error(`unknown material: ${id}`);
   return d;
 }
+export function findMaterial(id: string): MaterialDef | undefined {
+  return MATERIAL_MAP.get(id);
+}
 export function getEnemy(id: string): EnemyDef {
   const d = ENEMY_MAP.get(id);
   if (!d) throw new Error(`unknown enemy: ${id}`);

@@ -12,6 +12,7 @@ import {
   cooldownTicks,
   deriveWeaponDamage,
   findConsumable,
+  findMaterial,
   getClass,
   getEnemy,
   getItem,
@@ -154,6 +155,14 @@ function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
       cooldownTicks: cooldownTicks(def.cooldownSeconds),
       damage: scaleToStar(deriveWeaponDamage(def), star),
     });
+  }
+  // Infusions: each socketed material's mods + micro-effect (GDD §4.2). Materials
+  // don't scale with ★ — the socket is the same whatever tier the host item is.
+  for (const matId of inst.sockets ?? []) {
+    const mat = findMaterial(matId);
+    if (!mat) continue;
+    for (const m of mat.mods ?? []) addStat(acc, m.stat, m.value);
+    if (mat.effect) acc.effects.push(compileEffect(mat.name, mat.effect, 1));
   }
 }
 

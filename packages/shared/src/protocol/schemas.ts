@@ -66,6 +66,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('equip'), uid: z.string().min(1), slot: equipSlotSchema.optional() }),
   z.object({ type: z.literal('unequip'), slot: equipSlotSchema }),
   z.object({ type: z.literal('fuse'), uid1: z.string().min(1), uid2: z.string().min(1) }),
+  z.object({
+    type: z.literal('infuse'),
+    itemUid: z.string().min(1),
+    materialUid: z.string().min(1),
+    socketIndex: z.number().int().min(0).max(2).optional(),
+  }),
   z.object({ type: z.literal('sell'), uid: z.string().min(1) }),
   z.object({
     type: z.literal('setConsumableCondition'),

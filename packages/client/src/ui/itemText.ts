@@ -6,12 +6,30 @@
 import {
   findConsumable,
   findItem,
+  findMaterial,
   scaleToStar,
+  socketsFor,
   type ConsumableCondition,
   type ItemEffect,
   type Rarity,
 } from '@towventure/shared/content';
 import type { EffectOp } from '@towventure/shared/sim';
+
+/** How many infusion sockets this item id has (0 if not an item or a Common). */
+export function socketCapacity(itemId: string): number {
+  const def = findItem(itemId);
+  return def ? socketsFor(def.rarity) : 0;
+}
+
+/** True if this id is a droppable material (for the infusion UI). */
+export function isMaterial(itemId: string): boolean {
+  return findMaterial(itemId) !== undefined;
+}
+
+/** Short display names for an item's filled sockets. */
+export function socketLabels(sockets: string[] | undefined): string[] {
+  return (sockets ?? []).map((id) => findMaterial(id)?.name ?? id);
+}
 
 export const CONSUMABLE_CONDITIONS: ConsumableCondition[] = [
   'fightStart',
@@ -125,7 +143,7 @@ export function effectLine(e: ItemEffect, star: number): string {
 
 export interface ItemText {
   name: string;
-  rarity: Rarity | 'consumable';
+  rarity: Rarity | 'consumable' | 'material';
   tags: string[];
   lines: string[];
   flavor: string;
@@ -143,6 +161,12 @@ export function describeItem(itemId: string, star: number): ItemText {
         lines: cons.ops.map((op) => opText(op, star)),
         flavor: cons.flavor,
       };
+    }
+    const mat = findMaterial(itemId);
+    if (mat) {
+      const lines = (mat.mods ?? []).map((m) => `${m.value > 0 ? '+' : ''}${m.value} ${m.stat}`);
+      if (mat.effect) lines.push(effectLine(mat.effect, 1));
+      return { name: mat.name, rarity: 'material', tags: [], lines, flavor: mat.flavor };
     }
     return { name: itemId, rarity: 'consumable', tags: [], lines: [], flavor: '' };
   }

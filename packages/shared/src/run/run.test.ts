@@ -198,6 +198,69 @@ describe('consumable auto-triggers', () => {
   });
 });
 
+describe('infusion sockets', () => {
+  const apply = (st: RunState, c: Parameters<typeof applyCommand>[1]): RunState => {
+    const r = applyCommand(st, c);
+    if (!r.ok) throw new Error(r.error);
+    return r.state;
+  };
+
+  it('compiles a socketed material into the hero (Leadweave = +8 Armor, −3% Speed)', () => {
+    const s = freshVanguard();
+    const bare = { ...s, equipment: { ...s.equipment, weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1 } } };
+    const socketed = {
+      ...s,
+      equipment: {
+        ...s.equipment,
+        weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1, sockets: ['leadweave'] },
+      },
+    };
+    expect(buildHeroSpec(socketed).armor - buildHeroSpec(bare).armor).toBe(8);
+    expect(buildHeroSpec(socketed).speedPct - buildHeroSpec(bare).speedPct).toBe(-3);
+  });
+
+  it('infuses a material into a free socket and consumes it', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'k1', itemId: 'kindlewhip', star: 1 }); // Uncommon → 1 socket
+    s.backpack.push({ uid: 'm1', itemId: 'leadweave', star: 1 });
+    const after = apply(s, { type: 'infuse', itemUid: 'k1', materialUid: 'm1' });
+    expect(after.backpack.find((i) => i.uid === 'k1')!.sockets).toEqual(['leadweave']);
+    expect(after.backpack.some((i) => i.uid === 'm1')).toBe(false); // material spent
+  });
+
+  it('rejects infusing a socketless Common item', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'c1', itemId: 'sawtooth_dirk', star: 1 }); // Common → 0 sockets
+    s.backpack.push({ uid: 'm1', itemId: 'whetstone', star: 1 });
+    expect(applyCommand(s, { type: 'infuse', itemUid: 'c1', materialUid: 'm1' }).ok).toBe(false);
+  });
+
+  it('fills to capacity, rejects the overflow, and overwrites on request', () => {
+    let s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'r1', itemId: 'gravediggers_shovel', star: 1 }); // Rare → 2 sockets
+    s.backpack.push({ uid: 'ma', itemId: 'whetstone', star: 1 });
+    s.backpack.push({ uid: 'mb', itemId: 'hollowfang', star: 1 });
+    s.backpack.push({ uid: 'mc', itemId: 'glimmergrit', star: 1 });
+    s = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'ma' });
+    s = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mb' });
+    expect(s.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual(['whetstone', 'hollowfang']);
+    // A third append is refused — both sockets are full.
+    expect(applyCommand(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc' }).ok).toBe(false);
+    // …but overwriting socket 0 works and destroys the old infusion.
+    const over = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc', socketIndex: 0 });
+    expect(over.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual(['glimmergrit', 'hollowfang']);
+  });
+
+  it('keeps the better socket set when two copies fuse', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'a', itemId: 'kindlewhip', star: 1, sockets: ['whetstone'] });
+    s.backpack.push({ uid: 'b', itemId: 'kindlewhip', star: 1 });
+    const after = apply(s, { type: 'fuse', uid1: 'b', uid2: 'a' });
+    const fused = after.backpack.find((i) => i.itemId === 'kindlewhip' && i.star === 2)!;
+    expect(fused.sockets).toEqual(['whetstone']); // the infused copy's set survives
+  });
+});
+
 describe('fusion (★1 → ★2 stat scaling)', () => {
   it('fuses two identical copies and scales the fused weapon damage by ×1.35', () => {
     let s = freshVanguard();

@@ -199,6 +199,32 @@ input {
 .r-mythic {
   color: var(--mythic);
 }
+.r-consumable {
+  color: #cdb98a;
+}
+.r-material {
+  color: #8fc7b8;
+}
+
+/* Infusion sockets */
+.sockets-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 3px;
+}
+.sockets-row .socket {
+  color: #5c5670;
+  font-size: 12px;
+  line-height: 1;
+}
+.sockets-row .socket.filled {
+  color: #8fc7b8;
+}
+.sockets-row .socket-names {
+  font-size: 10px;
+  margin-left: 2px;
+}
 
 /* Hero screen */
 .hero-screen {

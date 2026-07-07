@@ -12,7 +12,7 @@ import type { SimEvent, SimResult } from '../sim/types.js';
 import { buildCombatSpec, goldPerWin } from './build.js';
 import { generateDoors, isShopFloor } from './doors.js';
 import { climbHonorForFrontier, honorTier } from './honor.js';
-import { equip, fuse, pushBackpack, sell, unequip } from './inventory.js';
+import { equip, fuse, infuse, pushBackpack, sell, unequip } from './inventory.js';
 import { rollLoot } from './loot.js';
 import { RNG_PURPOSE, deriveFightSeed, deriveRng } from './rng.js';
 import { generateShop } from './shop.js';
@@ -134,6 +134,11 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
     case 'fuse': {
       if (!INVENTORY_PHASES.has(draft.phase)) return reject('cannot fuse now');
       const err = fuse(draft, command.uid1, command.uid2);
+      return err ? reject(err) : { ok: true, state: draft };
+    }
+    case 'infuse': {
+      if (!INVENTORY_PHASES.has(draft.phase)) return reject('cannot infuse now');
+      const err = infuse(draft, command.itemUid, command.materialUid, command.socketIndex);
       return err ? reject(err) : { ok: true, state: draft };
     }
     case 'sell': {
