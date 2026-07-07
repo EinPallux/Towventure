@@ -138,5 +138,10 @@
     "hash": 3487343839,
     "endTick": 170,
     "winner": "hero"
+  },
+  "redline-detonate-bleed": {
+    "hash": 1715003042,
+    "endTick": 340,
+    "winner": "hero"
   }
 }

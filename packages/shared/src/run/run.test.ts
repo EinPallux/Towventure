@@ -71,6 +71,20 @@ describe('startRun', () => {
     // Bulwark Sigil contributes its two effect lines (every-4th armor, OnBlock retaliate).
     expect(spec.effects.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("activates the Sawtooth Dirk's ★5 Redline detonation only at ★5", () => {
+    // A fresh Duelist starts with the Sawtooth Dirk (weapon1); its Zenith line is
+    // gated at minStar 5.
+    const base = startRun('duelist', [], 42);
+    const dirk = base.equipment.weapon1!;
+    expect(dirk.itemId).toBe('sawtooth_dirk');
+    const hasDetonate = (star: number): boolean => {
+      const s = { ...base, equipment: { ...base.equipment, weapon1: { ...dirk, star } } };
+      return buildHeroSpec(s).effects.some((e) => e.ops.some((o) => o.op === 'detonateStatus'));
+    };
+    expect(hasDetonate(4)).toBe(false); // Awakened only, no Zenith yet
+    expect(hasDetonate(5)).toBe(true); // Redline online
+  });
 });
 
 describe('a full climb', () => {

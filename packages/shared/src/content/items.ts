@@ -2,13 +2,14 @@
  * Item catalog — anchor slice (~17 equippables spanning every rarity and all 6
  * equip slots + the Vanguard relic). Transcribed from CONTENT.md §3.
  *
- * ★1 lines are always active; Awakened lines (Phase 2, marked `minStar: 3` on the
- * mod/effect) activate on fusing to ★3. The Awakened lines that use the current
- * effect vocabulary are transcribed here; a few whose CONTENT.md text needs new
- * ops (per-Armor damage, next-hit buffers, conditional-vs-status damage, Zenith
- * detonate/consume) are deferred until those ops land. `zenithName` is display
- * only until the ★5 transforms ship. Weapon per-hit damage is derived from rarity
- * power × cooldown in the registry (see deriveWeaponDamage).
+ * ★1 lines are always active; Awakened lines (Phase 2, marked `minStar: 3`) activate
+ * on fusing to ★3, and Zenith lines (`minStar: 5`) at ★5. The next-hit-buffer,
+ * conditional-vs-status-damage, and detonate/consume ops have since landed — the
+ * Sawtooth Dirk's ★5 **Redline** is the first live Zenith transform. Lines whose
+ * CONTENT.md text still needs new ops (per-Armor damage, weapon-echo/chain, spread,
+ * stack-threshold triggers for Solarlash) stay deferred with a note. `zenithName` is
+ * the ★5 display rename. Weapon per-hit damage is derived from rarity power × cooldown
+ * in the registry (see deriveWeaponDamage).
  */
 
 import type { ItemDef } from './types.js';
@@ -47,6 +48,15 @@ export const ITEMS: ItemDef[] = [
         trigger: { kind: 'OnCrit' },
         minStar: 3,
         ops: [{ op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' }],
+      },
+      // [Zenith ★5 — Redline] Crits consume all Bleed for 150% of its damage (CONTENT
+      // §3.1). Fires after the Awakened +2 Bleed above, so a crit tops off then blows
+      // the whole stack. The first live Zenith transform.
+      {
+        trigger: { kind: 'OnCrit' },
+        minStar: 5,
+        scales: false,
+        ops: [{ op: 'detonateStatus', status: 'bleed', pctPerStack: 150, to: 'target' }],
       },
     ],
   },

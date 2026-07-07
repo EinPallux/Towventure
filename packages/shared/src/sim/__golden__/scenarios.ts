@@ -650,4 +650,27 @@ export const SCENARIOS: Scenario[] = [
       [c({ id: 'e0', name: 'Envenomable', maxHp: 300, weapons: [] })],
     ),
   },
+  {
+    // Redline (Sawtooth Dirk ★5): OnHit stacks Bleed, and crits consume it all for
+    // 150% of its damage — the first Zenith transform.
+    name: 'redline-detonate-bleed',
+    seed: 2323,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        critChancePct: 30,
+        weapons: [{ name: 'Dirk', cooldownTicks: 13, damage: 5 }],
+        effects: [
+          bindOnHit([{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }]),
+          {
+            source: 'Redline',
+            trigger: { kind: 'OnCrit' },
+            ops: [{ op: 'detonateStatus', status: 'bleed', pctPerStack: 150, to: 'target' }],
+          },
+        ],
+      }),
+      [c({ id: 'e0', name: 'Bleeder', maxHp: 300, weapons: [] })],
+    ),
+  },
 ];

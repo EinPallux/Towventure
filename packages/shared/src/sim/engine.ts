@@ -548,6 +548,27 @@ class Sim {
       case 'buffDamageVsStatusPct':
         self.vsStatus[op.status] += op.pct;
         return;
+      case 'detonateStatus': {
+        const def = STATUS[op.status];
+        const perSec = 'dmgPerSecPerStack' in def ? def.dmgPerSecPerStack : 0;
+        for (const tgt of this.resolveTarget(self, op.to, other)) {
+          const st = tgt.statuses[op.status];
+          const stacks = st.stacks;
+          if (stacks <= 0) continue;
+          // Consume the affliction, then burst for a multiple of its per-second bite.
+          st.stacks = 0;
+          st.remaining = 0;
+          if (op.status === 'venom') tgt.venomAge = 0;
+          this.emit({ type: 'status', t, to: tgt.idx, status: op.status, stacks: 0 });
+          const dmg = Math.trunc((op.pctPerStack * stacks * perSec) / 100);
+          if (dmg > 0) {
+            const toHp = this.damageThroughWard(tgt, dmg, t);
+            this.emit({ type: 'hit', t, from: self.idx, to: tgt.idx, dmg: toHp, crit: 0, blocked: 0 });
+          }
+          this.checkDeath(tgt, t);
+        }
+        return;
+      }
       case 'damageWeaponPct': {
         const base = self.weapons[0]?.damage ?? 0;
         const dmg = Math.trunc((base * op.pct) / 100);

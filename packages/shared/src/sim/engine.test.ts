@@ -299,4 +299,35 @@ describe('conditional & buffered damage ops', () => {
     expect(dmg[0]).toBe(10); // target clean on the first strike
     expect(dmg[1]).toBe(15); // now Venomed → 10 × 150%
   });
+
+  it('detonateStatus consumes the affliction and bursts for pct × per-sec × stacks', () => {
+    // Seed 5 Bleed at fight start, detonate it at t=20 (first Every-2s fire). No
+    // weapons/RNG, so the numbers are exact: 150% × 2 dmg/s × 5 stacks = 15.
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [],
+        effects: [
+          {
+            source: 'seed',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'applyStatus', status: 'bleed', stacks: 5, to: 'target' }],
+          },
+          {
+            source: 'Redline',
+            trigger: { kind: 'Every', seconds: 2 },
+            ops: [{ op: 'detonateStatus', status: 'bleed', pctPerStack: 150, to: 'target' }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Bleeder', maxHp: 999, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    const boom = r.events.find((e) => e.type === 'hit' && e.from === 0 && e.to === 1);
+    expect(boom && boom.type === 'hit' ? boom.dmg : -1).toBe(15);
+    // Bleed is consumed by the detonation — no further Bleed ticks afterwards.
+    const bleedAfter = r.events.filter((e) => e.type === 'dot' && e.status === 'bleed' && e.t > 20);
+    expect(bleedAfter.length).toBe(0);
+  });
 });

@@ -48,6 +48,11 @@ export type EffectOp =
   | { op: 'buffNextHitPct'; pct: number }
   /** Fight-scoped: +`pct`% weapon damage vs a target afflicted with `status` (Venom (4)). */
   | { op: 'buffDamageVsStatusPct'; status: StatusKind; pct: number }
+  /**
+   * Consume all of `status` on `to` and deal a burst = `pctPerStack`% of the
+   * status's per-second bite × stacks, through Ward (Redline: crits detonate Bleed).
+   */
+  | { op: 'detonateStatus'; status: StatusKind; pctPerStack: number; to: EffectTarget }
   /** Deal self.thorns × mult to the triggering attacker (Bulwark Sigil OnBlock). */
   | { op: 'retaliateThorns'; mult: number }
   /** Delay the target's next action(s) by `ticks` (Toll-Keeper's Bell). */
