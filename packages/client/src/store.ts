@@ -6,7 +6,13 @@
 
 import type { Command, RunState } from '@towventure/shared/run';
 import { create } from 'zustand';
-import { api, type ApiError, type FightResult, type MeResponse } from './api/client.js';
+import {
+  api,
+  type ApiError,
+  type ClassChoice,
+  type FightResult,
+  type MeResponse,
+} from './api/client.js';
 
 export interface FightPlayback {
   result: FightResult;
@@ -30,7 +36,7 @@ interface Store {
   login: (name: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
-  startRun: () => Promise<void>;
+  startRun: (classId?: ClassChoice) => Promise<void>;
   cmd: (command: Command) => Promise<void>;
   fight: () => Promise<void>;
   endPlayback: () => void;
@@ -114,10 +120,10 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 
-  startRun: async () => {
+  startRun: async (classId = 'vanguard') => {
     set({ busy: true, error: null });
     try {
-      const res = await api.startRun('vanguard', []);
+      const res = await api.startRun(classId, []);
       set({ run: res.state, version: res.stateVersion, view: 'gate' });
     } catch (err) {
       set({ error: messageOf(err) });

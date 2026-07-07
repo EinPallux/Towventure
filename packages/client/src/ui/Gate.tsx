@@ -79,23 +79,52 @@ function AuthForm() {
   );
 }
 
+const CLASS_CHOICES = [
+  { id: 'vanguard' as const, name: 'Vanguard', fantasy: 'the wall that hits back' },
+  { id: 'duelist' as const, name: 'Duelist', fantasy: 'speed, crits, bleed, greed' },
+  { id: 'arcanist' as const, name: 'Arcanist', fantasy: 'cooldowns, statuses, detonations' },
+];
+
 function Menu() {
   const me = useStore((s) => s.me)!;
   const run = useStore((s) => s.run);
   const busy = useStore((s) => s.busy);
   const startRun = useStore((s) => s.startRun);
   const setView = useStore((s) => s.setView);
+  const [cls, setCls] = useState<'vanguard' | 'duelist' | 'arcanist'>('vanguard');
   const hasRun = run && run.status === 'active';
+
+  if (hasRun) {
+    return (
+      <div className="card col" style={{ gap: 12 }}>
+        <div className="muted">Welcome back, {me.account.name}.</div>
+        <button className="primary" disabled={busy} onClick={() => setView('gate')}>
+          Resume — Floor {run.floor}
+        </button>
+        <button className="ghost" onClick={() => setView('ladder')}>
+          The Ladder
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="card col" style={{ gap: 12 }}>
-      <div className="muted">Welcome, {me.account.name}.</div>
-      <button
-        className="primary"
-        disabled={busy}
-        onClick={() => (hasRun ? undefined : void startRun())}
-      >
-        {hasRun ? `Resume — Floor ${run.floor}` : 'Enter the Tower'}
+      <div className="muted">Choose your Vow, {me.account.name}.</div>
+      <div className="col" style={{ gap: 6 }}>
+        {CLASS_CHOICES.map((c) => (
+          <button
+            key={c.id}
+            className={cls === c.id ? 'primary' : 'ghost'}
+            style={{ textAlign: 'left' }}
+            onClick={() => setCls(c.id)}
+          >
+            <strong>{c.name}</strong> <span className="muted">— {c.fantasy}</span>
+          </button>
+        ))}
+      </div>
+      <button className="primary" disabled={busy} onClick={() => void startRun(cls)}>
+        Enter the Tower
       </button>
       <button className="ghost" onClick={() => setView('ladder')}>
         The Ladder

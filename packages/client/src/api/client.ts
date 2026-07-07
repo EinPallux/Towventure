@@ -5,6 +5,8 @@
 
 import type { Command, RunState, RunSummary } from '@towventure/shared/run';
 
+export type ClassChoice = 'vanguard' | 'duelist' | 'arcanist';
+
 export interface ApiError {
   status: number;
   error: string;
@@ -84,7 +86,7 @@ export const api = {
   logout: () => req<{ ok: true }>('POST', '/api/auth/logout'),
   me: () => req<MeResponse>('GET', '/api/me'),
 
-  startRun: (classId: 'vanguard', vows: string[]) =>
+  startRun: (classId: ClassChoice, vows: string[]) =>
     req<RunResponse>('POST', '/api/run/start', { classId, vows }),
   getRun: () => req<{ run: null } | RunResponse>('GET', '/api/run'),
   command: (expectedStateVersion: number, command: Command) =>

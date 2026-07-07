@@ -8,7 +8,7 @@
  * Usage: pnpm harness [--runs 500] [--seed 1] [--cap 200]
  */
 
-import { equipSlotForKind, getItem } from '@towventure/shared/content';
+import { equipSlotForKind, getItem, type ClassId } from '@towventure/shared/content';
 import {
   applyCommand,
   runPendingFight,
@@ -16,6 +16,8 @@ import {
   type Command,
   type RunState,
 } from '@towventure/shared/run';
+
+const CLASSES: ClassId[] = ['vanguard', 'duelist', 'arcanist'];
 
 interface Args {
   runs: number;
@@ -108,8 +110,8 @@ interface Outcome {
   fightsWon: number;
 }
 
-function playRun(seed: number, cap: number): Outcome {
-  let state = startRun('vanguard', [], seed);
+function playRun(classId: ClassId, seed: number, cap: number): Outcome {
+  let state = startRun(classId, [], seed);
   let guard = 0;
   while (state.status === 'active' && state.floor <= cap && guard++ < 20000) {
     if (state.phase === 'fight') {
@@ -135,7 +137,7 @@ function playRun(seed: number, cap: number): Outcome {
   };
 }
 
-function report(outcomes: Outcome[]): void {
+function report(label: string, outcomes: Outcome[]): void {
   const floors = outcomes.map((o) => o.deathFloor).sort((a, b) => a - b);
   const n = floors.length;
   const pct = (p: number) => floors[Math.min(n - 1, Math.floor((p / 100) * n))]!;
@@ -149,22 +151,26 @@ function report(outcomes: Outcome[]): void {
     bands.set(band, (bands.get(band) ?? 0) + 1);
   }
 
-  console.log(`\nTowventure balance harness — ${n} greedy Vanguard runs\n`);
+  console.log(`\n${label} — ${n} greedy runs`);
   console.log(
     `  death floor:  min ${floors[0]}  p25 ${pct(25)}  median ${pct(50)}  p75 ${pct(75)}  p95 ${pct(95)}  max ${floors[n - 1]}`,
   );
   console.log(`  mean ${mean} · Doomfall deaths ${((doomfallDeaths / n) * 100).toFixed(1)}%`);
-  console.log('');
   const maxBand = Math.max(...bands.values());
   for (const [band, count] of [...bands.entries()].sort((a, b) => a[0] - b[0])) {
-    const bar = '█'.repeat(Math.max(1, Math.round((count / maxBand) * 40)));
+    const bar = '█'.repeat(Math.max(1, Math.round((count / maxBand) * 30)));
     console.log(`  ${String(band).padStart(3)}–${String(band + 9).padStart(3)} ${bar} ${count}`);
   }
-  // Phase 1 sanity note vs BALANCE §4 (median first death ~25–40 for a fusing build).
-  console.log(`\n  BALANCE §4 target: median-skill fusing build first dies ~floor 25–40.`);
 }
 
 const args = parseArgs(process.argv.slice(2));
-const outcomes: Outcome[] = [];
-for (let i = 0; i < args.runs; i++) outcomes.push(playRun(args.seed + i * 2654435761, args.cap));
-report(outcomes);
+console.log(
+  `\nTowventure balance harness — ${args.runs} runs/class (BALANCE §4 target: median first death ~floor 25–40)`,
+);
+for (const classId of CLASSES) {
+  const outcomes: Outcome[] = [];
+  for (let i = 0; i < args.runs; i++) {
+    outcomes.push(playRun(classId, args.seed + i * 2654435761, args.cap));
+  }
+  report(classId, outcomes);
+}

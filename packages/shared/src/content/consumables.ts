@@ -36,4 +36,12 @@ export const CONSUMABLES: ConsumableDef[] = [
     flavor: 'Break glass in case of everything.',
     ops: [{ op: 'applyStatus', status: 'burn', stacks: 6, to: 'allEnemies' }],
   },
+  {
+    id: 'adrenal_vial',
+    name: 'Adrenal Vial',
+    rarity: 'uncommon',
+    flavor: 'The Tower feels closer, suddenly. Faster.',
+    // +25% Speed 6s ≈ 5 Haste stacks (the timed +Speed status).
+    ops: [{ op: 'applyStatus', status: 'haste', stacks: 5, to: 'self' }],
+  },
 ];

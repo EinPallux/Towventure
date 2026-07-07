@@ -28,8 +28,8 @@ export const guestSchema = z.object({}).optional();
 
 // ─── Run ─────────────────────────────────────────────────────────────────────
 
-/** Phase 1 ships the Vanguard only; the enum grows as classes unlock (Phase 2). */
-export const classIdSchema = z.enum(['vanguard']);
+/** All three classes are playable in Phase 2; Honor-tier unlock gating is Phase 3. */
+export const classIdSchema = z.enum(['vanguard', 'duelist', 'arcanist']);
 
 export const runStartSchema = z.object({
   classId: classIdSchema,

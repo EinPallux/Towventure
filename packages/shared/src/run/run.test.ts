@@ -263,6 +263,24 @@ describe('tag synergies (CONTENT §2.2)', () => {
   });
 });
 
+describe('classes (BALANCE §2, CONTENT §1)', () => {
+  it('compiles all three with base stats + their relic', () => {
+    const v = buildHeroSpec(startRun('vanguard', [], 1));
+    expect(v.maxHp).toBe(134); // 120 base + Dented Pot-Helm (+14)
+    expect(v.effects.some((e) => e.source === 'Bulwark Sigil')).toBe(true);
+
+    const d = buildHeroSpec(startRun('duelist', [], 1));
+    expect(d.maxHp).toBe(90);
+    expect(d.critChancePct).toBe(12);
+    expect(d.effects.some((e) => e.source === 'Twin-Fang Oath')).toBe(true);
+
+    const a = buildHeroSpec(startRun('arcanist', [], 1));
+    expect(a.maxHp).toBe(95);
+    expect(a.effects.some((e) => e.source === 'Cinderheart')).toBe(true);
+    expect(a.effects.some((e) => e.source === 'Apprentice Sparkrod')).toBe(true);
+  });
+});
+
 describe('honor formula (BALANCE §7)', () => {
   it('matches the cumulative sanity points', () => {
     expect(cumulativeClimbHonor(20)).toBe(171);

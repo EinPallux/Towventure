@@ -95,6 +95,27 @@ export const ITEMS: ItemDef[] = [
     ],
   },
   {
+    id: 'apprentice_sparkrod',
+    name: 'Apprentice Sparkrod',
+    kind: 'weapon',
+    rarity: 'common',
+    tags: ['arcane'],
+    cooldownSeconds: 2.0,
+    flavor: 'Buzzes when it disapproves. It disapproves often.',
+    zenithName: 'Stormtongue',
+    // Every 5s → zap for 120% weapon damage, applies 1 Shock (CONTENT §3.1). The
+    // Awakened bounce-to-a-second-enemy line needs a chain op (deferred).
+    effects: [
+      {
+        trigger: { kind: 'Every', seconds: 5 },
+        ops: [
+          { op: 'damageWeaponPct', pct: 120, to: 'target' },
+          { op: 'applyStatus', status: 'shock', stacks: 1, to: 'target' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'fangback_spear',
     name: 'Fangback Spear',
     kind: 'weapon',
@@ -307,6 +328,52 @@ export const ITEMS: ItemDef[] = [
         trigger: { kind: 'OnBlock' },
         chancePct: 15,
         ops: [{ op: 'retaliateThorns', mult: 3 }],
+        scales: false,
+      },
+    ],
+  },
+  {
+    id: 'twin_fang_oath',
+    name: 'Twin-Fang Oath',
+    kind: 'relic',
+    rarity: 'epic',
+    tags: ['blade'],
+    relicOf: 'duelist',
+    flavor: 'Two promises, kept in alternation.',
+    zenithName: 'Twin-Fang Oath',
+    // CONTENT §1.2: each weapon hit speeds the OTHER weapon +15% for 2s (×3), and a
+    // two-hander instead auto-crits every 3rd hit. Modelled here at combatant level
+    // as OnHit → Haste (the duelist accelerates as it fights); the per-weapon
+    // alternation and the 2-hander auto-crit need per-weapon state + a next-hit-crit
+    // op (deferred).
+    effects: [
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'haste', stacks: 3, to: 'self' }],
+        scales: false,
+      },
+    ],
+  },
+  {
+    id: 'cinderheart',
+    name: 'Cinderheart',
+    kind: 'relic',
+    rarity: 'epic',
+    tags: ['arcane', 'ember'],
+    relicOf: 'arcanist',
+    flavor: 'It keeps a spare heartbeat for emergencies.',
+    zenithName: 'Cinderheart',
+    // CONTENT §1.3: Every 8s recast your most-recent non-weapon effect; status damage
+    // +15%. Modelled as a recurring cinder cast (the arcanist's effect throughput);
+    // the effect-recast and the status-damage modifier need last-effect tracking + a
+    // status-damage op (deferred).
+    effects: [
+      {
+        trigger: { kind: 'Every', seconds: 8 },
+        ops: [
+          { op: 'damageWeaponPct', pct: 100, to: 'target' },
+          { op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' },
+        ],
         scales: false,
       },
     ],
