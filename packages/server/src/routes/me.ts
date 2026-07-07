@@ -11,6 +11,7 @@ import { getCodex } from '../services/codex.js';
 import { getOwnEcho } from '../services/echoes.js';
 import { seasonHonor } from '../services/honor.js';
 import { seasonMarks } from '../services/marks.js';
+import { lifetimeHonor } from '../services/season.js';
 import { requireAccount, type AppContext } from './helpers.js';
 
 export function meRoutes(ctx: AppContext) {
@@ -21,6 +22,7 @@ export function meRoutes(ctx: AppContext) {
       const season = ctx.env.HONOR_SEASON;
       const honor = await seasonHonor(ctx.db, account.id, season);
       const marks = await seasonMarks(ctx.db, account.id, season);
+      const lifetime = await lifetimeHonor(ctx.db, account.id);
       const echo = await getOwnEcho(ctx.db, account.id);
       const active = await ctx.db
         .select({ floor: runs.floor })
@@ -32,6 +34,7 @@ export function meRoutes(ctx: AppContext) {
         season,
         honor,
         marks,
+        lifetime,
         tier: honorTier(honor).name,
         tierRank: honorTierRank(honor),
         echo,

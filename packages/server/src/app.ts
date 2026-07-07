@@ -19,6 +19,7 @@ import { ladderRoutes } from './routes/ladders.js';
 import { meRoutes } from './routes/me.js';
 import { merchantRoutes } from './routes/merchant.js';
 import { runRoutes } from './routes/run.js';
+import { seasonRoutes } from './routes/season.js';
 import { skirmishRoutes } from './routes/skirmish.js';
 import { socialRoutes } from './routes/social.js';
 import { streamRoutes } from './routes/stream.js';
@@ -57,6 +58,7 @@ export async function buildApp(database: Database, env: Env): Promise<FastifyIns
   await app.register(gauntletRoutes(ctx), { prefix: '/api/gauntlet' });
   await app.register(socialRoutes(ctx), { prefix: '/api' });
   await app.register(streamRoutes(ctx), { prefix: '/api' });
+  await app.register(seasonRoutes(ctx), { prefix: '/api/season' });
 
   return app;
 }

@@ -17,7 +17,9 @@ export function TopBar() {
       </div>
       <div className="row">
         <span className="tier-badge">{me.tier}</span>
-        <span className="muted">{me.honor} Honor</span>
+        <span className="muted" title={`Lifetime Honor: ${me.lifetime}`}>
+          {me.honor} Honor
+        </span>
         <span className="muted" title="Valor Marks — spend at the Honor Merchant">
           ◈ {me.marks}
         </span>

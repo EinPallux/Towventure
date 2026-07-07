@@ -34,6 +34,7 @@ import {
 import { decayPct, eloDelta, ticketCap, upsertDefense } from './services/skirmish.js';
 import { publish, subscribe, subscriberCount } from './services/bus.js';
 import { emitFeed } from './services/social.js';
+import { lifetimeHonor, placementHonor, runSeasonRollover } from './services/season.js';
 
 const HAS_DB = !!process.env.DATABASE_URL;
 const d = HAS_DB ? describe : describe.skip;
@@ -897,6 +898,54 @@ d('server API — the Heartbeat loop', () => {
     expect(subscriberCount(acc)).toBe(0);
     publish(acc, { kind: 'floor', body: 'after unsubscribe' });
     expect(got).toEqual(['reached Floor 40']); // no delivery after unsubscribe
+  });
+
+  it('Season placement math (BALANCE §7): new Honor = round(√old × 12)', () => {
+    expect(placementHonor(5000)).toBe(849); // Crownseeker → ~Gatekeeper+
+    expect(placementHonor(200)).toBe(170);
+    expect(placementHonor(0)).toBe(0);
+  });
+
+  it('Season rollover: compresses last season into a placement seed; lifetime excludes it (GDD §11)', async () => {
+    const from = 900;
+    const to = 901;
+    const a = await makeAccount(`hb_seasA_${Date.now().toString(36)}`);
+    const b = await makeAccount(`hb_seasB_${Date.now().toString(36)}`);
+    await database.db.insert(honorLedger).values([
+      { accountId: a, season: from, delta: 5000, reason: 'climb', refId: null },
+      { accountId: b, season: from, delta: 200, reason: 'climb', refId: null },
+    ]);
+
+    const res = await runSeasonRollover(database.db, from, to);
+    expect(res.placed).toBe(2);
+
+    // New-season placement rows are the compressed seeds.
+    const aPlace = await database.db
+      .select()
+      .from(honorLedger)
+      .where(and(eq(honorLedger.accountId, a), eq(honorLedger.season, to), eq(honorLedger.reason, 'placement')));
+    expect(aPlace[0]!.delta).toBe(placementHonor(5000));
+
+    // Lifetime Honor counts the earned 5000, not the placement carry-over.
+    expect(await lifetimeHonor(database.db, a)).toBe(5000);
+
+    // Idempotent: a second rollover into the same season places nobody.
+    const again = await runSeasonRollover(database.db, from, to);
+    expect(again.placed).toBe(0);
+  });
+
+  it('GET /api/season reports the window + your standing + projected placement', async () => {
+    const me = await makeSession(`hb_seasE_${Date.now().toString(36)}`);
+    await database.db
+      .insert(honorLedger)
+      .values({ accountId: me.id, season, delta: 900, reason: 'climb', refId: null });
+    const r = await app.inject({ method: 'GET', url: '/api/season', headers: { cookie: me.cookie } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().season.number).toBe(season);
+    expect(typeof r.json().season.endsAt).toBe('string');
+    expect(r.json().honor).toBe(900);
+    expect(r.json().nextPlacement).toBe(placementHonor(900));
+    expect(r.json().lifetime).toBe(900);
   });
 
   it('rejects unauthenticated run access with 401', async () => {

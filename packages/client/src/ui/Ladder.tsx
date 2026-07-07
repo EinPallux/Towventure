@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
-import { api, type LadderBoard, type LadderMetric, type LadderPage } from '../api/client.js';
+import {
+  api,
+  type LadderBoard,
+  type LadderMetric,
+  type LadderPage,
+  type SeasonInfo,
+} from '../api/client.js';
 import { useStore } from '../store.js';
+
+function daysLeft(endsAt: string): number {
+  return Math.max(0, Math.ceil((Date.parse(endsAt) - Date.now()) / 86_400_000));
+}
 
 const TABS: { board: LadderBoard; label: string }[] = [
   { board: 'global', label: 'Global' },
@@ -20,6 +30,7 @@ export function Ladder() {
   const [board, setBoard] = useState<LadderBoard>('global');
   const [page, setPage] = useState(0);
   const [data, setData] = useState<LadderPage | null>(null);
+  const [season, setSeason] = useState<SeasonInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +46,17 @@ export function Ladder() {
     };
   }, [board, page]);
 
+  useEffect(() => {
+    let live = true;
+    api
+      .season()
+      .then((s) => live && setSeason(s))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const rows = data?.rows ?? [];
   const showSelf = data?.self && !rows.some((r) => r.isSelf);
   const metric = data?.metric ?? 'honor';
@@ -43,11 +65,23 @@ export function Ladder() {
   return (
     <div className="ladder card">
       <div className="row spread">
-        <div className="title">The Stairs · Season {data?.season ?? '—'}</div>
+        <div className="title">
+          The Stairs · Season {data?.season ?? season?.season.number ?? '—'}
+          {season && (
+            <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+              ends in {daysLeft(season.season.endsAt)}d
+            </span>
+          )}
+        </div>
         <button className="small ghost" onClick={() => setView('gate')}>
           Back
         </button>
       </div>
+      {season?.nextPlacement != null && (
+        <div className="muted" style={{ fontSize: 12 }}>
+          Season reset carries you to ~{season.nextPlacement} Honor · Lifetime {season.lifetime}
+        </div>
+      )}
       <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '6px 0' }}>
         {TABS.map((t) => (
           <button

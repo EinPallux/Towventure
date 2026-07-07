@@ -45,6 +45,8 @@ export interface MeResponse {
   season: number;
   honor: number;
   marks: number;
+  /** Lifetime Honor — earned across all seasons, never resets (GDD §11). */
+  lifetime: number;
   tier: string;
   /** 0-based Honor tier rank; gates class/Vow unlocks (GDD §7). */
   tierRank: number;
@@ -178,7 +180,15 @@ export const api = {
   feed: () => req<{ feed: FeedItem[] }>('GET', '/api/feed'),
   inbox: () => req<{ inbox: InboxEntry[]; unread: number }>('GET', '/api/me/inbox'),
   inboxRead: () => req<{ ok: true }>('POST', '/api/me/inbox/read'),
+  season: () => req<SeasonInfo>('GET', '/api/season'),
 };
+
+export interface SeasonInfo {
+  season: { number: number; startsAt: string; endsAt: string; status: string };
+  honor?: number;
+  lifetime?: number;
+  nextPlacement?: number;
+}
 
 export interface FriendSummary {
   id: string;

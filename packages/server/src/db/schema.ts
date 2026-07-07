@@ -333,6 +333,18 @@ export const feed = pgTable(
   (t) => [index('feed_account_at_idx').on(t.accountId, t.at)],
 );
 
+/**
+ * Season metadata (GDD §11) — the 8-week cadence. One row per season number; the
+ * rollover job ends one and opens the next. Honor itself stays in the (seasoned) ledger;
+ * this table just carries the window + status for the end-date UI.
+ */
+export const seasons = pgTable('seasons', {
+  number: integer('number').primaryKey(),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  status: text('status').notNull().default('active'), // 'active' | 'ended'
+});
+
 /** Per-account, per-season climb frontier — the deepest floor banked this season. */
 export const climbFrontier = pgTable(
   'climb_frontier',

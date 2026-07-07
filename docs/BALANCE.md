@@ -75,7 +75,7 @@ Heroes gain **+6 Max HP per floor cleared** (the only free scaling; everything e
 - **Climb Honor** (first time per season at each floor `f`): `h(f) = 3×f^1.35 − 3×(f−1)^1.35` per new floor (i.e., cumulative `3×f^1.35`), ×(1 + 0.15×vows).
 - Cumulative sanity: floor 20 ≈ 170 · floor 50 ≈ 590 · floor 100 ≈ 1500 (before Vows, Echoes, Skirmishes).
 - **Tiers:** Ashbound 0 · Stairborn 200 · Gatekeeper 500 · Vaultbreaker 1 000 · Lanternbearer 1 800 · Wardenslayer 3 000 · Crownseeker 5 000 · **The Unnumbered** = top 100 by Honor (min 5 000).
-- Season reset (8 weeks): new Honor = `√(old) × 12` (Crownseeker 5 000 → ~850, lands Gatekeeper+). Lifetime Honor never resets.
+- Season reset (8 weeks): new Honor = `√(old) × 12` (Crownseeker 5 000 → ~850, lands Gatekeeper+). Lifetime Honor never resets. *(Phase 3, Slice G: live as `placementHonor(finalHonor) = round(√finalHonor × 12)` in `services/season.ts`; the `runSeasonRollover` job writes each account a `placement` ledger row in the new season, marks the old season ended, opens the new one, and is idempotent. Lifetime Honor = SUM of ledger deltas across all seasons **excluding** `placement` carry-overs. `GET /api/season` returns the window + your projected placement; the first real rollover runs from ops in Phase 5.)*
 
 ## 8. Daily systems
 
