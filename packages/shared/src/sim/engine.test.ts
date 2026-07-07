@@ -244,3 +244,59 @@ describe('biomes 2–5 enemy mechanics', () => {
     expect(firstPriorHeal(12)).toBe(15); // 12 ≥ 10 statuses → heal halved
   });
 });
+
+describe('conditional & buffered damage ops', () => {
+  it('buffNextHitPct lifts exactly one landing hit, then clears', () => {
+    // The hero one-shots via a huge next-hit buffer applied at fight start; the
+    // second hit lands at the un-buffered damage.
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Blade', cooldownTicks: 10, damage: 10 }],
+        effects: [
+          {
+            source: 'test',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'buffNextHitPct', pct: 100 }], // +100% → 20 on the first hit only
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Dummy', maxHp: 999, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    const hits = r.events.filter((e) => e.type === 'hit');
+    const dmg = hits.map((e) => (e.type === 'hit' ? e.dmg : 0));
+    expect(dmg[0]).toBe(20); // 10 × (100 + 100)%
+    expect(dmg[1]).toBe(10); // buffer consumed — back to base
+  });
+
+  it('buffDamageVsStatusPct only applies while the target carries the status', () => {
+    // First hit: target is clean → base damage; it also seeds Venom, so every hit
+    // afterwards carries the +50% vs-Venomed bonus.
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Fang', cooldownTicks: 10, damage: 10 }],
+        effects: [
+          {
+            source: 'test',
+            trigger: { kind: 'OnHit' },
+            ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+          },
+          {
+            source: 'test',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'buffDamageVsStatusPct', status: 'venom', pct: 50 }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Envenomable', maxHp: 999, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    const dmg = r.events.filter((e) => e.type === 'hit').map((e) => (e.type === 'hit' ? e.dmg : 0));
+    expect(dmg[0]).toBe(10); // target clean on the first strike
+    expect(dmg[1]).toBe(15); // now Venomed → 10 × 150%
+  });
+});

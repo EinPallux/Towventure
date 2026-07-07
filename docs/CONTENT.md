@@ -46,6 +46,8 @@ Each item carries 1–2 of 8 tags. Equipped tags count toward thresholds **2 / 4
 
 Design constraint: **no tag's (6) may be strictly mandatory** for its archetype — (6) is a spike, (4) is the build.
 
+*Implementation status (Phase 2, `content/synergies.ts`):* live in code — Blade (4), Bulwark (2)/(4), Ember (4), Frost (4), Wild (2)/(4)/(6), Shadow (2)/(4), Venom (4). The remainder need effect-ops not yet in the vocabulary and are catalogued in the `DEFERRED` map with the op each requires; they light up as those ops land. Shadow (4) and Venom (4) came online with the `buffNextHitPct` / `buffDamageVsStatusPct` ops.
+
 ---
 
 ## 3. Items

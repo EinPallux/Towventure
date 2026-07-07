@@ -44,6 +44,10 @@ export type EffectOp =
   | { op: 'buffDamagePct'; pct: number }
   /** Fight-scoped additive Speed% buff on self (e.g. Pyrebrand ignite, Rumor). */
   | { op: 'buffSpeedPct'; pct: number }
+  /** Buffer the combatant's NEXT landing weapon hit by `pct`% (Shadow (4) OnDodge). */
+  | { op: 'buffNextHitPct'; pct: number }
+  /** Fight-scoped: +`pct`% weapon damage vs a target afflicted with `status` (Venom (4)). */
+  | { op: 'buffDamageVsStatusPct'; status: StatusKind; pct: number }
   /** Deal self.thorns × mult to the triggering attacker (Bulwark Sigil OnBlock). */
   | { op: 'retaliateThorns'; mult: number }
   /** Delay the target's next action(s) by `ticks` (Toll-Keeper's Bell). */

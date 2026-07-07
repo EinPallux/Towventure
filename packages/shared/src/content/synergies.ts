@@ -7,8 +7,9 @@
  * Design law (CONTENT §2): no tag's (6) is strictly mandatory — (4) is the build,
  * (6) is a spike. The thresholds expressible with the current effect vocabulary
  * are authored here; those needing new ops (per-weapon-tag speed, Burn/Chill
- * effectiveness, damage-type modifiers, next-hit buffers, DoT-crit, conditional
- * vs-status damage, stealth) are listed in `DEFERRED` and land with those ops.
+ * effectiveness, damage-type modifiers, DoT-crit, stealth) are listed in `DEFERRED`
+ * and land with those ops. Shadow (4) [next-hit buffer] and Venom (4) [conditional
+ * vs-status damage] are now live via the `buffNextHitPct` / `buffDamageVsStatusPct` ops.
  */
 
 import type { ItemEffect, StatMod, Tag } from './types.js';
@@ -74,6 +75,16 @@ export const TAG_SYNERGIES: Record<Tag, Synergy[]> = {
   ],
   shadow: [
     { threshold: 2, note: '+6% Dodge', mods: [{ stat: 'dodgePct', value: 6, scales: false }] },
+    {
+      threshold: 4,
+      note: 'On dodge: your next hit deals +40%',
+      effects: [
+        {
+          trigger: { kind: 'OnDodge' },
+          ops: [{ op: 'buffNextHitPct', pct: 40 }],
+        },
+      ],
+    },
   ],
   wild: [
     {
@@ -100,9 +111,21 @@ export const TAG_SYNERGIES: Record<Tag, Synergy[]> = {
       ],
     },
   ],
+  venom: [
+    {
+      threshold: 4,
+      note: 'Your hits deal +12% vs Venomed enemies',
+      // A fight-scoped passive: every weapon hit into a Venomed target gets +12%.
+      effects: [
+        {
+          trigger: { kind: 'OnFightStart' },
+          ops: [{ op: 'buffDamageVsStatusPct', status: 'venom', pct: 12 }],
+        },
+      ],
+    },
+  ],
   // Authored in CONTENT §2.2 but deferred until their ops exist (see DEFERRED).
   arcane: [],
-  venom: [],
 };
 
 /** Thresholds from CONTENT §2.2 not yet transcribed, and the op each one needs. */
@@ -117,10 +140,8 @@ export const DEFERRED: Record<string, string> = {
   'ember(2)': '+15% Burn damage — needs status-damage modifier',
   'ember(6)': 'Burn 8+ spreads to other enemies — needs spread op',
   'venom(2)': 'Venom ramps faster — needs per-tag ramp modifier',
-  'venom(4)': 'OnHit vs Venomed: +12% damage — needs conditional-vs-status damage',
   'venom(6)': 'enemy heals 50% less while Venomed — needs heal-reduction',
   'frost(2)': '+15% Chill effectiveness — needs status-effectiveness modifier',
-  'frost(6)': 'Chilled enemies take +20% crit damage — needs conditional-vs-status damage',
-  'shadow(4)': 'OnDodge: next hit +40% — needs next-hit buffer',
+  'frost(6)': 'Chilled enemies take +20% crit damage — needs vs-status CRIT-damage (buffDamageVsStatusPct is flat, not crit-only)',
   'shadow(6)': 'first hit from stealth: guaranteed crit ×2.5 — needs stealth',
 };

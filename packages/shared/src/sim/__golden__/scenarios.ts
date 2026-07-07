@@ -602,4 +602,52 @@ export const SCENARIOS: Scenario[] = [
       ],
     ),
   },
+
+  // ── Deferred-ops wave: next-hit buffer + conditional vs-status damage ────────
+  {
+    // Shadow (4): each dodge buffs the hero's next landing hit by +40%.
+    name: 'shadow-next-hit-buffer',
+    seed: 2020,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        dodgePct: 40,
+        weapons: [{ name: 'Kris', cooldownTicks: 12, damage: 12 }],
+        effects: [
+          { source: 'Shadow (4)', trigger: { kind: 'OnDodge' }, ops: [{ op: 'buffNextHitPct', pct: 40 }] },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Puncher',
+          maxHp: 300,
+          weapons: [{ name: 'Jab', cooldownTicks: 8, damage: 8 }],
+        }),
+      ],
+    ),
+  },
+  {
+    // Venom (4): the hero's hits deal +25% while the target is Venomed. The hero
+    // seeds Venom OnHit, so every hit after the first carries the bonus.
+    name: 'venom-vs-status-damage',
+    seed: 2121,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Fang', cooldownTicks: 12, damage: 10 }],
+        effects: [
+          bindOnHit([{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }]),
+          {
+            source: 'Venom (4)',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'buffDamageVsStatusPct', status: 'venom', pct: 25 }],
+          },
+        ],
+      }),
+      [c({ id: 'e0', name: 'Envenomable', maxHp: 300, weapons: [] })],
+    ),
+  },
 ];

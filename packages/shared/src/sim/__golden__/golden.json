@@ -128,5 +128,15 @@
     "hash": 2167925084,
     "endTick": 100,
     "winner": "hero"
+  },
+  "shadow-next-hit-buffer": {
+    "hash": 173533380,
+    "endTick": 200,
+    "winner": "enemies"
+  },
+  "venom-vs-status-damage": {
+    "hash": 3487343839,
+    "endTick": 170,
+    "winner": "hero"
   }
 }

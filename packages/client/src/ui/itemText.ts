@@ -40,6 +40,10 @@ function opText(op: EffectOp, star: number): string {
       return `+${s(op.pct)}% damage`;
     case 'buffSpeedPct':
       return `+${s(op.pct)}% Speed`;
+    case 'buffNextHitPct':
+      return `next hit +${s(op.pct)}%`;
+    case 'buffDamageVsStatusPct':
+      return `+${s(op.pct)}% damage vs ${STATUS_LABEL[op.status] ?? op.status}`;
     case 'retaliateThorns':
       return `retaliate for Thorns ×${op.mult}`;
     case 'stun':

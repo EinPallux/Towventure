@@ -91,6 +91,10 @@ interface Combatant {
   armorBonus: number;
   damageBuffPct: number;
   speedBuffPct: number;
+  /** Additive damage% for this combatant's next landing weapon hit; cleared on use. */
+  nextHitBuffPct: number;
+  /** Additive damage% vs a target afflicted with the keyed status (fight-scoped). */
+  vsStatus: Record<StatusKind, number>;
   ward: number;
   /** Ticks Venom has been present — drives its ramp (BALANCE §3). */
   venomAge: number;
@@ -147,6 +151,19 @@ class Sim {
       armorBonus: 0,
       damageBuffPct: 0,
       speedBuffPct: 0,
+      nextHitBuffPct: 0,
+      vsStatus: {
+        bleed: 0,
+        burn: 0,
+        chill: 0,
+        regen: 0,
+        ward: 0,
+        venom: 0,
+        shock: 0,
+        weaken: 0,
+        sunder: 0,
+        haste: 0,
+      },
       ward: 0,
       venomAge: 0,
       statuses: newStatuses(),
@@ -387,9 +404,19 @@ class Sim {
     // even Shock cannot pierce (The Unshelved's honest-damage check, CONTENT §4).
     const crit = target.spec.critImmune ? false : shocked || this.rng.chance(att.spec.critChancePct);
 
+    // Extra damage%: the next-hit buffer (consumed now the hit lands) plus any
+    // conditional "+% vs a target afflicted with X" bonuses. Both are attacker-local
+    // and read the target's live statuses — no per-stack ownership needed.
+    let bonusPct = att.nextHitBuffPct;
+    att.nextHitBuffPct = 0;
+    for (const kind of STATUS_ORDER) {
+      if (att.vsStatus[kind] > 0 && target.statuses[kind].stacks > 0) bonusPct += att.vsStatus[kind];
+    }
+
     // 3. base × buffs × Weaken × crit
     let dmg = w.damage;
-    if (att.damageBuffPct !== 0) dmg = Math.trunc((dmg * (100 + att.damageBuffPct)) / 100);
+    const dmgBonus = att.damageBuffPct + bonusPct;
+    if (dmgBonus !== 0) dmg = Math.trunc((dmg * (100 + dmgBonus)) / 100);
     const weaken = att.statuses.weaken.stacks * STATUS.weaken.dmgPctPerStack;
     if (weaken > 0) dmg = Math.trunc((dmg * (100 - weaken)) / 100);
     if (crit) dmg = Math.trunc((dmg * (CRIT_BASE_MULT_PCT + att.spec.critDamagePct)) / 100);
@@ -514,6 +541,12 @@ class Sim {
         return;
       case 'buffSpeedPct':
         self.speedBuffPct += op.pct;
+        return;
+      case 'buffNextHitPct':
+        self.nextHitBuffPct += op.pct;
+        return;
+      case 'buffDamageVsStatusPct':
+        self.vsStatus[op.status] += op.pct;
         return;
       case 'damageWeaponPct': {
         const base = self.weapons[0]?.damage ?? 0;
