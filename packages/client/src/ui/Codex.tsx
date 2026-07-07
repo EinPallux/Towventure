@@ -1,5 +1,8 @@
-import { buildCodex, type CodexEntry } from '@towventure/shared/run';
+import { useEffect } from 'react';
+import { buildCodexFrom, mergeCodexProgress, type CodexEntry } from '@towventure/shared/run';
 import { useStore } from '../store.js';
+
+const EMPTY = { items: {}, enemies: {} };
 
 function Entry({ e }: { e: CodexEntry }) {
   if (!e.discovered) {
@@ -40,19 +43,17 @@ function Entry({ e }: { e: CodexEntry }) {
 
 export function Codex() {
   const run = useStore((s) => s.run);
+  const accountCodex = useStore((s) => s.accountCodex);
+  const fetchCodex = useStore((s) => s.fetchCodex);
   const setView = useStore((s) => s.setView);
-  if (!run) {
-    return (
-      <div className="card col" style={{ margin: 12 }}>
-        <div className="title">The Codex</div>
-        <div className="muted">Begin a climb — the Tower reveals itself only to those inside it.</div>
-        <button className="ghost" onClick={() => setView('gate')}>
-          Back
-        </button>
-      </div>
-    );
-  }
-  const codex = buildCodex(run);
+
+  // Pull the persisted lifetime Codex on open; merge the current run's fresh finds.
+  useEffect(() => {
+    void fetchCodex();
+  }, [fetchCodex]);
+
+  const merged = mergeCodexProgress(accountCodex ?? EMPTY, run?.codex ?? EMPTY);
+  const codex = buildCodexFrom(merged);
   return (
     <div className="card col" style={{ margin: 12 }}>
       <div className="row spread">

@@ -66,10 +66,22 @@ function loreLines(
   return out;
 }
 
+/** Merge two progress maps (items keep the higher ★; enemies sum kills). */
+export function mergeCodexProgress(a: CodexProgress, b: CodexProgress): CodexProgress {
+  const items = { ...a.items };
+  for (const [id, star] of Object.entries(b.items)) items[id] = Math.max(items[id] ?? 0, star);
+  const enemies = { ...a.enemies };
+  for (const [id, kills] of Object.entries(b.enemies)) enemies[id] = (enemies[id] ?? 0) + kills;
+  return { items, enemies };
+}
+
 /** Build the Codex display from a run's discovery progress. */
 export function buildCodex(state: RunState): Codex {
-  // Tolerate runs persisted before the codex field existed.
-  const progressOf = state.codex ?? { items: {}, enemies: {} };
+  return buildCodexFrom(state.codex ?? { items: {}, enemies: {} });
+}
+
+/** Build the Codex display from a raw progress map (e.g. the persisted account codex). */
+export function buildCodexFrom(progressOf: CodexProgress): Codex {
   let discovered = 0;
   const items = ITEMS.map((def): CodexEntry => {
     const progress = progressOf.items[def.id] ?? 0;

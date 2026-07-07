@@ -18,6 +18,8 @@ export { rollLoot, rollGold, rollRarity, rollDrop, pickItemOfRarity } from './lo
 export { equip, unequip, sell, fuse, sellValue, pushBackpack } from './inventory.js';
 export {
   buildCodex,
+  buildCodexFrom,
+  mergeCodexProgress,
   recordCodexItem,
   recordCodexKills,
   type Codex,

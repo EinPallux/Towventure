@@ -130,6 +130,24 @@ export const honorLedger = pgTable(
   (t) => [index('honor_ledger_season_account_idx').on(t.season, t.accountId)],
 );
 
+/**
+ * Lifetime Codex discovery per account (CONTENT §7). `progress` is the highest ★ seen
+ * for items and cumulative kills for enemies; banked once per run at its end so kills
+ * don't double-count. Not seasonal — discovery is forever.
+ */
+export const codex = pgTable(
+  'codex',
+  {
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(), // 'item' | 'enemy'
+    entryId: text('entry_id').notNull(),
+    progress: integer('progress').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.kind, t.entryId] })],
+);
+
 /** Per-account, per-season climb frontier — the deepest floor banked this season. */
 export const climbFrontier = pgTable(
   'climb_frontier',

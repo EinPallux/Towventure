@@ -3,7 +3,7 @@
  * Cookies carry the session, so every call is `credentials: 'include'`.
  */
 
-import type { Command, RunState, RunSummary } from '@towventure/shared/run';
+import type { CodexProgress, Command, RunState, RunSummary } from '@towventure/shared/run';
 
 export type ClassChoice = 'vanguard' | 'duelist' | 'arcanist';
 
@@ -85,6 +85,7 @@ export const api = {
   guest: () => req<{ account: Account }>('POST', '/api/auth/guest', {}),
   logout: () => req<{ ok: true }>('POST', '/api/auth/logout'),
   me: () => req<MeResponse>('GET', '/api/me'),
+  codex: () => req<{ codex: CodexProgress }>('GET', '/api/me/codex'),
 
   startRun: (classId: ClassChoice, vows: string[]) =>
     req<RunResponse>('POST', '/api/run/start', { classId, vows }),

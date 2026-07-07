@@ -4,7 +4,7 @@
  * outside React and reads the same data via this store (ARCHITECTURE §1 UI note).
  */
 
-import type { Command, RunState } from '@towventure/shared/run';
+import type { CodexProgress, Command, RunState } from '@towventure/shared/run';
 import { create } from 'zustand';
 import {
   api,
@@ -27,6 +27,7 @@ interface Store {
   version: number;
   view: 'gate' | 'ladder' | 'codex';
   playback: FightPlayback | null;
+  accountCodex: CodexProgress | null;
   busy: boolean;
   error: string | null;
 
@@ -42,6 +43,7 @@ interface Store {
   endPlayback: () => void;
   dismissRun: () => void;
   setView: (v: 'gate' | 'ladder' | 'codex') => void;
+  fetchCodex: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -56,6 +58,7 @@ export const useStore = create<Store>((set, get) => ({
   version: 0,
   view: 'gate',
   playback: null,
+  accountCodex: null,
   busy: false,
   error: null,
 
@@ -182,5 +185,13 @@ export const useStore = create<Store>((set, get) => ({
 
   dismissRun: () => set({ run: null, version: 0, playback: null, view: 'gate' }),
   setView: (view) => set({ view }),
+  fetchCodex: async () => {
+    try {
+      const { codex } = await api.codex();
+      set({ accountCodex: codex });
+    } catch {
+      /* stay with whatever we have */
+    }
+  },
   clearError: () => set({ error: null }),
 }));

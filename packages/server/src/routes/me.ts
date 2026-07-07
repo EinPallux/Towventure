@@ -7,6 +7,7 @@ import { honorTier } from '@towventure/shared/run';
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { runs } from '../db/schema.js';
+import { getCodex } from '../services/codex.js';
 import { seasonHonor } from '../services/honor.js';
 import { requireAccount, type AppContext } from './helpers.js';
 
@@ -28,6 +29,13 @@ export function meRoutes(ctx: AppContext) {
         tier: honorTier(honor).name,
         activeRunFloor: active[0]?.floor ?? null,
       });
+    });
+
+    // GET /api/me/codex — the account's lifetime discovery progress (CONTENT §7).
+    fastify.get('/codex', async (req, reply) => {
+      const account = requireAccount(req, reply);
+      if (!account) return;
+      return reply.send({ codex: await getCodex(ctx.db, account.id) });
     });
   };
 }

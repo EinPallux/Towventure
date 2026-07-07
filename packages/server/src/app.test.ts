@@ -142,6 +142,16 @@ d('server API — the Heartbeat loop', () => {
         expect(r.statusCode).toBe(200);
         state = r.json().state;
         version = r.json().stateVersion;
+      } else if (state.phase === 'event') {
+        const r = await app.inject({
+          method: 'POST',
+          url: '/api/run/command',
+          headers: { cookie },
+          payload: { expectedStateVersion: version, command: { type: 'resolveEvent', optionIndex: 1 } },
+        });
+        expect(r.statusCode).toBe(200);
+        state = r.json().state;
+        version = r.json().stateVersion;
       } else {
         break;
       }
@@ -167,6 +177,13 @@ d('server API — the Heartbeat loop', () => {
     // /api/me now reflects the banked honor and a non-Ashbound-or-Ashbound tier.
     const me2 = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
     expect(me2.json().honor).toBe(page.self.honor);
+
+    // The dead run banked its Codex discovery into the account (CONTENT §7).
+    const codexRes = await app.inject({ method: 'GET', url: '/api/me/codex', headers: { cookie } });
+    expect(codexRes.statusCode).toBe(200);
+    const codex = codexRes.json().codex;
+    expect(codex.items.bulwark_sigil).toBe(1); // the Vanguard relic was discovered
+    expect(Object.keys(codex.enemies).length).toBeGreaterThan(0); // and something was killed
   });
 
   it('resumes an active run on another device (GET /api/run)', async () => {
@@ -275,7 +292,7 @@ d('server API — the Heartbeat loop', () => {
       headers: { cookie },
       payload: { classId: 'vanguard', vows: ['vow_of_haste', 'vow_of_glass'] },
     });
-    expect(ok.statusCode).toBe(200);
+    expect(ok.statusCode).toBe(201);
     expect(ok.json().state.vows).toEqual(['vow_of_haste', 'vow_of_glass']);
   });
 

@@ -21,6 +21,7 @@ import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../db/client.js';
 import { fights, runEvents, runs } from '../db/schema.js';
+import { bankRunCodex } from '../services/codex.js';
 import { awardClimbHonor } from '../services/honor.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
@@ -154,6 +155,8 @@ export function runRoutes(ctx: AppContext) {
           if (floorAdvanced) {
             await awardClimbHonor(tx, account.id, season, next.floor, vowCount, run.id);
           }
+          // Abandoning (or otherwise ending) a run banks its Codex discovery.
+          if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
         });
       } catch (err) {
         if (err instanceof StaleRunError) {
@@ -212,6 +215,8 @@ export function runRoutes(ctx: AppContext) {
             result: fightSummary(prepared.seed, result),
             logHash: result.logHash,
           });
+          // A run that just died banks its Codex discovery for good (CONTENT §7).
+          if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
         });
       } catch (err) {
         if (err instanceof StaleRunError) {
