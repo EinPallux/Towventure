@@ -56,6 +56,14 @@ export type EffectOp =
    * status's per-second bite × stacks, through Ward (Redline: crits detonate Bleed).
    */
   | { op: 'detonateStatus'; status: StatusKind; pctPerStack: number; to: EffectTarget }
+  /** Deal `pct`% weapon damage to up to `targets` enemies, lowest-HP first (Sparkrod chain). */
+  | { op: 'chainHit'; pct: number; targets: number }
+  /** Remove all (non-Ward) statuses from `to` (Molt, Bottled Yesterday). */
+  | { op: 'cleanse'; to: EffectTarget }
+  /** Fight-scoped: this side's DoT of `status` deals +`pct`% (Ember (2), Cinderheart). */
+  | { op: 'buffStatusDamagePct'; status: StatusKind; pct: number }
+  /** Buffer: the combatant's NEXT weapon hit also applies `stacks` of `status` (Lantern-Hook). */
+  | { op: 'buffNextHitStatus'; status: StatusKind; stacks: number }
   /** Deal self.thorns × mult to the triggering attacker (Bulwark Sigil OnBlock). */
   | { op: 'retaliateThorns'; mult: number }
   /** Delay the target's next action(s) by `ticks` (Toll-Keeper's Bell). */
@@ -91,6 +99,8 @@ export interface WeaponSpec {
   cooldownTicks: number;
   /** Base per-hit damage (already ★-scaled). */
   damage: number;
+  /** Strikes per swing (default 1); each strike is a full hit (Choir of Nails). */
+  hitsPerSwing?: number;
 }
 
 export interface CombatantSpec {

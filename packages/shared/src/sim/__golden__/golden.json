@@ -148,5 +148,30 @@
     "hash": 3319583108,
     "endTick": 152,
     "winner": "hero"
+  },
+  "multi-hit-weapon": {
+    "hash": 4125350582,
+    "endTick": 100,
+    "winner": "hero"
+  },
+  "chain-hit-bounce": {
+    "hash": 455468110,
+    "endTick": 306,
+    "winner": "hero"
+  },
+  "cleanse-on-low-hp": {
+    "hash": 1484910873,
+    "endTick": 140,
+    "winner": "enemies"
+  },
+  "status-damage-buff-burn": {
+    "hash": 1643680875,
+    "endTick": 90,
+    "winner": "hero"
+  },
+  "next-hit-status-buffer": {
+    "hash": 530951159,
+    "endTick": 130,
+    "winner": "hero"
   }
 }

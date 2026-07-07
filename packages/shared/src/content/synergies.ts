@@ -50,6 +50,16 @@ export const TAG_SYNERGIES: Record<Tag, Synergy[]> = {
   ],
   ember: [
     {
+      threshold: 2,
+      note: '+15% Burn damage',
+      effects: [
+        {
+          trigger: { kind: 'OnFightStart' },
+          ops: [{ op: 'buffStatusDamagePct', status: 'burn', pct: 15 }],
+        },
+      ],
+    },
+    {
       threshold: 4,
       note: 'On crit: apply 2 Burn',
       effects: [
@@ -137,7 +147,6 @@ export const DEFERRED: Record<string, string> = {
   'arcane(2)': 'Every(Xs) effects 10% faster — needs Every-interval modifier',
   'arcane(4)': 'duplicate the first OnFightStart effect — needs effect duplication',
   'arcane(6)': 'non-weapon effects +25% damage — needs damage-type modifier',
-  'ember(2)': '+15% Burn damage — needs status-damage modifier',
   'ember(6)': 'Burn 8+ spreads to other enemies — needs spread op',
   'venom(2)': 'Venom ramps faster — needs per-tag ramp modifier',
   'venom(6)': 'enemy heals 50% less while Venomed — needs heal-reduction',

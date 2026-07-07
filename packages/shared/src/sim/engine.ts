@@ -95,6 +95,10 @@ interface Combatant {
   nextHitBuffPct: number;
   /** Additive damage% vs a target afflicted with the keyed status (fight-scoped). */
   vsStatus: Record<StatusKind, number>;
+  /** Additive DoT-damage% this side deals for the keyed status (fight-scoped). */
+  statusDamageBuff: Record<StatusKind, number>;
+  /** Bonus status stacks the next weapon hit also applies; cleared on use. */
+  nextHitStatus: Record<StatusKind, number>;
   ward: number;
   /** Ticks Venom has been present — drives its ramp (BALANCE §3). */
   venomAge: number;
@@ -116,6 +120,22 @@ function newStatuses(): Record<StatusKind, StatusState> {
     weaken: { stacks: 0, remaining: 0 },
     sunder: { stacks: 0, remaining: 0 },
     haste: { stacks: 0, remaining: 0 },
+  };
+}
+
+/** A per-status integer accumulator, zeroed (vsStatus, statusDamageBuff, nextHitStatus). */
+function zeroStatusMap(): Record<StatusKind, number> {
+  return {
+    bleed: 0,
+    burn: 0,
+    chill: 0,
+    regen: 0,
+    ward: 0,
+    venom: 0,
+    shock: 0,
+    weaken: 0,
+    sunder: 0,
+    haste: 0,
   };
 }
 
@@ -154,18 +174,9 @@ class Sim {
       damageBuffPct: 0,
       speedBuffPct: 0,
       nextHitBuffPct: 0,
-      vsStatus: {
-        bleed: 0,
-        burn: 0,
-        chill: 0,
-        regen: 0,
-        ward: 0,
-        venom: 0,
-        shock: 0,
-        weaken: 0,
-        sunder: 0,
-        haste: 0,
-      },
+      vsStatus: zeroStatusMap(),
+      statusDamageBuff: zeroStatusMap(),
+      nextHitStatus: zeroStatusMap(),
       ward: 0,
       venomAge: 0,
       statuses: newStatuses(),
@@ -317,6 +328,10 @@ class Sim {
       if (gained > 0) this.emit({ type: 'dot', t, to: c.idx, status: kind, dmg: -gained });
       return;
     }
+    // A DoT on an enemy is amplified by the hero's status-damage buff (Ember (2),
+    // Cinderheart). DoTs on the hero use no buff — enemies never carry one.
+    const buff = c.side === 'enemy' ? this.hero.statusDamageBuff[kind] : 0;
+    if (buff > 0) amount = Math.trunc((amount * (100 + buff)) / 100);
     this.damageThroughWard(c, amount, t);
     this.emit({ type: 'dot', t, to: c.idx, status: kind, dmg: amount });
     this.checkDeath(c, t);
@@ -446,6 +461,15 @@ class Sim {
     const ls = Math.min(LIFESTEAL_CAP_PCT, att.spec.lifestealPct);
     if (ls > 0 && toHp > 0) this.healUp(att, Math.trunc((toHp * ls) / 100), t);
 
+    // Next-hit status buffer (Lantern-Hook): dump any queued statuses onto the target, once.
+    for (const kind of STATUS_ORDER) {
+      const extra = att.nextHitStatus[kind];
+      if (extra > 0) {
+        att.nextHitStatus[kind] = 0;
+        this.applyStatus(target, kind, extra, t, att);
+      }
+    }
+
     // Passive Thorns: attacker takes the target's thorns on landing a hit.
     if (target.alive && target.spec.thorns > 0) {
       const th = target.spec.thorns;
@@ -556,6 +580,42 @@ class Sim {
       case 'buffDamageVsStatusPct':
         self.vsStatus[op.status] += op.pct;
         return;
+      case 'buffStatusDamagePct':
+        self.statusDamageBuff[op.status] += op.pct;
+        return;
+      case 'buffNextHitStatus':
+        self.nextHitStatus[op.status] += op.stacks;
+        return;
+      case 'chainHit': {
+        const base = self.weapons[0]?.damage ?? 0;
+        const dmg = Math.trunc((base * op.pct) / 100);
+        const pool = (self.side === 'hero' ? this.enemies : [this.hero])
+          .filter((e) => e.alive)
+          .sort((a, b) => a.hp - b.hp || a.idx - b.idx)
+          .slice(0, op.targets);
+        for (const tgt of pool) {
+          const toHp = this.damageThroughWard(tgt, dmg, t);
+          this.emit({ type: 'hit', t, from: self.idx, to: tgt.idx, dmg: toHp, crit: 0, blocked: 0 });
+          this.checkDeath(tgt, t);
+          if (this.ended) return;
+        }
+        return;
+      }
+      case 'cleanse': {
+        for (const tgt of this.resolveTarget(self, op.to, other)) {
+          for (const kind of STATUS_ORDER) {
+            if (kind === 'ward') continue;
+            const s = tgt.statuses[kind];
+            if (s.stacks > 0) {
+              s.stacks = 0;
+              s.remaining = 0;
+              this.emit({ type: 'status', t, to: tgt.idx, status: kind, stacks: 0 });
+            }
+          }
+          tgt.venomAge = 0;
+        }
+        return;
+      }
       case 'detonateStatus': {
         const def = STATUS[op.status];
         const perSec = 'dmgPerSecPerStack' in def ? def.dmgPerSecPerStack : 0;
@@ -781,7 +841,8 @@ class Sim {
           const w = c.weapons[wi]!;
           if (t >= w.nextSwing) {
             this.emit({ type: 'swing', t, who: c.idx, weapon: wi });
-            this.weaponHit(c, wi, w, t);
+            const hits = w.hitsPerSwing ?? 1;
+            for (let h = 0; h < hits && c.alive && !this.ended; h++) this.weaponHit(c, wi, w, t);
             if (c.alive) w.nextSwing = t + this.effectiveCd(c, w);
           }
         }

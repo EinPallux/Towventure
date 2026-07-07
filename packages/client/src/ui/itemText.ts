@@ -96,6 +96,14 @@ function opText(op: EffectOp, star: number): string {
       return `+${s(op.pct)}% damage vs ${STATUS_LABEL[op.status] ?? op.status}`;
     case 'detonateStatus':
       return `detonate ${STATUS_LABEL[op.status] ?? op.status} (${s(op.pctPerStack)}%/stack)`;
+    case 'chainHit':
+      return `chain ${s(op.pct)}% weapon damage to ${op.targets} enemies`;
+    case 'cleanse':
+      return 'cleanse all statuses';
+    case 'buffStatusDamagePct':
+      return `+${s(op.pct)}% ${STATUS_LABEL[op.status] ?? op.status} damage`;
+    case 'buffNextHitStatus':
+      return `next hit: +${s(op.stacks)} ${STATUS_LABEL[op.status] ?? op.status}`;
     case 'retaliateThorns':
       return `retaliate for Thorns ×${op.mult}`;
     case 'stun':

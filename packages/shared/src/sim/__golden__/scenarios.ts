@@ -695,4 +695,126 @@ export const SCENARIOS: Scenario[] = [
       [c({ id: 'e0', name: 'Kindling', maxHp: 400, weapons: [] })],
     ),
   },
+
+  // ── Deferred ops wave 2 ─────────────────────────────────────────────────────
+  {
+    // Choir of Nails: a weapon that strikes 3× per swing (each a full hit).
+    name: 'multi-hit-weapon',
+    seed: 2525,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Choir', cooldownTicks: 14, damage: 6, hitsPerSwing: 3 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }])],
+      }),
+      [c({ id: 'e0', name: 'Riddled', maxHp: 300, weapons: [] })],
+    ),
+  },
+  {
+    // Sparkrod chain: Every 4s, bounce 60% weapon damage to the 2 lowest-HP enemies.
+    name: 'chain-hit-bounce',
+    seed: 2626,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 400,
+        weapons: [{ name: 'Rod', cooldownTicks: 18, damage: 12 }],
+        effects: [
+          {
+            source: 'Stormtongue',
+            trigger: { kind: 'Every', seconds: 4 },
+            ops: [{ op: 'chainHit', pct: 60, targets: 2 }],
+          },
+        ],
+      }),
+      [
+        c({ id: 'e0', name: 'A', maxHp: 80, weapons: [] }),
+        c({ id: 'e1', name: 'B', maxHp: 120, weapons: [] }),
+        c({ id: 'e2', name: 'C', maxHp: 60, weapons: [] }),
+      ],
+    ),
+  },
+  {
+    // Molt: below 50% HP, cleanse all statuses on self and gain Armor.
+    name: 'cleanse-on-low-hp',
+    seed: 2727,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 200,
+        weapons: [{ name: 'Blade', cooldownTicks: 12, damage: 8 }],
+        effects: [
+          {
+            source: 'Molt',
+            trigger: { kind: 'OnHpBelow', pct: 50 },
+            ops: [
+              { op: 'cleanse', to: 'self' },
+              { op: 'gainArmor', amount: 15 },
+            ],
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Venomer',
+          maxHp: 400,
+          weapons: [{ name: 'Fang', cooldownTicks: 10, damage: 14 }],
+          effects: [bindOnHit([{ op: 'applyStatus', status: 'venom', stacks: 2, to: 'target' }])],
+        }),
+      ],
+    ),
+  },
+  {
+    // Ember (2): the hero's Burn deals +50%.
+    name: 'status-damage-buff-burn',
+    seed: 2828,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Brand', cooldownTicks: 12, damage: 4 }],
+        effects: [
+          {
+            source: 'Ember (2)',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'buffStatusDamagePct', status: 'burn', pct: 50 }],
+          },
+          bindOnHit([{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }]),
+        ],
+      }),
+      [c({ id: 'e0', name: 'Kindling', maxHp: 300, weapons: [] })],
+    ),
+  },
+  {
+    // Lantern-Hook: on dodge, the next hook also applies +3 Burn.
+    name: 'next-hit-status-buffer',
+    seed: 2929,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        dodgePct: 40,
+        weapons: [{ name: 'Hook', cooldownTicks: 12, damage: 8 }],
+        effects: [
+          {
+            source: 'Lantern-Hook',
+            trigger: { kind: 'OnDodge' },
+            ops: [{ op: 'buffNextHitStatus', status: 'burn', stacks: 3 }],
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Puncher',
+          maxHp: 300,
+          weapons: [{ name: 'Jab', cooldownTicks: 8, damage: 8 }],
+        }),
+      ],
+    ),
+  },
 ];
