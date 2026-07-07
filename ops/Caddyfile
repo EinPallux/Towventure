@@ -1,0 +1,27 @@
+# Caddy (OPERATIONS.md §1): TLS + HTTP/2, serves the static client bundle, and
+# reverse-proxies the API + WebSocket to the app. On a real host set SITE_ADDRESS
+# to your domain and Caddy provisions Let's Encrypt automatically; locally it
+# defaults to :80.
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	@api path /api/*
+	handle @api {
+		reverse_proxy app:8080
+	}
+
+	handle /ws {
+		reverse_proxy app:8080
+	}
+
+	handle /healthz {
+		reverse_proxy app:8080
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

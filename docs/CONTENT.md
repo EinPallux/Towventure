@@ -46,6 +46,8 @@ Each item carries 1–2 of 8 tags. Equipped tags count toward thresholds **2 / 4
 
 Design constraint: **no tag's (6) may be strictly mandatory** for its archetype — (6) is a spike, (4) is the build.
 
+*Implementation status (Phase 2, `content/synergies.ts`):* live in code — Blade (4), Bulwark (2)/(4), Ember (4), Frost (4), Wild (2)/(4)/(6), Shadow (2)/(4), Venom (4). The remainder need effect-ops not yet in the vocabulary and are catalogued in the `DEFERRED` map with the op each requires; they light up as those ops land. Shadow (4) and Venom (4) came online with the `buffNextHitPct` / `buffDamageVsStatusPct` ops.
+
 ---
 
 ## 3. Items
@@ -64,6 +66,8 @@ Design constraint: **no tag's (6) may be strictly mandatory** for its archetype 
 | **Total items** | | | | | | **≈120** |
 
 Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may reference one status or one trigger interaction; Epics may cross two systems (e.g., gold + combat); Mythics may bend a rule of the game (and there are only 7 of them). **Every item gets:** a unique procedural model recipe, a signature VFX, one line of flavor, and a Zenith transformation (name + visual). Anchor set below; remaining items are authored here in Phase 2 under the same table format before any code.
+
+*Implementation status (Phase 2):* ★1 and Awakened (★3) lines are live for the anchor set. **Zenith (★5) transforms** are now activatable in code (gated at `minStar: 5`); the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) is the first one wired, via the `detonateStatus` op. Zenith/Awakened lines whose text needs ops not yet in the vocabulary (weapon-echo/chain, per-Armor damage, Burn-spread, stack-threshold triggers like Solarlash's "at 10+ Burn") are noted deferred in `content/items.ts` and light up as those ops land.
 
 ### 3.1 Weapons (anchor set)
 
@@ -136,24 +140,28 @@ Small Ale (heal 25%), Adrenal Vial (+25% Speed 6s), Cinder Phial (6 Burn to all)
 
 ## 4. Enemies
 
-Rule: **every enemy past floor 10 checks a build axis** (speed, burst, sustain, status, armor, gold). Stats/scaling in [BALANCE.md](BALANCE.md) §6. Anchor roster per biome (3–4 regulars + 1 elite each; full roster authored in Phase 2):
+Rule: **every enemy past floor 10 checks a build axis** (speed, burst, sustain, status, armor, gold). Stats/scaling in [BALANCE.md](BALANCE.md) §6. Anchor roster per biome (3 regulars + 1 elite each). **Biomes 1–5 (floors 1–50) are authored in code** (`content/enemies.ts`, `content/biomes.ts`); Menagerie…Crown remain anchor notes for later phases. `✓` marks a check the sim models directly today; *(deferred)* marks a check that awaits vocabulary the sim/run layers don't have yet — the enemy still fights as an honest stat check meanwhile.
 
 | Enemy (biome) | The check |
 |---|---|
 | Tunnel Rat / Gate Bandit / Toll Shirker (Gatehouse 1–10) | none — teaching dummies with visible telegraphs |
-| **Elite: Two-Coin Ferryman** (Gatehouse) | steals 2 gold `[OnHit]` — kill fast or pay |
-| Bramble Shambler (Gardens 11–20) | applies Venom; checks cleanse/sustain |
-| Pollen Drone ×3 (Gardens) | swarm — checks AoE/fast weapons |
-| **Elite: Rustling Mimic** (Gardens) | eats 3 gold per hit *taken from you refunded on kill ×2* — burst check with a bribe |
-| Inkbound Folio (Archive 21–30) | copies your fastest weapon at 60% |
-| Redaction Wisp (Archive) | every 6s *silences* a random trinket 3s — checks effect redundancy |
-| **Elite: The Unshelved** (Archive) | immune to crits — honest-damage check |
-| Slagling ×2 (Foundry 31–40) | explodes on death (dodge/armor check) |
-| Vow-Forged Sentinel (Foundry) | gains Armor every time *you* Block — punishes turtling mirrors |
-| **Elite: Cinder Widow** (Foundry) | **heals from Burn** — the anti-autopilot wall for Ember builds |
-| Chained Penitent (Chapel 41–50) | halves your Lifesteal aura |
-| Bell-Starved Acolyte ×3 (Chapel) | one rings a bell buffing others — priority-target check (AI targets lowest HP; bell-ringer spawns lowest) |
-| **Elite: Warden of Chains** (Chapel) | caps your Speed at +25% — big-hit check |
+| **Elite: Two-Coin Ferryman** (Gatehouse) | steals 2 gold `[OnHit]` — kill fast or pay *(gold-steal deferred)* |
+| Bramble Shambler (Gardens 11–20) | ✓ applies Venom `[OnHit]`; checks cleanse/sustain |
+| Pollen Drone ×N (Gardens) | ✓ swarm (door multiplies regulars) — checks AoE/fast weapons |
+| Bloodthorn Creeper (Gardens) | ✓ applies Bleed `[OnHit]` — the Garden opens what it touches |
+| **Elite: Rustling Mimic** (Gardens) | burst — kill it fast *(gold-bribe economy deferred)* |
+| Inkbound Folio (Archive 21–30) | copies your fastest weapon at 60% *(copy deferred)* |
+| Redaction Wisp (Archive) | every 6s *silences* a random trinket 3s *(silence deferred)* |
+| Marginalia Wisp (Archive) | ✓ applies Weaken `[OnHit]` — its notes sap your blows |
+| **Elite: The Unshelved** (Archive) | ✓ **immune to crits** (even Shock's) — honest-damage check |
+| Slagling ×N (Foundry 31–40) | brittle rusher *(death-explosion deferred)* |
+| Vow-Forged Sentinel (Foundry) | ✓ gains Armor over time `[Every 3s]` — punishes the slow, turtling mirror |
+| Slag Imp (Foundry) | ✓ applies Burn `[OnHit]` — and mind what feeds on it |
+| **Elite: Cinder Widow** (Foundry) | ✓ **heals from Burn** — the anti-autopilot wall for Ember builds |
+| Chained Penitent (Chapel 41–50) | halves your Lifesteal aura *(aura deferred)* |
+| Bell-Starved Acolyte ×N (Chapel) | one rings a bell buffing others *(bell deferred)* |
+| Ash Chorister (Chapel) | ✓ applies Chill `[OnHit]` — its hymn drags you toward Doomfall |
+| **Elite: Warden of Chains** (Chapel) | caps your Speed at +25% — big-hit check *(cap deferred)* |
 | Gloom Panther (Menagerie 51–60) | high Dodge; Shock/Sure-hit check |
 | Hollow Bear (Menagerie) | enrages below 50% — burst-past-threshold check |
 | **Elite: The Collector's Favorite** (Menagerie) | starts with a random *player item* from the Codex pool equipped |
@@ -172,11 +180,11 @@ Rule: **every enemy past floor 10 checks a build axis** (speed, burst, sustain, 
 
 ### 4.1 Bosses (every 10th floor; signature Mythic-adjacent drop table each)
 
-1. **Floor 10 — The Toll-Keeper.** Giant with a bell: every 6s, **Toll** stuns you 0.5s *unless* you landed 15 hits since the last Toll. Teaches: attack cadence matters. Drops: Toll-Keeper's Bell (M, rare chance), Bulwark pool.
-2. **Floor 20 — Root-Queen Marrow.** Summons 2 Bramble Shamblers at 66%/33%; Venom ramps on you throughout. Checks sustain + AoE.
-3. **Floor 30 — The Unread.** Every 8s *rewrites*: swaps which of your weapons is on cooldown. Checks weapon parity builds.
-4. **Floor 40 — Forgetide Colossus.** Armor 60, sheds 10 per Sunder stack; at 0 Armor, staggers 5s (your burst window). The Sunder tutorial made of iron.
-5. **Floor 50 — Prior of Teeth.** Heals 3% per second; halves at 10+ total statuses on him. Checks status density. *(Mid-game wall by design.)*
+1. **Floor 10 — The Toll-Keeper.** Giant with a bell: every 6s, **Toll** stuns you 0.5s *unless* you landed 15 hits since the last Toll. Teaches: attack cadence matters. Drops: Toll-Keeper's Bell (M, rare chance), Bulwark pool. — *sim: ✓ the 6s Toll stun; the 15-hit reprieve is deferred.*
+2. **Floor 20 — Root-Queen Marrow.** Summons 2 Bramble Shamblers at 66%/33%; Venom ramps on you throughout. Checks sustain + AoE. — *sim: ✓ a beatable Venom tide `[Every 5s]`; mid-fight summons are deferred.*
+3. **Floor 30 — The Unread.** Every 8s *rewrites*: swaps which of your weapons is on cooldown. Checks weapon parity builds. — *sim: a brief `[Every 8s]` stagger stands in; the cooldown-swap rewrite is deferred.*
+4. **Floor 40 — Forgetide Colossus.** Armor 60, sheds 10 per Sunder stack; at 0 Armor, staggers 5s (your burst window). The Sunder tutorial made of iron. — *sim: ✓ high Armor that Sunder already melts (3/stack, min −15); the 10/stack shed + 0-Armor stagger are deferred.*
+5. **Floor 50 — Prior of Teeth.** Heals 3% per second; halves at 10+ total statuses on him. Checks status density. *(Mid-game wall by design.)* — *sim: ✓ fully modelled (`selfHealPctPerSec` + `healHalvedAtStacks`).*
 6. **Floor 60 — The Collector.** Opens with 3 random Codex items equipped; on defeat, **offers you one of them** as loot (the boss *is* a shop).
 7. **Floor 70 — Bailiff of the Deep.** Room floods: +1 Chill to you every 4s, cleansed each time *you* land a crit.
 8. **Floor 80 — The Curator.** **Fights you with your exact current build** at 100%, plus 15% Max HP. The mirror match is the build report card. Drops: choice of any 1 material ×3.

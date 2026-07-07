@@ -1,0 +1,22 @@
+{
+  "name": "@towventure/harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless balance CLI over the shared sim (BALANCE §9). Phase 1 stub: death-floor distributions; full policy gates land in Phase 2.",
+  "scripts": {
+    "harness": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@towventure/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

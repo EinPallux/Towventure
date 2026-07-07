@@ -1,0 +1,29 @@
+{
+  "name": "@towventure/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The heart: deterministic sim, run reducers, authored content, and protocol schemas. Zero workspace deps.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sim": "./src/sim/index.ts",
+    "./run": "./src/run/index.ts",
+    "./content": "./src/content/index.ts",
+    "./protocol": "./src/protocol/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "goldens:update": "GOLDENS_UPDATE=1 vitest run src/sim/__golden__",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

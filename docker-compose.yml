@@ -1,0 +1,79 @@
+# Towventure staging/prod topology on a single VPS (OPERATIONS.md §1).
+#   caddy (TLS + static + proxy) → app (Fastify, jobs) → postgres (closed port)
+# Bring up: `cp .env.example .env` (edit secrets) then `docker compose up -d --build`.
+
+name: towventure
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-towventure}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-towventure}
+      POSTGRES_DB: ${POSTGRES_DB:-towventure}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    # Host port intentionally CLOSED — reachable only on the compose network.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-towventure}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-towventure}:${POSTGRES_PASSWORD:-towventure}@postgres:5432/${POSTGRES_DB:-towventure}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost}
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      HOST: 0.0.0.0
+      PORT: 8080
+      HONOR_SEASON: ${HONOR_SEASON:-1}
+    expose:
+      - '8080'
+    volumes:
+      - client_dist:/srv
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS::80}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./ops/Caddyfile:/etc/caddy/Caddyfile:ro
+      - client_dist:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-towventure}:${POSTGRES_PASSWORD:-towventure}@postgres:5432/${POSTGRES_DB:-towventure}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-}
+    entrypoint: ['sh', '/backup.sh']
+    volumes:
+      - ./ops/backup.sh:/backup.sh:ro
+      - backups:/backups
+
+volumes:
+  pg_data:
+  client_dist:
+  backups:
+  caddy_data:
+  caddy_config:
