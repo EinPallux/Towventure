@@ -331,3 +331,34 @@ describe('conditional & buffered damage ops', () => {
     expect(bleedAfter.length).toBe(0);
   });
 });
+
+describe('one-shot (consumable) reporting', () => {
+  it('reports exactly the one-shot bindings whose condition fired', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Blade', cooldownTicks: 10, damage: 10 }],
+        effects: [
+          {
+            source: 'Adrenal',
+            oneShotId: 'a',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'gainArmor', amount: 5 }],
+          },
+          {
+            source: 'Ale',
+            oneShotId: 'b',
+            trigger: { kind: 'OnHpBelow', pct: 40 },
+            ops: [{ op: 'heal', amount: 5 }],
+          },
+        ],
+      }),
+      // Unarmed enemy: the hero never drops below 40%, so the Ale must NOT fire.
+      enemies: [combatant({ id: 'e0', name: 'Dummy', maxHp: 30, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    expect(r.firedOneShots).toContain('a');
+    expect(r.firedOneShots).not.toContain('b');
+  });
+});

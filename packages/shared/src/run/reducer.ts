@@ -6,7 +6,7 @@
  * resolveFight) because the sim seed is server-drawn.
  */
 
-import { getClass, getEnemy } from '../content/registry.js';
+import { findConsumable, getClass, getEnemy } from '../content/registry.js';
 import { simulate } from '../sim/engine.js';
 import type { SimEvent, SimResult } from '../sim/types.js';
 import { buildCombatSpec, goldPerWin } from './build.js';
@@ -141,6 +141,14 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       const err = sell(draft, command.uid);
       return err ? reject(err) : { ok: true, state: draft };
     }
+    case 'setConsumableCondition': {
+      if (!INVENTORY_PHASES.has(draft.phase)) return reject('cannot change consumables now');
+      const inst = draft.backpack.find((i) => i.uid === command.uid);
+      if (!inst) return reject('no such item');
+      if (!findConsumable(inst.itemId)) return reject('that item is not a consumable');
+      inst.condition = command.condition;
+      return { ok: true, state: draft };
+    }
     case 'buy':
       return buyFromShop(draft, command.slotIndex);
     case 'reroll':
@@ -254,6 +262,11 @@ export function resolveFight(state: RunState, result: SimResult): RunState {
   const fight = draft.pendingFight!;
   const { heroDamage, killerEnemyIdx } = analyzeFight(result.events);
   draft.damageDealt += heroDamage;
+  // Spend the consumables that auto-fired this fight (win or lose).
+  if (result.firedOneShots.length > 0) {
+    const fired = new Set(result.firedOneShots);
+    draft.backpack = draft.backpack.filter((i) => !fired.has(i.uid));
+  }
   const fightCounter = draft.fightCounter;
 
   if (result.winner === 'hero') {

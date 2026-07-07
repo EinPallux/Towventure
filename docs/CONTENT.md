@@ -121,6 +121,8 @@ Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may ref
 
 Small Ale (heal 25%), Adrenal Vial (+25% Speed 6s), Cinder Phial (6 Burn to all), Frostjar (4 Chill to all), Leadbelly Draught (+20 Armor 8s), Blackout Bomb (enemies miss 2s), Bottled Yesterday (cleanse self), Honey of the Gardens (12 Regen), Powder of Sundering (8 Sunder to target), Vial of the Widow (5 Venom to target), Doomglass (start Doomfall 10s early — *for slow-proof builds that want it*), Wick-Oil (your next 5 hits apply 2 Burn), The Modest Fanfare (+15% damage 10s). Conditions selectable: fight start / HP<70% / HP<40% / Doomfall / vs Elite+.
 
+*Implementation status (Phase 2):* auto-trigger is **live** for the 5 anchor consumables (`content/consumables.ts`). Each held consumable compiles into a one-shot hero effect for the fight whose condition maps to a sim trigger (`fightStart`/`vsElite`→OnFightStart, `hpBelow70`/`hpBelow40`→OnHpBelow, `doomfall`→OnDoomfall); `vsElite` only compiles when the roster has an elite/boss. The sim reports which one-shots fired and the run layer spends exactly those (an un-triggered emergency heal is kept). Players retarget the condition via the `setConsumableCondition` command (backpack selector in the client). Authored defaults: Small Ale = HP<40%, Honey = HP<70%, Leadbelly = vs Elite+, Cinder Phial & Adrenal Vial = fight start. The remaining 8 consumables (Frostjar, Blackout Bomb, etc.) author here before code in a later wave.
+
 ### 3.5 Materials (infusions)
 
 | Material | Socket effect | Drops from |

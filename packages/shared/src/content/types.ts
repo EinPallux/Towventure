@@ -77,13 +77,26 @@ export interface ItemDef {
   goldPerWin?: number;
 }
 
+/**
+ * When an auto-trigger consumable fires (CONTENT §3.4, "player sets condition").
+ * Maps to a sim trigger (or a fight-eligibility gate for `vsElite`) in run/build.
+ */
+export type ConsumableCondition =
+  | 'fightStart'
+  | 'hpBelow70'
+  | 'hpBelow40'
+  | 'doomfall'
+  | 'vsElite';
+
 export interface ConsumableDef {
   id: string;
   name: string;
   rarity: Rarity;
   flavor: string;
-  /** Effect applied when the consumable auto-triggers (combat wiring is Phase 2). */
+  /** Effect applied when the consumable auto-triggers. */
   ops: EffectOp[];
+  /** Condition it fires on until the player picks another (CONTENT §3.4). */
+  defaultCondition: ConsumableCondition;
 }
 
 export interface MaterialDef {

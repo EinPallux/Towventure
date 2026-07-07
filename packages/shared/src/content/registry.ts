@@ -54,6 +54,9 @@ export function getConsumable(id: string): ConsumableDef {
   if (!d) throw new Error(`unknown consumable: ${id}`);
   return d;
 }
+export function findConsumable(id: string): ConsumableDef | undefined {
+  return CONSUMABLE_MAP.get(id);
+}
 export function getMaterial(id: string): MaterialDef {
   const d = MATERIAL_MAP.get(id);
   if (!d) throw new Error(`unknown material: ${id}`);

@@ -138,6 +138,66 @@ describe('a full climb', () => {
   });
 });
 
+describe('consumable auto-triggers', () => {
+  /** Enter the first available battle (non-elite) door and resolve the fight. */
+  function fightFirstBattle(s: RunState): RunState {
+    const idx = s.doors!.findIndex((d) => d.kind === 'battle');
+    const doored = applyCommand(s, { type: 'chooseDoor', doorIndex: idx >= 0 ? idx : 0 });
+    if (!doored.ok) throw new Error(doored.error);
+    const out = runPendingFight(doored.state);
+    if (!out) throw new Error('no pending fight');
+    return out.state;
+  }
+
+  it('spends a fightStart consumable after any fight', () => {
+    const start = startRun('duelist', [], 999); // Duelist starts with an Adrenal Vial (fightStart)
+    const vial = start.backpack.find((i) => i.itemId === 'adrenal_vial')!;
+    expect(vial).toBeTruthy();
+    const after = fightFirstBattle(start);
+    expect(after.backpack.some((i) => i.uid === vial.uid)).toBe(false);
+  });
+
+  it('keeps a vsElite consumable out of a plain battle', () => {
+    const s = structuredClone(freshVanguard(2024));
+    s.backpack.push({ uid: 'lead1', itemId: 'leadbelly_draught', star: 1 }); // vsElite by default
+    const after = fightFirstBattle(s);
+    // Not eligible in a non-elite fight → never compiled, never fired, still held.
+    expect(after.backpack.some((i) => i.uid === 'lead1')).toBe(true);
+  });
+
+  it('keeps an hpBelow40 consumable that never triggered', () => {
+    // A fresh Vanguard one-shots floor-1 fodder without dropping to 40% → Ale survives.
+    const start = freshVanguard(31);
+    const ale = start.backpack.find((i) => i.itemId === 'small_ale')!;
+    const after = fightFirstBattle(start);
+    if (after.status !== 'dead') {
+      expect(after.backpack.some((i) => i.uid === ale.uid)).toBe(true);
+    }
+  });
+
+  it('setConsumableCondition retargets a held consumable and rejects non-consumables', () => {
+    const s = structuredClone(freshVanguard(7));
+    const ale = s.backpack.find((i) => i.itemId === 'small_ale')!;
+    expect(ale.condition).toBeUndefined(); // follows the def default until set
+    const ok = applyCommand(s, {
+      type: 'setConsumableCondition',
+      uid: ale.uid,
+      condition: 'fightStart',
+    });
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) throw new Error(ok.error);
+    expect(ok.state.backpack.find((i) => i.uid === ale.uid)!.condition).toBe('fightStart');
+
+    s.backpack.push({ uid: 'w1', itemId: 'rusty_cleaver', star: 1 });
+    const bad = applyCommand(s, {
+      type: 'setConsumableCondition',
+      uid: 'w1',
+      condition: 'doomfall',
+    });
+    expect(bad.ok).toBe(false);
+  });
+});
+
 describe('fusion (★1 → ★2 stat scaling)', () => {
   it('fuses two identical copies and scales the fused weapon damage by ×1.35', () => {
     let s = freshVanguard();

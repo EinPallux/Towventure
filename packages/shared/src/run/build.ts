@@ -11,12 +11,13 @@ import { scaleToStar } from '../content/constants.js';
 import {
   cooldownTicks,
   deriveWeaponDamage,
+  findConsumable,
   getClass,
   getEnemy,
   getItem,
 } from '../content/registry.js';
 import { TAG_SYNERGIES } from '../content/synergies.js';
-import type { ItemDef, ItemEffect, StatMod, Tag } from '../content/types.js';
+import type { ConsumableCondition, ItemDef, ItemEffect, StatMod, Tag } from '../content/types.js';
 import {
   DOOMFALL_START_TICKS,
   DOOMFALL_START_TICKS_HASTE,
@@ -27,6 +28,7 @@ import type {
   CombatantSpec,
   EffectBinding,
   EffectOp,
+  Trigger,
   WeaponSpec,
 } from '../sim/types.js';
 import type { InventoryItem, RunState } from './types.js';
@@ -283,11 +285,56 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
   });
 }
 
+/** The sim trigger a consumable condition maps to (`vsElite` gates eligibility, then fires at start). */
+function conditionTrigger(condition: ConsumableCondition): Trigger {
+  switch (condition) {
+    case 'hpBelow70':
+      return { kind: 'OnHpBelow', pct: 70 };
+    case 'hpBelow40':
+      return { kind: 'OnHpBelow', pct: 40 };
+    case 'doomfall':
+      return { kind: 'OnDoomfall' };
+    case 'fightStart':
+    case 'vsElite':
+      return { kind: 'OnFightStart' };
+  }
+}
+
+/**
+ * Compile held consumables into one-shot hero effect bindings for THIS fight
+ * (CONTENT §3.4). `vsElite` consumables are only eligible when the roster has an
+ * elite or boss. The sim reports which fired (`firedOneShots`); resolveFight
+ * consumes exactly those. Consumables don't scale with ★ (they aren't fused).
+ */
+export function consumableBindings(state: RunState, enemyIds: string[]): EffectBinding[] {
+  const vsElitePresent = enemyIds.some((id) => {
+    const role = getEnemy(id).role;
+    return role === 'elite' || role === 'boss';
+  });
+  const out: EffectBinding[] = [];
+  for (const inst of state.backpack) {
+    const def = findConsumable(inst.itemId);
+    if (!def) continue;
+    const condition = inst.condition ?? def.defaultCondition;
+    if (condition === 'vsElite' && !vsElitePresent) continue;
+    out.push({
+      source: def.name,
+      trigger: conditionTrigger(condition),
+      ops: def.ops,
+      oneShotId: inst.uid,
+    });
+  }
+  return out;
+}
+
 /** Build the full `CombatSpec` for a pending fight (hero + scaled enemies + Doomfall). */
 export function buildCombatSpec(state: RunState, enemyIds: string[]): CombatSpec {
   const haste = state.vows.includes('vow_of_haste');
+  const hero = buildHeroSpec(state);
+  // Consumables fire after equipment/synergy effects, in backpack order.
+  hero.effects = [...hero.effects, ...consumableBindings(state, enemyIds)];
   return {
-    hero: buildHeroSpec(state),
+    hero,
     enemies: buildEnemySpecs(enemyIds, state.floor),
     doomfallStartTicks: haste ? DOOMFALL_START_TICKS_HASTE : DOOMFALL_START_TICKS,
   };

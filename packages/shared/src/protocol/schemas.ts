@@ -52,6 +52,14 @@ export const equipSlotSchema = z.enum([
   'relic',
 ]);
 
+export const consumableConditionSchema = z.enum([
+  'fightStart',
+  'hpBelow70',
+  'hpBelow40',
+  'doomfall',
+  'vsElite',
+]);
+
 export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('chooseDoor'), doorIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('takeLoot'), take: z.boolean() }),
@@ -59,6 +67,11 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('unequip'), slot: equipSlotSchema }),
   z.object({ type: z.literal('fuse'), uid1: z.string().min(1), uid2: z.string().min(1) }),
   z.object({ type: z.literal('sell'), uid: z.string().min(1) }),
+  z.object({
+    type: z.literal('setConsumableCondition'),
+    uid: z.string().min(1),
+    condition: consumableConditionSchema,
+  }),
   z.object({ type: z.literal('buy'), slotIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('reroll') }),
   z.object({ type: z.literal('leaveShop') }),

@@ -73,6 +73,11 @@ export interface EffectBinding {
   everyNthHit?: number;
   /** OnHurt gate: incoming hit must be ≥ this % of max HP to qualify. */
   minHitPctMax?: number;
+  /**
+   * If set, this binding is a one-shot (a consumable): the sim records the id the
+   * first time its ops run, so the run layer knows the consumable was spent.
+   */
+  oneShotId?: string;
 }
 
 // ─── Combatant + combat specs (sim input) ────────────────────────────────────
@@ -160,4 +165,6 @@ export interface SimResult {
   /** FNV-1a digest of the numeric event stream — the cross-platform cross-check. */
   logHash: number;
   events: SimEvent[];
+  /** ids of one-shot bindings (consumables) that fired — the run layer consumes these. */
+  firedOneShots: string[];
 }

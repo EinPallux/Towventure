@@ -3,8 +3,40 @@
  * always exact (ART_DIRECTION §8); flavor never obscures math.
  */
 
-import { findItem, scaleToStar, type ItemEffect, type Rarity } from '@towventure/shared/content';
+import {
+  findConsumable,
+  findItem,
+  scaleToStar,
+  type ConsumableCondition,
+  type ItemEffect,
+  type Rarity,
+} from '@towventure/shared/content';
 import type { EffectOp } from '@towventure/shared/sim';
+
+export const CONSUMABLE_CONDITIONS: ConsumableCondition[] = [
+  'fightStart',
+  'hpBelow70',
+  'hpBelow40',
+  'doomfall',
+  'vsElite',
+];
+
+export const CONDITION_LABEL: Record<ConsumableCondition, string> = {
+  fightStart: 'Fight start',
+  hpBelow70: 'HP < 70%',
+  hpBelow40: 'HP < 40%',
+  doomfall: 'Doomfall',
+  vsElite: 'vs Elite+',
+};
+
+/** A consumable's data if this id is one (else undefined) — for the backpack UI. */
+export function consumableInfo(
+  itemId: string,
+): { condition: ConsumableCondition; label: string } | undefined {
+  const def = findConsumable(itemId);
+  if (!def) return undefined;
+  return { condition: def.defaultCondition, label: CONDITION_LABEL[def.defaultCondition] };
+}
 
 const STATUS_LABEL: Record<string, string> = {
   bleed: 'Bleed',
@@ -102,6 +134,16 @@ export interface ItemText {
 export function describeItem(itemId: string, star: number): ItemText {
   const def = findItem(itemId);
   if (!def) {
+    const cons = findConsumable(itemId);
+    if (cons) {
+      return {
+        name: cons.name,
+        rarity: 'consumable',
+        tags: [],
+        lines: cons.ops.map((op) => opText(op, star)),
+        flavor: cons.flavor,
+      };
+    }
     return { name: itemId, rarity: 'consumable', tags: [], lines: [], flavor: '' };
   }
   const lines: string[] = [];

@@ -5,13 +5,15 @@
  * Everything here is integer/enumerable — no floats, no wall-clock (AGENTS §3.1).
  */
 
-import type { ClassId } from '../content/types.js';
+import type { ClassId, ConsumableCondition } from '../content/types.js';
 
 /** An item instance in a run: a content id + fusion tier + a run-unique id. */
 export interface InventoryItem {
   uid: string;
   itemId: string;
   star: number;
+  /** Consumables only: the auto-fire condition (defaults to the def's, player-settable). */
+  condition?: ConsumableCondition;
 }
 
 /** The 8 equip slots (GDD §3.4). A 2-hand weapon lives in `weapon1`; `weapon2` is then blocked. */
@@ -113,6 +115,7 @@ export type Command =
   | { type: 'unequip'; slot: EquipSlotId }
   | { type: 'fuse'; uid1: string; uid2: string }
   | { type: 'sell'; uid: string }
+  | { type: 'setConsumableCondition'; uid: string; condition: ConsumableCondition }
   | { type: 'buy'; slotIndex: number }
   | { type: 'reroll' }
   | { type: 'leaveShop' }

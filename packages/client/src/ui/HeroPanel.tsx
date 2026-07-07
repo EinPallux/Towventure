@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import type { EquipSlotId, InventoryItem } from '@towventure/shared/run';
+import type { ConsumableCondition } from '@towventure/shared/content';
 import { useStore } from '../store.js';
 import { TagMeter } from './TagMeter.js';
-import { describeItem } from './itemText.js';
+import {
+  CONDITION_LABEL,
+  CONSUMABLE_CONDITIONS,
+  consumableInfo,
+  describeItem,
+} from './itemText.js';
 
 const SLOTS: { key: EquipSlotId; label: string }[] = [
   { key: 'weapon1', label: 'Weapon' },
@@ -123,33 +129,58 @@ export function HeroPanel() {
         <div className="backpack">
           {run.backpack.map((inst) => {
             const d = describeItem(inst.itemId, inst.star);
+            const cons = consumableInfo(inst.itemId);
             return (
               <div
                 key={inst.uid}
                 className={`bp-item ${sel.includes(inst.uid) ? 'selected' : ''}`}
-                draggable
+                draggable={!cons}
                 title={itemTitle(inst)}
                 onDragStart={(e) => e.dataTransfer.setData('text/uid', inst.uid)}
-                onClick={() => toggleSel(inst.uid)}
+                onClick={() => !cons && toggleSel(inst.uid)}
               >
                 <div className="row spread">
                   <span className={`r-${d.rarity} item-name`}>{d.name}</span>
-                  <span className="stars">{'★'.repeat(inst.star)}</span>
+                  <span className="stars">{cons ? '⚗' : '★'.repeat(inst.star)}</span>
                 </div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   {d.lines[0] ?? d.flavor}
                 </div>
                 <div className="item-actions">
-                  <button
-                    className="small"
-                    disabled={busy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void cmd({ type: 'equip', uid: inst.uid });
-                    }}
-                  >
-                    Equip
-                  </button>
+                  {cons ? (
+                    <select
+                      className="small"
+                      value={inst.condition ?? cons.condition}
+                      disabled={busy}
+                      title="When this consumable auto-fires"
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        void cmd({
+                          type: 'setConsumableCondition',
+                          uid: inst.uid,
+                          condition: e.target.value as ConsumableCondition,
+                        });
+                      }}
+                    >
+                      {CONSUMABLE_CONDITIONS.map((c) => (
+                        <option key={c} value={c}>
+                          {CONDITION_LABEL[c]}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button
+                      className="small"
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void cmd({ type: 'equip', uid: inst.uid });
+                      }}
+                    >
+                      Equip
+                    </button>
+                  )}
                   <button
                     className="small ghost"
                     disabled={busy}

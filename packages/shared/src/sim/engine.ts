@@ -132,6 +132,8 @@ class Sim {
   private endTick = 0;
   /** One-level re-entrancy guard so OnStatusApplied handlers can't loop. */
   private inStatusTrigger = false;
+  /** One-shot (consumable) bindings that fired, in fire order — deduped. */
+  private readonly firedOneShots: string[] = [];
 
   constructor(spec: CombatSpec, seed: number) {
     this.rng = new Rng(seed);
@@ -508,6 +510,10 @@ class Sim {
   }
 
   private runOps(self: Combatant, b: EffectBinding, t: number, other: Combatant | undefined): void {
+    // A one-shot binding (consumable) counts as spent the first time it runs.
+    if (b.oneShotId !== undefined && !this.firedOneShots.includes(b.oneShotId)) {
+      this.firedOneShots.push(b.oneShotId);
+    }
     for (const op of b.ops) this.runOp(self, op, t, other);
   }
 
@@ -816,6 +822,7 @@ class Sim {
       enemyHpRemaining: this.enemies.map((e) => Math.max(0, e.hp)),
       logHash: this.hash.digest(),
       events: this.events,
+      firedOneShots: this.firedOneShots,
     };
   }
 }
