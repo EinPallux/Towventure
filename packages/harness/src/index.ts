@@ -23,15 +23,17 @@ interface Args {
   runs: number;
   seed: number;
   cap: number;
+  gate: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { runs: 500, seed: 1, cap: 200 };
+  const a: Args = { runs: 500, seed: 1, cap: 200, gate: false };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i + 1];
     if (argv[i] === '--runs' && v) a.runs = Number(v);
     else if (argv[i] === '--seed' && v) a.seed = Number(v);
     else if (argv[i] === '--cap' && v) a.cap = Number(v);
+    else if (argv[i] === '--gate') a.gate = true;
   }
   return a;
 }
@@ -166,14 +168,64 @@ function report(label: string, outcomes: Outcome[]): void {
   }
 }
 
+/**
+ * Release gates (BALANCE §9). Prints PASS/FAIL per gate and returns whether all the
+ * *hard* gates held. The per-item ±8% win-rate-cohort gate needs item-tagged policy
+ * sims (a follow-up); the class-distribution and Doomfall gates are computed here.
+ */
+function reportGates(byClass: Map<string, Outcome[]>): boolean {
+  console.log('\n── Release gates (BALANCE §9) ──');
+  let allHardPassed = true;
+  const line = (ok: boolean, hard: boolean, msg: string): void => {
+    if (hard && !ok) allHardPassed = false;
+    console.log(`  ${ok ? 'PASS' : hard ? 'FAIL' : 'WARN'} · ${msg}`);
+  };
+
+  // Gate 1 — each class's median first death sits in a sane band [20, 80].
+  for (const [classId, outs] of byClass) {
+    const floors = outs.map((o) => o.deathFloor).sort((a, b) => a - b);
+    const median = floors[Math.floor(floors.length / 2)]!;
+    line(median >= 20 && median <= 80, true, `${classId} median death floor ${median} ∈ [20, 80]`);
+  }
+
+  // Gate 2 — no class owns > 55% of the deepest-decile deaths (BALANCE §9).
+  const all = [...byClass.values()].flat();
+  const sorted = all.map((o) => o.deathFloor).sort((a, b) => a - b);
+  const threshold = sorted[Math.floor(sorted.length * 0.9)] ?? 0;
+  const topByClass = new Map<string, number>();
+  let topTotal = 0;
+  for (const [classId, outs] of byClass) {
+    const n = outs.filter((o) => o.deathFloor >= threshold).length;
+    topByClass.set(classId, n);
+    topTotal += n;
+  }
+  for (const [classId, n] of topByClass) {
+    const share = topTotal > 0 ? n / topTotal : 0;
+    line(share <= 0.55, true, `${classId} top-decile death share ${(share * 100).toFixed(0)}% ≤ 55%`);
+  }
+
+  // Gate 3 — Doomfall causes 5–12% of deaths (soft: it must matter, not dominate).
+  const doomfall = all.filter((o) => o.doomfall).length;
+  const dfShare = (doomfall / all.length) * 100;
+  line(dfShare >= 5 && dfShare <= 12, false, `Doomfall death share ${dfShare.toFixed(1)}% ∈ [5, 12]`);
+
+  console.log(`\n${allHardPassed ? '✓ hard gates passed' : '✗ hard gates FAILED'}`);
+  return allHardPassed;
+}
+
 const args = parseArgs(process.argv.slice(2));
 console.log(
   `\nTowventure balance harness — ${args.runs} runs/class (BALANCE §4 target: median first death ~floor 25–40)`,
 );
+const byClass = new Map<string, Outcome[]>();
 for (const classId of CLASSES) {
   const outcomes: Outcome[] = [];
   for (let i = 0; i < args.runs; i++) {
     outcomes.push(playRun(classId, args.seed + i * 2654435761, args.cap));
   }
   report(classId, outcomes);
+  byClass.set(classId, outcomes);
 }
+const hardOk = reportGates(byClass);
+// `--gate` makes failing hard gates exit non-zero (for CI); default is informational.
+if (args.gate && !hardOk) process.exit(1);

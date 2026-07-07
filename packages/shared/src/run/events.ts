@@ -7,9 +7,17 @@
  */
 
 import { MAX_STAR } from '../content/constants.js';
-import { ITEMS, findItem, findMaterial, isEquippable } from '../content/registry.js';
+import { MATERIALS, findItem, findMaterial } from '../content/registry.js';
 import type { Rng } from '../sim/rng.js';
+import { pushBackpack } from './inventory.js';
+import { pickItemOfRarity } from './loot.js';
 import type { RunState } from './types.js';
+
+/** Give a random material if there's backpack room (else the sheddings are lost). */
+function grantMaterial(draft: RunState, rng: Rng): void {
+  if (draft.backpack.length >= draft.backpackSize) return;
+  pushBackpack(draft, rng.pick(MATERIALS).id, 1);
+}
 
 export function applyEvent(
   draft: RunState,
@@ -56,12 +64,33 @@ export function applyEvent(
       else draft.gold -= stake;
       return null;
     }
-    case 'cursed_reliquary': {
+    case 'cursed_reliquary':
+    case 'honest_mirror': {
       if (optionIndex !== 0) return null;
-      const epics = ITEMS.filter(
-        (i) => i.rarity === 'epic' && i.kind !== 'relic' && isEquippable(i),
-      );
-      if (epics.length > 0) draft.pendingItem = epics[rng.nextInt(epics.length)]!.id;
+      draft.pendingItem = pickItemOfRarity('epic', rng) ?? null;
+      return null;
+    }
+    case 'tithe_collector': {
+      if (optionIndex !== 0) return null;
+      draft.gold -= Math.trunc(draft.gold / 4); // a quarter of the purse
+      draft.pendingItem = pickItemOfRarity('rare', rng) ?? null;
+      return null;
+    }
+    case 'beggar_who_knows_you': {
+      if (optionIndex !== 0) return null;
+      draft.gold = Math.max(0, draft.gold - 20);
+      draft.pendingItem = pickItemOfRarity('common', rng) ?? null;
+      return null;
+    }
+    case 'quiet_forge': {
+      if (optionIndex !== 0) return null;
+      grantMaterial(draft, rng);
+      return null;
+    }
+    case 'molting_wall': {
+      if (optionIndex !== 0) return null;
+      grantMaterial(draft, rng);
+      grantMaterial(draft, rng);
       return null;
     }
     default:

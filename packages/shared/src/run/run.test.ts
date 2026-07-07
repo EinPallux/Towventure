@@ -458,6 +458,26 @@ describe('events', () => {
     expect(getItem(res.state.pendingItem!).rarity).toBe('epic');
   });
 
+  it('the Tithe-Collector takes a quarter of gold and offers a Rare', () => {
+    const s = eventState('tithe_collector');
+    s.gold = 100;
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.gold).toBe(75);
+    expect(res.state.phase).toBe('reward');
+    expect(res.state.pendingItem).toBeTruthy();
+  });
+
+  it('the Molting Wall grants materials to the backpack', () => {
+    const s = eventState('molting_wall');
+    const before = s.backpack.length;
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.backpack.length).toBe(before + 2);
+  });
+
   it('declining advances the floor; a bad option index is rejected', () => {
     const s = eventState('shrine_of_mended_blade');
     const before = s.floor;

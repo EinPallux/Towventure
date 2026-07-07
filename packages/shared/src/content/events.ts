@@ -45,4 +45,49 @@ export const EVENTS: EventDef[] = [
       { label: 'Leave it sealed', blurb: 'Some debts are not worth the interest' },
     ],
   },
+  {
+    id: 'tithe_collector',
+    name: 'The Tithe-Collector',
+    flavor: 'He does not ask twice, but he does remember.',
+    options: [
+      { label: 'Pay the tithe', blurb: 'Give up a quarter of your gold for a Rare offering' },
+      { label: 'Refuse him', blurb: 'Keep your coin; keep his attention' },
+    ],
+  },
+  {
+    id: 'quiet_forge',
+    name: 'The Quiet Forge',
+    flavor: 'It has not been cold since before the Tower.',
+    options: [
+      { label: 'Work the bellows', blurb: 'Leave with a material for your sockets' },
+      { label: 'Let it rest', blurb: 'Some fires are better left banked' },
+    ],
+  },
+  {
+    id: 'beggar_who_knows_you',
+    name: 'The Beggar Who Knows You',
+    flavor: 'He calls you by a name you have not used in years.',
+    options: [
+      { label: 'Spare a coin', blurb: 'Give 20 gold; he presses something small into your hand' },
+      { label: 'Walk past', blurb: 'You did not recognize him either' },
+    ],
+  },
+  {
+    id: 'molting_wall',
+    name: 'The Molting Wall',
+    flavor: 'It sheds the Tower like a skin, and leaves the good bits.',
+    options: [
+      { label: 'Gather the sheddings', blurb: 'Two materials, still warm' },
+      { label: 'Do not touch it', blurb: 'Whatever it is doing, let it finish' },
+    ],
+  },
+  {
+    id: 'honest_mirror',
+    name: 'An Honest Mirror',
+    flavor: 'It shows you exactly what you are carrying, and what you could be.',
+    options: [
+      { label: 'Reach through', blurb: 'Take the Epic on the other side' },
+      { label: 'Turn away', blurb: 'You have seen enough of yourself for one climb' },
+    ],
+  },
 ];
