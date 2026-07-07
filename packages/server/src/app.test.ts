@@ -21,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { createDatabase, type Database } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
-import { accounts, honorLedger, inbox, marksLedger } from './db/schema.js';
+import { accounts, honorLedger, inbox, marksLedger, skirmishes } from './db/schema.js';
 import { loadEnv } from './env.js';
 import {
   bankEcho,
@@ -30,6 +30,7 @@ import {
   recordEchoDefense,
   recordEchoKill,
 } from './services/echoes.js';
+import { decayPct, eloDelta, ticketCap, upsertDefense } from './services/skirmish.js';
 
 const HAS_DB = !!process.env.DATABASE_URL;
 const d = HAS_DB ? describe : describe.skip;
@@ -520,6 +521,134 @@ d('server API — the Heartbeat loop', () => {
     }
     // The core plumbing claim: the server offered and resolved a real player's Echo.
     expect(foughtEcho).toBe(true);
+  });
+
+  // A strong build (deep, so high HP) or a weak one (floor 1) — to rig duel outcomes.
+  function buildFor(
+    classId: 'vanguard' | 'duelist' | 'arcanist',
+    floorsCleared: number,
+  ): RunState {
+    const run = startRun(classId, [], 77);
+    run.floorsCleared = floorsCleared;
+    run.floor = floorsCleared + 1;
+    return run;
+  }
+
+  it('Skirmish math (BALANCE §6): Elo delta, ticket cap, anti-farm decay', () => {
+    // Even Honor → E=0.5 → ±12 at K=24.
+    expect(eloDelta(500, 500, true)).toBe(12);
+    expect(eloDelta(500, 500, false)).toBe(-12);
+    // Punching up pays more; stomping down pays less.
+    expect(eloDelta(200, 600, true)).toBeGreaterThan(12);
+    expect(eloDelta(600, 200, true)).toBeLessThan(12);
+    // Tickets: 5 base, +1 at rank 4, +1 more at rank 6.
+    expect(ticketCap(0)).toBe(5);
+    expect(ticketCap(4)).toBe(6);
+    expect(ticketCap(6)).toBe(7);
+    // Decay: ×1 → ×0.5 → ×0.25 → 0 for repeat wins this week.
+    expect(decayPct(0)).toBe(100);
+    expect(decayPct(1)).toBe(50);
+    expect(decayPct(2)).toBe(25);
+    expect(decayPct(3)).toBe(0);
+    expect(decayPct(9)).toBe(0);
+  });
+
+  it('Skirmish loop: beating a weak rival wins Honor + a Key; a repeat same day is blocked (GDD §9)', async () => {
+    const defId = await makeAccount(`hb_skDef_${Date.now().toString(36)}`);
+    await upsertDefense(database.db, defId, 'Softy', season, buildFor('duelist', 0), 0);
+
+    // The attacker is a registered account (needs a session) with a strong defense.
+    const name = `hb_skAtk_${Date.now().toString(36)}`;
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'hunter2hunter2' },
+    });
+    const attId = reg.json().account.id as string;
+    const cookie = cookieFrom(reg);
+    await upsertDefense(database.db, attId, name, season, buildFor('vanguard', 50), 0);
+
+    // The board returns rivals + a full ticket allotment (specific opponents depend on
+    // Honor proximity; the attack below targets by id regardless).
+    const board = await app.inject({ method: 'GET', url: '/api/skirmish', headers: { cookie } });
+    expect(board.statusCode).toBe(200);
+    expect(board.json().tickets.cap).toBe(5);
+    expect(Array.isArray(board.json().board)).toBe(true);
+
+    const atk = await app.inject({
+      method: 'POST',
+      url: '/api/skirmish/attack',
+      headers: { cookie },
+      payload: { defenderId: defId },
+    });
+    expect(atk.statusCode).toBe(200);
+    const body = atk.json();
+    expect(body.outcome.attackerWon).toBe(true);
+    expect(body.outcome.honorDelta).toBeGreaterThan(0);
+    expect(body.outcome.keyAwarded).toBe(true); // won vs equal/higher Honor (both at 0)
+    expect(body.keys).toBe(1);
+    // The client can re-sim the duel from the two builds + seed.
+    expect(body.attacker.build).toBeTruthy();
+    expect(body.defender.build).toBeTruthy();
+
+    // Attacker Honor ledger row exists; a repeat vs the same rival today is blocked.
+    const atkHonor = await database.db
+      .select()
+      .from(honorLedger)
+      .where(and(eq(honorLedger.accountId, attId), eq(honorLedger.reason, 'skirmish')));
+    expect(atkHonor[0]!.delta).toBe(body.outcome.honorDelta);
+    const skRows = await database.db
+      .select()
+      .from(skirmishes)
+      .where(eq(skirmishes.attackerId, attId));
+    expect(skRows).toHaveLength(1);
+
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/skirmish/attack',
+      headers: { cookie },
+      payload: { defenderId: defId },
+    });
+    expect(again.statusCode).toBe(409); // same defender ≤1/day
+  });
+
+  it('Skirmish: losing to a strong defense pays the risk-free defender (GDD §9)', async () => {
+    const defId = await makeAccount(`hb_skWall_${Date.now().toString(36)}`);
+    await upsertDefense(database.db, defId, 'Wall', season, buildFor('vanguard', 50), 0);
+
+    const name = `hb_skWeak_${Date.now().toString(36)}`;
+    const reg = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'hunter2hunter2' },
+    });
+    const cookie = cookieFrom(reg);
+    const attId = reg.json().account.id as string;
+    await upsertDefense(database.db, attId, name, season, buildFor('duelist', 0), 0);
+
+    const atk = await app.inject({
+      method: 'POST',
+      url: '/api/skirmish/attack',
+      headers: { cookie },
+      payload: { defenderId: defId },
+    });
+    expect(atk.statusCode).toBe(200);
+    const body = atk.json();
+    expect(body.outcome.attackerWon).toBe(false);
+    expect(body.outcome.defenderReward).toEqual({ honor: 8, marks: 10 });
+    expect(body.outcome.keyAwarded).toBe(false);
+
+    // The defender — who did nothing — gains Honor + Marks; the attacker risked it.
+    const defHonor = await database.db
+      .select()
+      .from(honorLedger)
+      .where(and(eq(honorLedger.accountId, defId), eq(honorLedger.reason, 'skirmish_def')));
+    expect(defHonor[0]!.delta).toBe(8);
+    const defMarks = await database.db
+      .select()
+      .from(marksLedger)
+      .where(and(eq(marksLedger.accountId, defId), eq(marksLedger.reason, 'skirmish_def')));
+    expect(defMarks[0]!.delta).toBe(10);
   });
 
   it('rejects unauthenticated run access with 401', async () => {

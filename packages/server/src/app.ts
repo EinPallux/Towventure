@@ -17,6 +17,7 @@ import type { AppContext } from './routes/helpers.js';
 import { ladderRoutes } from './routes/ladders.js';
 import { meRoutes } from './routes/me.js';
 import { runRoutes } from './routes/run.js';
+import { skirmishRoutes } from './routes/skirmish.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -47,6 +48,7 @@ export async function buildApp(database: Database, env: Env): Promise<FastifyIns
   await app.register(meRoutes(ctx), { prefix: '/api/me' });
   await app.register(runRoutes(ctx), { prefix: '/api/run' });
   await app.register(ladderRoutes(ctx), { prefix: '/api/ladders' });
+  await app.register(skirmishRoutes(ctx), { prefix: '/api/skirmish' });
 
   return app;
 }

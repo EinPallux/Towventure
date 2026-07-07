@@ -34,6 +34,11 @@ export function TopBar() {
             Codex
           </button>
         )}
+        {view !== 'skirmish' && (
+          <button className="small ghost" onClick={() => setView('skirmish')}>
+            Skirmish
+          </button>
+        )}
         {view !== 'ladder' ? (
           <button className="small ghost" onClick={() => setView('ladder')}>
             Ladder

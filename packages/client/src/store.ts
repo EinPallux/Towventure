@@ -12,6 +12,8 @@ import {
   type ClassChoice,
   type FightResult,
   type MeResponse,
+  type SkirmishBoard,
+  type SkirmishResult,
 } from './api/client.js';
 
 export interface FightPlayback {
@@ -26,11 +28,13 @@ interface Store {
   me: MeResponse | null;
   run: RunState | null;
   version: number;
-  view: 'gate' | 'ladder' | 'codex';
+  view: 'gate' | 'ladder' | 'codex' | 'skirmish';
   playback: FightPlayback | null;
   accountCodex: CodexProgress | null;
   /** The bounty from the most recent Echo kill, shown on the Grave-Copy screen. */
   lastEchoReward: { bounty: number; marks: number } | null;
+  skirmishBoard: SkirmishBoard | null;
+  skirmishResult: SkirmishResult | null;
   busy: boolean;
   error: string | null;
 
@@ -45,8 +49,11 @@ interface Store {
   fight: () => Promise<void>;
   endPlayback: () => void;
   dismissRun: () => void;
-  setView: (v: 'gate' | 'ladder' | 'codex') => void;
+  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish') => void;
   fetchCodex: () => Promise<void>;
+  fetchSkirmish: () => Promise<void>;
+  attack: (defenderId: string) => Promise<void>;
+  clearSkirmishResult: () => void;
   clearError: () => void;
 }
 
@@ -63,6 +70,8 @@ export const useStore = create<Store>((set, get) => ({
   playback: null,
   accountCodex: null,
   lastEchoReward: null,
+  skirmishBoard: null,
+  skirmishResult: null,
   busy: false,
   error: null,
 
@@ -199,5 +208,27 @@ export const useStore = create<Store>((set, get) => ({
       /* stay with whatever we have */
     }
   },
+  fetchSkirmish: async () => {
+    try {
+      set({ skirmishBoard: await api.skirmish() });
+    } catch (err) {
+      set({ error: messageOf(err) });
+    }
+  },
+  attack: async (defenderId) => {
+    set({ busy: true, error: null });
+    try {
+      const res = await api.attack(defenderId);
+      set({ skirmishResult: res });
+      // Honor/Marks moved for both sides; refresh the header + board.
+      void get().refreshMe();
+      void get().fetchSkirmish();
+    } catch (err) {
+      set({ error: messageOf(err) });
+    } finally {
+      set({ busy: false });
+    }
+  },
+  clearSkirmishResult: () => set({ skirmishResult: null }),
   clearError: () => set({ error: null }),
 }));

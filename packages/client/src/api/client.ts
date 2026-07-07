@@ -3,7 +3,7 @@
  * Cookies carry the session, so every call is `credentials: 'include'`.
  */
 
-import type { CodexProgress, Command, RunState, RunSummary } from '@towventure/shared/run';
+import type { CodexProgress, Command, HeroBuild, RunState, RunSummary } from '@towventure/shared/run';
 
 export type ClassChoice = 'vanguard' | 'duelist' | 'arcanist';
 
@@ -97,6 +97,41 @@ export interface LadderPage {
   self: LadderRow | null;
 }
 
+export interface Rival {
+  accountId: string;
+  name: string;
+  class: string;
+  floor: number;
+  honor: number;
+  band: 'below' | 'even' | 'above';
+}
+export interface SkirmishBoard {
+  board: Rival[];
+  tickets: { used: number; cap: number; remaining: number };
+  keys: number;
+  keysForVault: number;
+  defense: { class: string; floor: number; honor: number } | null;
+}
+export interface DuelSide {
+  name: string;
+  class: string;
+  floor: number;
+  build: HeroBuild;
+}
+export interface SkirmishResult {
+  seed: number;
+  result: FightResult;
+  attacker: DuelSide;
+  defender: DuelSide;
+  outcome: {
+    attackerWon: boolean;
+    honorDelta: number;
+    keyAwarded: boolean;
+    defenderReward: { honor: number; marks: number } | null;
+  };
+  keys: number;
+}
+
 export const api = {
   register: (name: string, password: string) =>
     req<{ account: Account }>('POST', '/api/auth/register', { name, password }),
@@ -120,4 +155,8 @@ export const api = {
     req<FightResponse>('POST', '/api/run/fight/start', { expectedStateVersion }),
 
   ladder: (page = 0) => req<LadderPage>('GET', `/api/ladders/global?page=${page}`),
+
+  skirmish: () => req<SkirmishBoard>('GET', '/api/skirmish'),
+  attack: (defenderId: string) =>
+    req<SkirmishResult>('POST', '/api/skirmish/attack', { defenderId }),
 };

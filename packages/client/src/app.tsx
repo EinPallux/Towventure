@@ -5,6 +5,7 @@ import { Fight } from './ui/Fight.js';
 import { Gate } from './ui/Gate.js';
 import { Ladder } from './ui/Ladder.js';
 import { RunScreen } from './ui/RunScreen.js';
+import { Skirmish } from './ui/Skirmish.js';
 import { TopBar } from './ui/TopBar.js';
 
 function ErrorToast() {
@@ -31,6 +32,8 @@ export function App() {
     body = <Ladder />;
   } else if (view === 'codex') {
     body = <Codex />;
+  } else if (view === 'skirmish') {
+    body = <Skirmish />;
   } else if (playback) {
     body = <Fight />;
   } else if (run && run.status === 'dead') {

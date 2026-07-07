@@ -31,6 +31,7 @@ import {
   recordEchoKill,
 } from '../services/echoes.js';
 import { awardClimbHonor, seasonHonor } from '../services/honor.js';
+import { upsertDefense } from '../services/skirmish.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
 /** Thrown inside a run transaction when the optimistic version guard loses a race. */
@@ -119,14 +120,12 @@ export function runRoutes(ctx: AppContext) {
       if (!body) return;
       // Honor-tier unlock gate (GDD §7): a class is locked until the account's season
       // tier rank reaches its unlockTier. Vanguard is rank 0 → always available.
+      const honor = await seasonHonor(ctx.db, account.id, season);
       const requiredTier = getClass(body.classId).unlockTier;
-      if (requiredTier > 0) {
-        const rank = honorTierRank(await seasonHonor(ctx.db, account.id, season));
-        if (rank < requiredTier) {
-          return reply
-            .code(403)
-            .send({ error: 'class locked', requiredTier, tierRank: rank });
-        }
+      if (requiredTier > 0 && honorTierRank(honor) < requiredTier) {
+        return reply
+          .code(403)
+          .send({ error: 'class locked', requiredTier, tierRank: honorTierRank(honor) });
       }
       if (await activeRun(ctx.db, account.id)) {
         return reply.code(409).send({ error: 'you already have an active run' });
@@ -149,6 +148,9 @@ export function runRoutes(ctx: AppContext) {
           })
           .returning({ id: runs.id });
         await awardClimbHonor(tx, account.id, season, state.floor, body.vows.length, row!.id);
+        // Seed a Skirmish defense snapshot so the account is attackable (GDD §9);
+        // boss kills upgrade it to the stronger build.
+        await upsertDefense(tx, account.id, account.name, season, state, honor);
         return row!;
       });
       return reply.code(201).send({ runId: created.id, state, stateVersion: 0 });
@@ -252,10 +254,11 @@ export function runRoutes(ctx: AppContext) {
       const echo = run.state.pendingFight?.echo ?? null;
       const heroWon = result.winner === 'hero';
       const died = next.status === 'dead';
+      const bossWin = kind === 'boss' && heroWon;
 
-      // Echo bounty math + the dead player's new Echo both need this account's season
-      // Honor; fetch once before the transaction when an Echo or a death is in play.
-      const needHonor = echo != null || died;
+      // Echo bounty math, the dead player's new Echo, and the boss-kill defense refresh
+      // all need this account's season Honor; fetch once when any of them is in play.
+      const needHonor = echo != null || died || bossWin;
       const myHonor = needHonor ? await seasonHonor(ctx.db, account.id, season) : 0;
       let echoReward: { bounty: number; marks: number } | null = null;
 
@@ -292,6 +295,8 @@ export function runRoutes(ctx: AppContext) {
             if (echo) await recordEchoDefense(tx, echo, account.name, season);
             await bankEcho(tx, account.id, account.name, season, next, myHonor);
           }
+          // A boss kill refreshes the Skirmish defense to this stronger build (GDD §9).
+          if (bossWin) await upsertDefense(tx, account.id, account.name, season, next, myHonor);
         });
       } catch (err) {
         if (err instanceof StaleRunError) {

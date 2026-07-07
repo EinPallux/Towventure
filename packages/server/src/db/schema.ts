@@ -222,6 +222,53 @@ export const inbox = pgTable(
   (t) => [index('inbox_account_idx').on(t.accountId, t.read)],
 );
 
+/**
+ * Skirmish defense snapshot (GDD §9) — one per account, the build others attack.
+ * Auto-updated on run start + boss kills, or pinned manually. `honor` is a display
+ * cache; the Elo fight reads live season Honor.
+ */
+export const defenses = pgTable('defenses', {
+  accountId: uuid('account_id')
+    .primaryKey()
+    .references(() => accounts.id, { onDelete: 'cascade' }),
+  season: integer('season').notNull(),
+  ownerName: text('owner_name').notNull(),
+  class: text('class').notNull(),
+  floor: integer('floor').notNull(),
+  honor: integer('honor').notNull(),
+  build: jsonb('build').$type<HeroBuild>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The Skirmish attack ledger (GDD §9) — one row per attack. Backs the daily-ticket
+ * count, the same-defender-once/day guard, the rolling-week anti-farm decay, and the
+ * Champion's Key tally. Honor/Marks movements it causes live in their own ledgers.
+ */
+export const skirmishes = pgTable(
+  'skirmishes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    season: integer('season').notNull(),
+    attackerId: uuid('attacker_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    defenderId: uuid('defender_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    attackerWon: boolean('attacker_won').notNull(),
+    honorDelta: integer('honor_delta').notNull(),
+    keyAwarded: boolean('key_awarded').notNull().default(false),
+    keySpent: boolean('key_spent').notNull().default(false),
+    seed: bigint('seed', { mode: 'number' }).notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('skirmishes_attacker_at_idx').on(t.attackerId, t.at),
+    index('skirmishes_pair_at_idx').on(t.attackerId, t.defenderId, t.at),
+  ],
+);
+
 /** Per-account, per-season climb frontier — the deepest floor banked this season. */
 export const climbFrontier = pgTable(
   'climb_frontier',

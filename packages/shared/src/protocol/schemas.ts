@@ -105,6 +105,9 @@ export const laddersQuerySchema = z.object({
 });
 export const profileParamsSchema = z.object({ name: nameSchema });
 
+/** Attack a rival's defense snapshot by account id (GDD §9). */
+export const skirmishAttackSchema = z.object({ defenderId: z.string().uuid() });
+
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
 export type RegisterInput = z.infer<typeof registerSchema>;
