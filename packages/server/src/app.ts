@@ -12,6 +12,7 @@ import { accountForSession, readSessionId, type AuthedAccount } from './auth/ses
 import type { Database } from './db/client.js';
 import type { Env } from './env.js';
 import { authRoutes } from './routes/auth.js';
+import { gauntletRoutes } from './routes/gauntlet.js';
 import { healthRoutes } from './routes/health.js';
 import type { AppContext } from './routes/helpers.js';
 import { ladderRoutes } from './routes/ladders.js';
@@ -51,6 +52,7 @@ export async function buildApp(database: Database, env: Env): Promise<FastifyIns
   await app.register(ladderRoutes(ctx), { prefix: '/api/ladders' });
   await app.register(skirmishRoutes(ctx), { prefix: '/api/skirmish' });
   await app.register(merchantRoutes(ctx), { prefix: '/api/merchant' });
+  await app.register(gauntletRoutes(ctx), { prefix: '/api/gauntlet' });
 
   return app;
 }

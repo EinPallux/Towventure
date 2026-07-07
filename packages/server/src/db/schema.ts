@@ -69,6 +69,8 @@ export const runs = pgTable(
     stateVersion: integer('state_version').notNull().default(0),
     floor: integer('floor').notNull().default(1),
     status: text('status').notNull().default('active'),
+    /** The UTC day number when this is a Daily Gauntlet run (shared seed); null otherwise (GDD §10). */
+    gauntletDay: integer('gauntlet_day'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp('ended_at', { withTimezone: true }),
   },

@@ -47,6 +47,7 @@ interface Store {
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
   startRun: (classId?: ClassChoice, vows?: string[]) => Promise<void>;
+  startGauntlet: () => Promise<void>;
   cmd: (command: Command) => Promise<void>;
   fight: () => Promise<void>;
   endPlayback: () => void;
@@ -145,6 +146,18 @@ export const useStore = create<Store>((set, get) => ({
     set({ busy: true, error: null });
     try {
       const res = await api.startRun(classId, vows);
+      set({ run: res.state, version: res.stateVersion, view: 'gate' });
+    } catch (err) {
+      set({ error: messageOf(err) });
+    } finally {
+      set({ busy: false });
+    }
+  },
+
+  startGauntlet: async () => {
+    set({ busy: true, error: null });
+    try {
+      const res = await api.gauntletStart();
       set({ run: res.state, version: res.stateVersion, view: 'gate' });
     } catch (err) {
       set({ error: messageOf(err) });

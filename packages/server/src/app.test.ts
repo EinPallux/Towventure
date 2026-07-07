@@ -192,12 +192,12 @@ d('server API — the Heartbeat loop', () => {
     expect(ladder.statusCode).toBe(200);
     const page = ladder.json();
     expect(page.self).not.toBeNull();
-    expect(page.self.honor).toBeGreaterThan(0);
+    expect(page.self.value).toBeGreaterThan(0); // the ladder metric is season Honor
     expect(page.rows.some((r: { name: string }) => r.name === name)).toBe(true);
 
     // /api/me now reflects the banked honor and a non-Ashbound-or-Ashbound tier.
     const me2 = await app.inject({ method: 'GET', url: '/api/me', headers: { cookie } });
-    expect(me2.json().honor).toBe(page.self.honor);
+    expect(me2.json().honor).toBe(page.self.value);
 
     // The dead run banked its Codex discovery into the account (CONTENT §7).
     const codexRes = await app.inject({ method: 'GET', url: '/api/me/codex', headers: { cookie } });
@@ -750,6 +750,74 @@ d('server API — the Heartbeat loop', () => {
       payload: { itemId: 'vault_aura_gilded' },
     });
     expect(buy2.statusCode).toBe(402);
+  });
+
+  it('Daily Gauntlet: two accounts, same day → identical shared seed + class + doors (GDD §10)', async () => {
+    const a = await makeSession(`hb_gaunt_a_${Date.now().toString(36)}`);
+    const b = await makeSession(`hb_gaunt_b_${Date.now().toString(36)}`);
+
+    const infoA = await app.inject({ method: 'GET', url: '/api/gauntlet', headers: { cookie: a.cookie } });
+    expect(infoA.statusCode).toBe(200);
+    const { seed, classId, day } = infoA.json();
+    expect(typeof seed).toBe('number');
+
+    const startA = await app.inject({
+      method: 'POST',
+      url: '/api/gauntlet/start',
+      headers: { cookie: a.cookie },
+      payload: {},
+    });
+    expect(startA.statusCode).toBe(201);
+    const startB = await app.inject({
+      method: 'POST',
+      url: '/api/gauntlet/start',
+      headers: { cookie: b.cookie },
+      payload: {},
+    });
+    expect(startB.statusCode).toBe(201);
+
+    const stateA = startA.json().state as RunState;
+    const stateB = startB.json().state as RunState;
+    // Shared seed + forced class ⇒ identical starting doors/shops/build.
+    expect(stateA.seed).toBe(seed);
+    expect(stateA.classId).toBe(classId);
+    expect(stateB.seed).toBe(stateA.seed);
+    expect(stateA.doors).toEqual(stateB.doors);
+
+    // A second entry the same day is refused.
+    const dupA = await app.inject({
+      method: 'POST',
+      url: '/api/gauntlet/start',
+      headers: { cookie: a.cookie },
+      payload: {},
+    });
+    expect(dupA.statusCode).toBe(409);
+
+    // The Gauntlet ladder now lists both entrants (best floor = 1 so far).
+    const info2 = await app.inject({ method: 'GET', url: '/api/gauntlet', headers: { cookie: a.cookie } });
+    expect(info2.json().entered).toBe(true);
+    expect(info2.json().board.total).toBeGreaterThanOrEqual(2);
+    expect(info2.json().day).toBe(day);
+  });
+
+  it('ladder variety: weekly (floor), echo-kills, and Unnumbered boards respond', async () => {
+    const me = await makeSession(`hb_ladv_${Date.now().toString(36)}`);
+    for (const board of ['weekly', 'echo-kills', 'unnumbered', 'global']) {
+      const r = await app.inject({
+        method: 'GET',
+        url: `/api/ladders/${board}`,
+        headers: { cookie: me.cookie },
+      });
+      expect(r.statusCode, board).toBe(200);
+      expect(r.json().board).toBe(board);
+      expect(Array.isArray(r.json().rows)).toBe(true);
+    }
+    // Weekly + gauntlet-day metrics are floors (no tier badge).
+    const weekly = await app.inject({ method: 'GET', url: '/api/ladders/weekly' });
+    expect(weekly.json().metric).toBe('floor');
+    // Unnumbered is capped at 100.
+    const un = await app.inject({ method: 'GET', url: '/api/ladders/unnumbered' });
+    expect(un.json().total).toBeLessThanOrEqual(100);
   });
 
   it('rejects unauthenticated run access with 401', async () => {

@@ -1,9 +1,23 @@
 import { useEffect, useState } from 'react';
-import { api, type LadderPage } from '../api/client.js';
+import { api, type LadderBoard, type LadderMetric, type LadderPage } from '../api/client.js';
 import { useStore } from '../store.js';
+
+const TABS: { board: LadderBoard; label: string }[] = [
+  { board: 'global', label: 'Global' },
+  { board: 'weekly', label: 'Weekly Climb' },
+  { board: 'echo-kills', label: 'Echo Kills' },
+  { board: 'unnumbered', label: 'Unnumbered' },
+];
+
+const METRIC_HEAD: Record<LadderMetric, string> = {
+  honor: 'Honor',
+  floor: 'Best Floor',
+  kills: 'Echo Kills',
+};
 
 export function Ladder() {
   const setView = useStore((s) => s.setView);
+  const [board, setBoard] = useState<LadderBoard>('global');
   const [page, setPage] = useState(0);
   const [data, setData] = useState<LadderPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -12,29 +26,45 @@ export function Ladder() {
     let live = true;
     setLoading(true);
     api
-      .ladder(page)
+      .ladder(board, page)
       .then((d) => live && setData(d))
       .catch(() => live && setData(null))
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
     };
-  }, [page]);
+  }, [board, page]);
 
   const rows = data?.rows ?? [];
   const showSelf = data?.self && !rows.some((r) => r.isSelf);
+  const metric = data?.metric ?? 'honor';
+  const withTier = metric === 'honor';
 
   return (
     <div className="ladder card">
       <div className="row spread">
-        <div className="title">Global Ladder · Season {data?.season ?? '—'}</div>
+        <div className="title">The Stairs · Season {data?.season ?? '—'}</div>
         <button className="small ghost" onClick={() => setView('gate')}>
           Back
         </button>
       </div>
+      <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '6px 0' }}>
+        {TABS.map((t) => (
+          <button
+            key={t.board}
+            className={board === t.board ? 'small primary' : 'small ghost'}
+            onClick={() => {
+              setBoard(t.board);
+              setPage(0);
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
       {loading && <div className="muted">Reading the names on the stairs…</div>}
       {!loading && rows.length === 0 && (
-        <div className="muted">No climbers ranked yet. Be the first.</div>
+        <div className="muted">No climbers ranked here yet. Be the first.</div>
       )}
       {rows.length > 0 && (
         <table>
@@ -42,8 +72,8 @@ export function Ladder() {
             <tr>
               <th>#</th>
               <th>Climber</th>
-              <th>Tier</th>
-              <th style={{ textAlign: 'right' }}>Honor</th>
+              {withTier && <th>Tier</th>}
+              <th style={{ textAlign: 'right' }}>{METRIC_HEAD[metric]}</th>
             </tr>
           </thead>
           <tbody>
@@ -51,16 +81,16 @@ export function Ladder() {
               <tr key={`${r.rank}-${r.name}`} className={r.isSelf ? 'self' : ''}>
                 <td>{r.rank}</td>
                 <td>{r.name}</td>
-                <td className="muted">{r.tier}</td>
-                <td style={{ textAlign: 'right' }}>{r.honor}</td>
+                {withTier && <td className="muted">{r.tier}</td>}
+                <td style={{ textAlign: 'right' }}>{r.value}</td>
               </tr>
             ))}
             {showSelf && data?.self && (
               <tr className="self">
                 <td>{data.self.rank}</td>
                 <td>{data.self.name}</td>
-                <td className="muted">{data.self.tier}</td>
-                <td style={{ textAlign: 'right' }}>{data.self.honor}</td>
+                {withTier && <td className="muted">{data.self.tier}</td>}
+                <td style={{ textAlign: 'right' }}>{data.self.value}</td>
               </tr>
             )}
           </tbody>

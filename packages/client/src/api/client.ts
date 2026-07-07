@@ -81,14 +81,18 @@ export interface FightResponse {
   /** Present when this fight killed an Echo — the Honor bounty + Marks paid (GDD §8). */
   echoReward: { bounty: number; marks: number } | null;
 }
+export type LadderBoard = 'global' | 'weekly' | 'echo-kills' | 'unnumbered' | 'gauntlet';
+export type LadderMetric = 'honor' | 'floor' | 'kills';
 export interface LadderRow {
   rank: number;
   name: string;
-  honor: number;
-  tier: string;
+  value: number;
+  tier: string | null;
   isSelf: boolean;
 }
 export interface LadderPage {
+  board: string;
+  metric: LadderMetric;
   season: number;
   page: number;
   pageSize: number;
@@ -154,7 +158,10 @@ export const api = {
   fight: (expectedStateVersion: number) =>
     req<FightResponse>('POST', '/api/run/fight/start', { expectedStateVersion }),
 
-  ladder: (page = 0) => req<LadderPage>('GET', `/api/ladders/global?page=${page}`),
+  ladder: (board: LadderBoard = 'global', page = 0) =>
+    req<LadderPage>('GET', `/api/ladders/${board}?page=${page}`),
+  gauntlet: () => req<GauntletInfo>('GET', '/api/gauntlet'),
+  gauntletStart: () => req<RunResponse>('POST', '/api/gauntlet/start', {}),
 
   skirmish: () => req<SkirmishBoard>('GET', '/api/skirmish'),
   attack: (defenderId: string) =>
@@ -183,4 +190,12 @@ export interface MerchantData {
   keys: number;
   keysForVault: number;
   armedBoon: string | null;
+}
+export interface GauntletInfo {
+  day: number;
+  seed: number;
+  classId: string;
+  className: string;
+  entered: boolean;
+  board: LadderPage;
 }
