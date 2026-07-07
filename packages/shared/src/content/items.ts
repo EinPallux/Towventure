@@ -1,11 +1,14 @@
 /**
- * Item catalog — Phase 1 anchor slice (~17 equippables spanning every rarity and
- * all 6 equip slots + the Vanguard relic). Transcribed from CONTENT.md §3.
+ * Item catalog — anchor slice (~17 equippables spanning every rarity and all 6
+ * equip slots + the Vanguard relic). Transcribed from CONTENT.md §3.
  *
- * Phase 1 activates only ★1 effect lines. Awakened (★3) second lines and Zenith
- * (★5) transforms are authored in Phase 2 (ROADMAP), so only the ★1 line and the
- * display-only `zenithName` are present here. Weapon per-hit damage is derived
- * from rarity power × cooldown in the registry (see deriveWeaponDamage).
+ * ★1 lines are always active; Awakened lines (Phase 2, marked `minStar: 3` on the
+ * mod/effect) activate on fusing to ★3. The Awakened lines that use the current
+ * effect vocabulary are transcribed here; a few whose CONTENT.md text needs new
+ * ops (per-Armor damage, next-hit buffers, conditional-vs-status damage, Zenith
+ * detonate/consume) are deferred until those ops land. `zenithName` is display
+ * only until the ★5 transforms ship. Weapon per-hit damage is derived from rarity
+ * power × cooldown in the registry (see deriveWeaponDamage).
  */
 
 import type { ItemDef } from './types.js';
@@ -21,6 +24,8 @@ export const ITEMS: ItemDef[] = [
     cooldownSeconds: 2.2,
     flavor: 'It has chopped worse than you.',
     zenithName: "Butcher's Word",
+    // [Awakened] +10% Crit (CONTENT §3.1).
+    mods: [{ stat: 'critChancePct', value: 10, minStar: 3, scales: false }],
   },
   {
     id: 'sawtooth_dirk',
@@ -35,6 +40,12 @@ export const ITEMS: ItemDef[] = [
       {
         trigger: { kind: 'OnHit' },
         everyNthHit: 3,
+        ops: [{ op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' }],
+      },
+      // [Awakened] OnCrit → +2 Bleed (CONTENT §3.1).
+      {
+        trigger: { kind: 'OnCrit' },
+        minStar: 3,
         ops: [{ op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' }],
       },
     ],
@@ -93,6 +104,15 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It drinks first.',
     zenithName: 'The Long Hunger',
     mods: [{ stat: 'lifestealPct', value: 8 }],
+    // [Awakened] OnEnemyDeath → burst of Speed (CONTENT §3.1: +20% Speed 5s,
+    // modelled as 4 Haste stacks — the timed +Speed status).
+    effects: [
+      {
+        trigger: { kind: 'OnEnemyDeath' },
+        minStar: 3,
+        ops: [{ op: 'applyStatus', status: 'haste', stacks: 4, to: 'self' }],
+      },
+    ],
   },
   {
     id: 'gravediggers_shovel',
@@ -152,7 +172,11 @@ export const ITEMS: ItemDef[] = [
     tags: ['bulwark'],
     flavor: 'Kept the stew warm. Keeps you warmer.',
     zenithName: 'The Unbowed',
-    mods: [{ stat: 'maxHp', value: 14 }],
+    // [Awakened] +6 Armor (CONTENT §3.2).
+    mods: [
+      { stat: 'maxHp', value: 14 },
+      { stat: 'armor', value: 6, minStar: 3 },
+    ],
   },
 
   // ── Armor ────────────────────────────────────────────────────────────────
@@ -182,7 +206,11 @@ export const ITEMS: ItemDef[] = [
     tags: ['shadow'],
     flavor: 'They remember every exit.',
     zenithName: 'Rumor',
-    mods: [{ stat: 'speedPct', value: 5 }],
+    // [Awakened] +4% Dodge (CONTENT §3.2).
+    mods: [
+      { stat: 'speedPct', value: 5 },
+      { stat: 'dodgePct', value: 4, minStar: 3, scales: false },
+    ],
   },
 
   // ── Trinkets ─────────────────────────────────────────────────────────────
@@ -218,6 +246,13 @@ export const ITEMS: ItemDef[] = [
         minHitPctMax: 10,
         ops: [{ op: 'applyStatus', status: 'regen', stacks: 3, to: 'self' }],
       },
+      // [Awakened] also 1 Chill on the attacker (CONTENT §3.3).
+      {
+        trigger: { kind: 'OnHurt' },
+        minStar: 3,
+        minHitPctMax: 10,
+        ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'attacker' }],
+      },
     ],
   },
   {
@@ -238,7 +273,15 @@ export const ITEMS: ItemDef[] = [
     tags: ['wild', 'bulwark'],
     flavor: 'The war is over. Nobody told it.',
     zenithName: 'The Banner Still',
-    effects: [{ trigger: { kind: 'OnHpBelow', pct: 50 }, ops: [{ op: 'buffDamagePct', pct: 15 }] }],
+    effects: [
+      { trigger: { kind: 'OnHpBelow', pct: 50 }, ops: [{ op: 'buffDamagePct', pct: 15 }] },
+      // [Awakened] the rally also grants 10 Armor (CONTENT §3.3).
+      {
+        trigger: { kind: 'OnHpBelow', pct: 50 },
+        minStar: 3,
+        ops: [{ op: 'gainArmor', amount: 10 }],
+      },
+    ],
   },
 
   // ── Relic (Vanguard; never drops) ────────────────────────────────────────

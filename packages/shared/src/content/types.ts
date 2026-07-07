@@ -31,6 +31,8 @@ export interface StatMod {
   value: number;
   /** Whether the value scales with ★ (default true). */
   scales?: boolean;
+  /** Minimum star for this modifier to apply (e.g. an Awakened +Crit at ★3). */
+  minStar?: number;
 }
 
 /**

@@ -100,6 +100,7 @@ interface Accum {
 function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
   const star = inst.star;
   for (const m of def.mods ?? []) {
+    if ((m.minStar ?? 1) > star) continue; // Awakened (★3) stat lines gate here
     const v = scaleMod(m, star);
     switch (m.stat) {
       case 'maxHp':

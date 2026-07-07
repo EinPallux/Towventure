@@ -202,6 +202,30 @@ describe('inventory commands', () => {
   });
 });
 
+describe('Awakened (★3) fusion lines', () => {
+  function equipAt(itemId: string, star: number): RunState {
+    const s = structuredClone(freshVanguard());
+    s.equipment.weapon1 = { uid: 'w', itemId, star };
+    return s;
+  }
+
+  it('activates a stat Awakened line only at ★3+ (Rusty Cleaver +10% Crit)', () => {
+    expect(buildHeroSpec(equipAt('rusty_cleaver', 1)).critChancePct).toBe(5); // Vanguard base only
+    expect(buildHeroSpec(equipAt('rusty_cleaver', 2)).critChancePct).toBe(5); // still gated
+    expect(buildHeroSpec(equipAt('rusty_cleaver', 3)).critChancePct).toBe(15); // +10 Awakened
+  });
+
+  it('activates an effect Awakened line only at ★3+ (Sawtooth Dirk OnCrit → Bleed)', () => {
+    const dirkEffects = (star: number) =>
+      buildHeroSpec(equipAt('sawtooth_dirk', star)).effects.filter(
+        (e) => e.source === 'Sawtooth Dirk',
+      );
+    expect(dirkEffects(1).length).toBe(1); // just the every-3rd-hit Bleed
+    expect(dirkEffects(3).length).toBe(2); // + the Awakened OnCrit line
+    expect(dirkEffects(3).some((e) => e.trigger.kind === 'OnCrit')).toBe(true);
+  });
+});
+
 describe('honor formula (BALANCE §7)', () => {
   it('matches the cumulative sanity points', () => {
     expect(cumulativeClimbHonor(20)).toBe(171);
