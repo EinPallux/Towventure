@@ -113,5 +113,20 @@
     "hash": 643098231,
     "endTick": 20,
     "winner": "hero"
+  },
+  "crit-immune-elite": {
+    "hash": 4260083579,
+    "endTick": 408,
+    "winner": "hero"
+  },
+  "heals-from-burn": {
+    "hash": 2691559329,
+    "endTick": 520,
+    "winner": "enemies"
+  },
+  "prior-self-heal-density": {
+    "hash": 2167925084,
+    "endTick": 100,
+    "winner": "hero"
   }
 }

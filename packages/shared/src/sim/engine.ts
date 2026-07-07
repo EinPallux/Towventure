@@ -170,6 +170,15 @@ class Sim {
     return Math.max(STATUS.sunder.minArmor, c.spec.armor + c.armorBonus - sunder);
   }
 
+  private totalStatusStacks(c: Combatant): number {
+    let n = 0;
+    for (const kind of STATUS_ORDER) {
+      if (kind === 'ward') continue; // Ward magnitude lives on `.ward`, not as stacks.
+      n += c.statuses[kind].stacks;
+    }
+    return n;
+  }
+
   private speedOf(c: Combatant): number {
     const chill = c.statuses.chill.stacks * STATUS.chill.speedPctPerStack;
     const haste = c.statuses.haste.stacks * STATUS.haste.speedPctPerStack;
@@ -275,6 +284,25 @@ class Sim {
     if (gained > 0) this.emit({ type: 'heal', t, who: c.idx, amount: gained });
   }
 
+  /**
+   * Resolve one status DoT tick. Normally damages through Ward; but a combatant
+   * that `healsFromStatus` this kind is healed by it instead (Cinder Widow ← Burn,
+   * CONTENT §4). The `dot` event carries `dmg > 0` for damage, `dmg < 0` for heal.
+   */
+  private dotTick(c: Combatant, kind: StatusKind, amount: number, t: number): void {
+    if (amount <= 0) return;
+    if (c.spec.healsFromStatus === kind) {
+      const before = c.hp;
+      c.hp = Math.min(c.maxHp, c.hp + amount);
+      const gained = c.hp - before;
+      if (gained > 0) this.emit({ type: 'dot', t, to: c.idx, status: kind, dmg: -gained });
+      return;
+    }
+    this.damageThroughWard(c, amount, t);
+    this.emit({ type: 'dot', t, to: c.idx, status: kind, dmg: amount });
+    this.checkDeath(c, t);
+  }
+
   private addWard(c: Combatant, amount: number, t: number): void {
     if (amount <= 0) return;
     const cap = this.wardCap(c);
@@ -355,8 +383,9 @@ class Sim {
       return;
     }
 
-    // 2. crit (Shock guarantees it)
-    const crit = shocked || this.rng.chance(att.spec.critChancePct);
+    // 2. crit (Shock guarantees it) — unless the target is crit-immune, which
+    // even Shock cannot pierce (The Unshelved's honest-damage check, CONTENT §4).
+    const crit = target.spec.critImmune ? false : shocked || this.rng.chance(att.spec.critChancePct);
 
     // 3. base × buffs × Weaken × crit
     let dmg = w.damage;
@@ -569,15 +598,11 @@ class Sim {
             Math.trunc(c.venomAge / (STATUS.venom.rampEverySec * TICKS_PER_SECOND)) *
             STATUS.venom.rampPerStep;
           const dmg = s.stacks * STATUS.venom.dmgPerSecPerStack + ramp;
-          this.damageThroughWard(c, dmg, t);
-          this.emit({ type: 'dot', t, to: c.idx, status: 'venom', dmg });
-          this.checkDeath(c, t);
+          this.dotTick(c, 'venom', dmg, t);
         } else if (kind === 'bleed' || kind === 'burn') {
           if (s.stacks <= 0 || s.remaining <= 0) continue;
           const dmg = s.stacks * STATUS[kind].dmgPerSecPerStack;
-          this.damageThroughWard(c, dmg, t);
-          this.emit({ type: 'dot', t, to: c.idx, status: kind, dmg });
-          this.checkDeath(c, t);
+          this.dotTick(c, kind, dmg, t);
         } else if (kind === 'regen') {
           if (s.stacks <= 0 || s.remaining <= 0) continue;
           const heal = s.stacks * STATUS.regen.healPerSecPerStack;
@@ -596,6 +621,19 @@ class Sim {
           c.ward -= dec;
           this.emit({ type: 'ward', t, who: c.idx, amount: c.ward });
         }
+      }
+
+      // Sustained self-heal (Prior of Teeth, floor 50): a flat % of max HP each
+      // second, HALVED once enough statuses sit on it — the status-density wall.
+      if (c.spec.selfHealPctPerSec) {
+        let heal = Math.trunc((c.maxHp * c.spec.selfHealPctPerSec) / 100);
+        if (
+          c.spec.healHalvedAtStacks !== undefined &&
+          this.totalStatusStacks(c) >= c.spec.healHalvedAtStacks
+        ) {
+          heal = Math.trunc(heal / 2);
+        }
+        this.healUp(c, heal, t);
       }
     }
   }

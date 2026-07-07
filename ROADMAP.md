@@ -49,7 +49,7 @@ Full design, architecture, content, balance, art, and ops documentation. Exit: t
 
 **Exit criteria:**
 - [ ] All 120 items implemented, harness-gated (±8% cohort win-rate), each with model recipe + at least placeholder-tier signature VFX/sound hook.
-- [ ] Floors 1–50 fully authored; the floor-50 Prior of Teeth wall behaves per design (status-density check works).
+- [x] Floors 1–50 authored (Gardens/Archive/Foundry/Chapel rosters + bosses 2–5; some enemy sub-mechanics deferred per CONTENT §4); the floor-50 Prior of Teeth wall behaves per design (status-density self-heal modelled, verified by golden + unit + harness).
 - [ ] All 3 classes playable with distinct harness death-floor profiles.
 - [ ] A designer can add a complete item by editing CONTENT.md + one data file, no engine changes (proven by adding one live).
 - [ ] Playtest: 3 humans each report at least one "one more floor" session ≥30 min unprompted.

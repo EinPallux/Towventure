@@ -268,6 +268,11 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
       ],
       effects,
     };
+    // Optional anti-autopilot mechanics (biomes 2–5, CONTENT §4).
+    if (def.critImmune) spec.critImmune = true;
+    if (def.healsFromStatus) spec.healsFromStatus = def.healsFromStatus;
+    if (def.selfHealPctPerSec !== undefined) spec.selfHealPctPerSec = def.selfHealPctPerSec;
+    if (def.healHalvedAtStacks !== undefined) spec.healHalvedAtStacks = def.healHalvedAtStacks;
     return spec;
   });
 }

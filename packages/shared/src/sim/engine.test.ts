@@ -155,3 +155,92 @@ describe('Phase 2 statuses', () => {
     expect(dmgs[dmgs.length - 1]!).toBeGreaterThan(dmgs[0]!); // it only grows
   });
 });
+
+describe('biomes 2–5 enemy mechanics', () => {
+  it('a crit-immune target is never crit — not even by Shock', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        critChancePct: 100, // would otherwise crit every swing
+        critDamagePct: 100,
+        weapons: [{ name: 'Pick', cooldownTicks: 10, damage: 8 }],
+        effects: [
+          {
+            source: 'test',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'applyStatus', status: 'shock', stacks: 3, to: 'target' }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Unshelved', maxHp: 400, critImmune: true, weapons: [] })],
+    });
+    const r = simulate(s, 3);
+    const crits = r.events.filter((e) => e.type === 'hit' && e.crit === 1);
+    expect(crits.length).toBe(0);
+    expect(r.winner).toBe('hero'); // still killable by honest damage
+  });
+
+  it('a healsFromStatus target is healed by that DoT (Burn ticks read as heals)', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Torch', cooldownTicks: 10, damage: 6 }],
+        effects: [
+          {
+            source: 'test',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'applyStatus', status: 'burn', stacks: 3, to: 'target' }],
+          },
+        ],
+      }),
+      // High HP and no weapon so the fight lasts long enough to see Burn ticks.
+      enemies: [
+        combatant({ id: 'e0', name: 'Widow', maxHp: 9999, healsFromStatus: 'burn', weapons: [] }),
+      ],
+    });
+    const r = simulate(s, 5);
+    const burn = r.events.filter((e) => e.type === 'dot' && e.status === 'burn');
+    expect(burn.length).toBeGreaterThan(0);
+    // For a Burn-eater every Burn tick is a heal (negative dmg), never damage.
+    expect(burn.every((e) => e.type === 'dot' && e.dmg < 0)).toBe(true);
+  });
+
+  it("the Prior's self-heal halves once the status-density threshold is crossed", () => {
+    // The hero chips a weaponless Prior so its self-heal is visible; density is set
+    // purely by a self-loaded Sunder stack (uncapped, non-lethal), NOT by the hero —
+    // so the only thing changing between the two runs is the stack count.
+    function firstPriorHeal(sunderStacks: number): number {
+      const s = spec({
+        hero: combatant({
+          id: 'hero',
+          name: 'Hero',
+          weapons: [{ name: 'Chip', cooldownTicks: 5, damage: 40 }],
+        }),
+        enemies: [
+          combatant({
+            id: 'e0',
+            name: 'Prior',
+            maxHp: 1000,
+            selfHealPctPerSec: 3, // 3% of 1000 = 30/s at full rate
+            healHalvedAtStacks: 10,
+            weapons: [],
+            effects: [
+              {
+                source: 'test',
+                trigger: { kind: 'OnFightStart' },
+                ops: [{ op: 'applyStatus', status: 'sunder', stacks: sunderStacks, to: 'self' }],
+              },
+            ],
+          }),
+        ],
+      });
+      const r = simulate(s, 1);
+      const heal = r.events.find((e) => e.type === 'heal' && e.who === 1);
+      return heal && heal.type === 'heal' ? heal.amount : 0;
+    }
+    expect(firstPriorHeal(3)).toBe(30); // below the density threshold → full rate
+    expect(firstPriorHeal(12)).toBe(15); // 12 ≥ 10 statuses → heal halved
+  });
+});

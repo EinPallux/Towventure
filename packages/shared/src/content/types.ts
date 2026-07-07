@@ -4,6 +4,7 @@
  * compiles these into the sim's flat `CombatantSpec`s; the sim never sees them.
  */
 
+import type { StatusKind } from '../sim/constants.js';
 import type { EffectOp, Trigger } from '../sim/types.js';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'mythic';
@@ -108,6 +109,14 @@ export interface EnemyDef {
   dodgePct?: number;
   /** Sim-level mechanics (e.g. Toll-Keeper stun). Run-level checks live in run/. */
   effects?: ItemEffect[];
+  /** Cannot be crit — the honest-damage check (The Unshelved, Archive). */
+  critImmune?: boolean;
+  /** DoT of this status heals it instead of hurting (Cinder Widow ← Burn, Foundry). */
+  healsFromStatus?: StatusKind;
+  /** Sustained self-heal, % max HP/sec (Prior of Teeth, floor 50). */
+  selfHealPctPerSec?: number;
+  /** …halved once this many total status stacks sit on it (the density check). */
+  healHalvedAtStacks?: number;
   /** The build axis this enemy checks (flavor/legibility). */
   check: string;
   flavor: string;

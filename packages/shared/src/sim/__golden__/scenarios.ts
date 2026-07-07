@@ -531,4 +531,75 @@ export const SCENARIOS: Scenario[] = [
       ],
     ),
   },
+
+  // ── Biomes 2–5 enemy mechanics (CONTENT §4) ─────────────────────────────────
+  {
+    // The Unshelved: crit-immune — 100% crit AND Shock must still land as normal hits.
+    name: 'crit-immune-elite',
+    seed: 1717,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        critChancePct: 100,
+        critDamagePct: 100,
+        weapons: [{ name: 'Pick', cooldownTicks: 12, damage: 12 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'shock', stacks: 1, to: 'target' }])],
+      }),
+      [c({ id: 'e0', name: 'Unshelved', maxHp: 300, armor: 3, critImmune: true, weapons: [] })],
+    ),
+  },
+  {
+    // Cinder Widow: Burn DoT heals her instead of hurting — win by raw weapon damage.
+    name: 'heals-from-burn',
+    seed: 1818,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 400,
+        weapons: [{ name: 'Torch', cooldownTicks: 12, damage: 7 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }])],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Widow',
+          maxHp: 220,
+          healsFromStatus: 'burn',
+          weapons: [{ name: 'Sear', cooldownTicks: 14, damage: 9 }],
+        }),
+      ],
+    ),
+  },
+  {
+    // Prior of Teeth: 3%/s self-heal, halved once 10+ total status stacks sit on him.
+    name: 'prior-self-heal-density',
+    seed: 1919,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 500,
+        weapons: [{ name: 'Fang', cooldownTicks: 10, damage: 14 }],
+        effects: [
+          bindOnHit([
+            { op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' },
+            { op: 'applyStatus', status: 'sunder', stacks: 2, to: 'target' },
+            { op: 'applyStatus', status: 'weaken', stacks: 2, to: 'target' },
+          ]),
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Prior',
+          maxHp: 400,
+          selfHealPctPerSec: 3,
+          healHalvedAtStacks: 10,
+          weapons: [{ name: 'Bite', cooldownTicks: 16, damage: 8 }],
+        }),
+      ],
+    ),
+  },
 ];

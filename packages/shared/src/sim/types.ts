@@ -91,6 +91,15 @@ export interface CombatantSpec {
   thorns: number;
   /** Start-of-fight Ward as a % of max HP (e.g. Aegis of the Sleepless). */
   startWardPct?: number;
+  // ─ Enemy-only mechanic flags (biomes 2–5 anti-autopilot walls, CONTENT §4). ─
+  /** Cannot be crit — even by Shock's guaranteed crit (The Unshelved, Archive). */
+  critImmune?: boolean;
+  /** DoT of this status heals instead of damaging (Cinder Widow ← Burn, Foundry). */
+  healsFromStatus?: StatusKind;
+  /** Sustained self-heal, % max HP per second (Prior of Teeth, floor 50). */
+  selfHealPctPerSec?: number;
+  /** …halved once this many total status stacks sit on the combatant. */
+  healHalvedAtStacks?: number;
   weapons: WeaponSpec[];
   effects: EffectBinding[];
 }
