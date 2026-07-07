@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { scaleToStar } from '../content/constants.js';
 import { deriveWeaponDamage, getItem } from '../content/registry.js';
-import { buildHeroSpec } from './build.js';
+import { buildHeroSpec, tagCounts } from './build.js';
 import { climbHonorForFloor, cumulativeClimbHonor, honorTier } from './honor.js';
 import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
 import type { RunState } from './types.js';
@@ -64,7 +64,9 @@ describe('startRun', () => {
     const spec = buildHeroSpec(freshVanguard());
     // Base 120 + Dented Pot-Helm (+14 HP), which starts equipped.
     expect(spec.maxHp).toBe(134);
-    expect(spec.armor).toBe(6);
+    // Base 6 + Bulwark (2) synergy (+8): the Pot-Helm and the Bulwark Sigil relic are
+    // both Bulwark-tagged, so a fresh Vanguard already trips the first threshold.
+    expect(spec.armor).toBe(14);
     expect(spec.weapons.map((w) => w.name)).toContain('Rusty Cleaver');
     // Bulwark Sigil contributes its two effect lines (every-4th armor, OnBlock retaliate).
     expect(spec.effects.length).toBeGreaterThanOrEqual(2);
@@ -223,6 +225,41 @@ describe('Awakened (★3) fusion lines', () => {
     expect(dirkEffects(1).length).toBe(1); // just the every-3rd-hit Bleed
     expect(dirkEffects(3).length).toBe(2); // + the Awakened OnCrit line
     expect(dirkEffects(3).some((e) => e.trigger.kind === 'OnCrit')).toBe(true);
+  });
+});
+
+describe('tag synergies (CONTENT §2.2)', () => {
+  // Build a hero with N Bulwark-tagged items equipped (all are Bulwark-tagged).
+  function bulwarkBuild(n: number): RunState {
+    const s = structuredClone(freshVanguard());
+    const bulwark = ['watchmans_maul', 'dented_pot_helm', 'hearthplate', 'tax_stamp_of_the_gate'];
+    const slots = ['weapon1', 'helm', 'armor', 'trinket1'] as const;
+    // Clear then place exactly n Bulwark items (relic bulwark_sigil already adds 1).
+    s.equipment.weapon1 = null;
+    s.equipment.helm = null;
+    for (let i = 0; i < n; i++) {
+      s.equipment[slots[i]!] = { uid: `b${i}`, itemId: bulwark[i]!, star: 1 };
+    }
+    return s;
+  }
+
+  it('counts tags across equipped slots (relic included)', () => {
+    const counts = tagCounts(bulwarkBuild(1));
+    // 1 placed Bulwark item + the Bulwark relic = 2.
+    expect(counts.get('bulwark')).toBe(2);
+  });
+
+  it('grants Bulwark (2) +8 Armor and Bulwark (4) On-block Ward at the thresholds', () => {
+    // 1 placed + relic = 2 Bulwark → (2) active, (4) not.
+    const at2 = buildHeroSpec(bulwarkBuild(1));
+    expect(at2.armor).toBe(6 + 8); // Vanguard base 6 + Bulwark(2)
+    expect(at2.effects.some((e) => e.source === 'bulwark (4)')).toBe(false);
+
+    // 3 placed + relic = 4 Bulwark → (2) and (4) active.
+    const at4 = buildHeroSpec(bulwarkBuild(3));
+    expect(at4.armor).toBe(6 + 8);
+    const ward = at4.effects.find((e) => e.source === 'bulwark (4)');
+    expect(ward?.trigger.kind).toBe('OnBlock');
   });
 });
 

@@ -10,7 +10,8 @@ export {
   killerName,
   type PreparedFight,
 } from './reducer.js';
-export { buildHeroSpec, buildEnemySpecs, buildCombatSpec, goldPerWin } from './build.js';
+export { buildHeroSpec, buildEnemySpecs, buildCombatSpec, goldPerWin, tagCounts } from './build.js';
+export { TAG_SYNERGIES, type Synergy } from '../content/synergies.js';
 export { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 export { generateShop, itemPrice, requestableOwned } from './shop.js';
 export { rollLoot, rollGold, rollRarity, rollDrop, pickItemOfRarity } from './loot.js';

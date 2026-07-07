@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { EquipSlotId, InventoryItem } from '@towventure/shared/run';
 import { useStore } from '../store.js';
+import { TagMeter } from './TagMeter.js';
 import { describeItem } from './itemText.js';
 
 const SLOTS: { key: EquipSlotId; label: string }[] = [
@@ -47,6 +48,7 @@ export function HeroPanel() {
   return (
     <div className="hero-screen">
       <div className="col">
+        <TagMeter run={run} />
         <div className="title">Equipment</div>
         <div className="slots">
           {SLOTS.map(({ key, label }) => {

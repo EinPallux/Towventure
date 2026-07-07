@@ -214,6 +214,54 @@ input {
     grid-template-columns: 1fr;
   }
 }
+.tagmeter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tagchip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--panel-2);
+  font-size: 12px;
+  cursor: default;
+}
+.tagchip .tagname {
+  color: var(--text);
+  font-weight: 600;
+}
+.tagchip .tagcount {
+  color: var(--amber);
+  font-weight: 700;
+}
+.pips {
+  display: flex;
+  gap: 3px;
+}
+.pip {
+  min-width: 15px;
+  text-align: center;
+  border-radius: 4px;
+  padding: 0 3px;
+  font-size: 10px;
+  color: var(--muted);
+  background: #141019;
+  border: 1px solid var(--edge);
+}
+.pip.lit {
+  color: #1a1206;
+  background: var(--amber);
+  border-color: var(--amber);
+  font-weight: 700;
+}
+.pip.empty {
+  opacity: 0.35;
+}
+
 .slots {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

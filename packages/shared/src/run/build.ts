@@ -15,7 +15,8 @@ import {
   getEnemy,
   getItem,
 } from '../content/registry.js';
-import type { ItemDef, ItemEffect, StatMod } from '../content/types.js';
+import { TAG_SYNERGIES } from '../content/synergies.js';
+import type { ItemDef, ItemEffect, StatMod, Tag } from '../content/types.js';
 import {
   DOOMFALL_START_TICKS,
   DOOMFALL_START_TICKS_HASTE,
@@ -97,37 +98,40 @@ interface Accum {
   goldPerWin: number;
 }
 
+function addStat(acc: Accum, stat: StatMod['stat'], v: number): void {
+  switch (stat) {
+    case 'maxHp':
+      acc.maxHp += v;
+      break;
+    case 'armor':
+      acc.armor += v;
+      break;
+    case 'speedPct':
+      acc.speedPct += v;
+      break;
+    case 'critChancePct':
+      acc.critChancePct += v;
+      break;
+    case 'critDamagePct':
+      acc.critDamagePct += v;
+      break;
+    case 'dodgePct':
+      acc.dodgePct += v;
+      break;
+    case 'lifestealPct':
+      acc.lifestealPct += v;
+      break;
+    case 'thorns':
+      acc.thorns += v;
+      break;
+  }
+}
+
 function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
   const star = inst.star;
   for (const m of def.mods ?? []) {
     if ((m.minStar ?? 1) > star) continue; // Awakened (★3) stat lines gate here
-    const v = scaleMod(m, star);
-    switch (m.stat) {
-      case 'maxHp':
-        acc.maxHp += v;
-        break;
-      case 'armor':
-        acc.armor += v;
-        break;
-      case 'speedPct':
-        acc.speedPct += v;
-        break;
-      case 'critChancePct':
-        acc.critChancePct += v;
-        break;
-      case 'critDamagePct':
-        acc.critDamagePct += v;
-        break;
-      case 'dodgePct':
-        acc.dodgePct += v;
-        break;
-      case 'lifestealPct':
-        acc.lifestealPct += v;
-        break;
-      case 'thorns':
-        acc.thorns += v;
-        break;
-    }
+    addStat(acc, m.stat, scaleMod(m, star));
   }
   if (def.startWardPct) acc.startWardPct += def.startWardPct;
   if (def.goldPerWin) acc.goldPerWin += scaleToStar(def.goldPerWin, star);
@@ -142,6 +146,29 @@ function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
       cooldownTicks: cooldownTicks(def.cooldownSeconds),
       damage: scaleToStar(deriveWeaponDamage(def), star),
     });
+  }
+}
+
+/** Count each tag across the 8 equip slots (CONTENT §2.2). Insertion-ordered. */
+export function tagCounts(state: RunState): Map<Tag, number> {
+  const counts = new Map<Tag, number>();
+  for (const slot of SLOT_ORDER) {
+    const inst = state.equipment[slot];
+    if (!inst) continue;
+    for (const tag of getItem(inst.itemId).tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** Apply every met tag-synergy threshold's mods + effects to the accumulator. */
+function applySynergies(acc: Accum, counts: Map<Tag, number>): void {
+  for (const [tag, count] of counts) {
+    for (const syn of TAG_SYNERGIES[tag] ?? []) {
+      if (count < syn.threshold) continue;
+      const source = `${tag} (${syn.threshold})`;
+      for (const m of syn.mods ?? []) addStat(acc, m.stat, m.value); // synergies don't scale with ★
+      for (const e of syn.effects ?? []) acc.effects.push(compileEffect(source, e, 1));
+    }
   }
 }
 
@@ -166,6 +193,7 @@ export function buildHeroSpec(state: RunState): CombatantSpec {
     const inst = state.equipment[slot];
     if (inst) applyItem(acc, getItem(inst.itemId), inst);
   }
+  applySynergies(acc, tagCounts(state));
   const spec: CombatantSpec = {
     id: 'hero',
     name: cls.name,
