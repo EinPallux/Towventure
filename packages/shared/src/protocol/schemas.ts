@@ -108,6 +108,9 @@ export const profileParamsSchema = z.object({ name: nameSchema });
 /** Attack a rival's defense snapshot by account id (GDD §9). */
 export const skirmishAttackSchema = z.object({ defenderId: z.string().uuid() });
 
+/** Buy a Merchant/Vault item by its catalogue id (GDD §10.2). */
+export const merchantBuySchema = z.object({ itemId: z.string().min(1).max(64) });
+
 // ─── Inferred types ──────────────────────────────────────────────────────────
 
 export type RegisterInput = z.infer<typeof registerSchema>;

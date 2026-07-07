@@ -221,3 +221,33 @@ Vow of Hunger (shops stock −1 item), Vow of Haste (Doomfall at 35s), Vow of Po
 Every item, enemy, boss, and event gets a Codex entry: 1 line at discovery, +1 lore line at ★3, +1 at ★5 (items) or 3/10 kills (enemies). Tone per [ART_DIRECTION.md](ART_DIRECTION.md) §8: wry, melancholy, never explaining the Tower. Example (Sawtooth Dirk ★5): *"The smith who made it filed her teeth to match. The Tower keeps her on floor 44."* — lore is allowed to point at real floors; players will look.
 
 *Implementation status (Phase 2):* Codex v1 is **live**, run-scoped. `RunState.codex` records each item at the highest ★ seen (stamped by `pushBackpack` on acquisition, so fusing to ★3/★5 unlocks the deeper lines) and each enemy by kill count (tallied in `resolveFight` on a win); the class relic and starting kit are logged at run start. `run/codex.ts` `buildCodex` turns that into a display list — discovery flavor at first sight, the authored ★3/★5 (or 3/10-kill) lore lines unlocking with progress, undiscovered entries shown as `???`. Lore is authored (`content/codex.ts`) for a curated anchor set; other entries appear with just their discovery line until their lore is written. The client gains a Codex screen (relics/gear + bestiary, with a discovered/total count and locked-line hints). **Cross-run, per-account persistence is live:** a run banks its discovery into a lifetime `codex` table when it ends (items keep the higher ★, enemies accumulate kills — banked once at death/abandon so kills don't double-count), `GET /api/me/codex` returns the merged progress, and the client merges the persisted account codex with the current run's fresh finds (`mergeCodexProgress` + `buildCodexFrom`). Verified through the DB (a dead run's relic + kills appear in the account codex).
+
+## 8. Honor Merchant & Valor Marks (GDD §7.3, §10.2)
+
+Valor Marks (earned from Echo bounties + Skirmishes) spend at the **Honor Merchant**. Two shelves: **cosmetics** (pure prestige — owned forever, no gameplay effect) and **War Chest boons** (the *only* gameplay purchase, deliberately mild and capped at **one armed boon per run**). The **Vault of Champions** is a third shelf gated by 3 Champion's Keys (from Skirmish wins), stocking a season-exclusive cosmetic + the strongest boon (*War Chest Prime* — still mild).
+
+**War Chest boons** (Marks; arm one, consumed at the next run's start):
+
+| id | name | price (Marks) | effect (applied at run start) |
+|---|---|---|---|
+| `boon_purse` | Heavy Purse | 40 | Start the run with **+50 gold**. |
+| `boon_wide_pack` | Wide Straps | 40 | **+2 backpack slots** for the run. |
+| `boon_travel_kit` | Traveler's Kit | 50 | Start with a **Whetstone** material in the backpack. |
+
+**Cosmetics** (Marks; owned permanently — flags now, art in Phase 4):
+
+| id | name | kind | price (Marks) |
+|---|---|---|---|
+| `trail_emberwake` | Emberwake Trail | weapon trail | 60 |
+| `aura_lanternwake` | Lanternwake Aura | Echo aura | 80 |
+| `banner_ashen` | Ashen Banner | profile banner | 60 |
+| `title_the_unbowed` | "the Unbowed" | title | 100 |
+
+**Vault of Champions** (3 Champion's Keys each — season-exclusive):
+
+| id | name | kind | cost |
+|---|---|---|---|
+| `vault_aura_gilded` | Gilded Echo Aura | Echo aura | 3 Keys |
+| `boon_prime` | War Chest Prime | boon | 3 Keys → **+100 gold and +2 backpack** at run start |
+
+*Implementation status (Phase 3, Slice D):* **live.** `content/merchant.ts` is the catalogue; `run/boons.ts applyBoon` mutates run state at start (gold/backpack/starter material — none touch fight determinism). Purchases move Marks via ledger rows (or spend Keys for Vault items) in a transaction; cosmetics land in an `unlocks` table (owned once), boons arm on `accounts.armed_boon` and are consumed at the next run start. `GET /api/merchant` lists the catalogue with owned/affordable/armed flags; `POST /api/merchant/buy` purchases. Cosmetics are prestige flags until the Phase 4 art pass gives trails/auras/banners their VFX.

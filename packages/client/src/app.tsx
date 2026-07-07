@@ -4,6 +4,7 @@ import { Death } from './ui/Death.js';
 import { Fight } from './ui/Fight.js';
 import { Gate } from './ui/Gate.js';
 import { Ladder } from './ui/Ladder.js';
+import { Merchant } from './ui/Merchant.js';
 import { RunScreen } from './ui/RunScreen.js';
 import { Skirmish } from './ui/Skirmish.js';
 import { TopBar } from './ui/TopBar.js';
@@ -34,6 +35,8 @@ export function App() {
     body = <Codex />;
   } else if (view === 'skirmish') {
     body = <Skirmish />;
+  } else if (view === 'merchant') {
+    body = <Merchant />;
   } else if (playback) {
     body = <Fight />;
   } else if (run && run.status === 'dead') {

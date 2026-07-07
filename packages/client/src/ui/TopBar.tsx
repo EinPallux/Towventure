@@ -39,6 +39,11 @@ export function TopBar() {
             Skirmish
           </button>
         )}
+        {view !== 'merchant' && (
+          <button className="small ghost" onClick={() => setView('merchant')}>
+            Merchant
+          </button>
+        )}
         {view !== 'ladder' ? (
           <button className="small ghost" onClick={() => setView('ladder')}>
             Ladder

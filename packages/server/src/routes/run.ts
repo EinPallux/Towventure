@@ -10,6 +10,7 @@ import { randomInt } from 'node:crypto';
 import { getClass } from '@towventure/shared/content';
 import { commandRequestSchema, runStartSchema } from '@towventure/shared/protocol';
 import {
+  applyBoon,
   applyCommand,
   honorTierRank,
   makeSummary,
@@ -31,6 +32,7 @@ import {
   recordEchoKill,
 } from '../services/echoes.js';
 import { awardClimbHonor, seasonHonor } from '../services/honor.js';
+import { consumeArmedBoon } from '../services/merchant.js';
 import { upsertDefense } from '../services/skirmish.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
@@ -134,6 +136,9 @@ export function runRoutes(ctx: AppContext) {
       const state = startRun(body.classId, body.vows, seed);
 
       const created = await ctx.db.transaction(async (tx) => {
+        // Consume the armed War Chest boon (if any) before the run is persisted (GDD §10.2).
+        const boon = await consumeArmedBoon(tx, account.id);
+        if (boon) applyBoon(state, boon);
         const [row] = await tx
           .insert(runs)
           .values({

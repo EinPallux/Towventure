@@ -19,9 +19,10 @@ import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { createSession, SESSION_COOKIE } from './auth/session.js';
 import { createDatabase, type Database } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
-import { accounts, honorLedger, inbox, marksLedger, skirmishes } from './db/schema.js';
+import { accounts, honorLedger, inbox, marksLedger, skirmishes, unlocks } from './db/schema.js';
 import { loadEnv } from './env.js';
 import {
   bankEcho,
@@ -649,6 +650,106 @@ d('server API — the Heartbeat loop', () => {
       .from(marksLedger)
       .where(and(eq(marksLedger.accountId, defId), eq(marksLedger.reason, 'skirmish_def')));
     expect(defMarks[0]!.delta).toBe(10);
+  });
+
+  // Create an account + a forged session cookie (avoids the register rate limit).
+  async function makeSession(name: string): Promise<{ id: string; cookie: string }> {
+    const id = await makeAccount(name);
+    const sid = await createSession(database.db, id);
+    return { id, cookie: `${SESSION_COOKIE}=${(app as unknown as { signCookie(v: string): string }).signCookie(sid)}` };
+  }
+
+  it('Honor Merchant: buy a cosmetic + arm a boon with Marks; the boon fires at run start (GDD §10.2)', async () => {
+    const me = await makeSession(`hb_shop_${Date.now().toString(36)}`);
+    // Grant 200 Marks via a ledger row.
+    await database.db
+      .insert(marksLedger)
+      .values({ accountId: me.id, season, delta: 200, reason: 'test', refId: null });
+
+    const shop = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    expect(shop.statusCode).toBe(200);
+    expect(shop.json().marks).toBe(200);
+    expect(shop.json().items.length).toBeGreaterThan(0);
+
+    // Arm the Heavy Purse boon (40 Marks) → +50 gold next run.
+    const buyBoon = await app.inject({
+      method: 'POST',
+      url: '/api/merchant/buy',
+      headers: { cookie: me.cookie },
+      payload: { itemId: 'boon_purse' },
+    });
+    expect(buyBoon.statusCode).toBe(200);
+    expect(buyBoon.json().marks).toBe(160);
+    expect(buyBoon.json().bought.armedBoon).toBe('boon_purse');
+
+    // Buy a cosmetic (60 Marks) → owned; a repeat is rejected.
+    const buyTrail = await app.inject({
+      method: 'POST',
+      url: '/api/merchant/buy',
+      headers: { cookie: me.cookie },
+      payload: { itemId: 'trail_emberwake' },
+    });
+    expect(buyTrail.statusCode).toBe(200);
+    expect(buyTrail.json().marks).toBe(100);
+    const owned = await database.db.select().from(unlocks).where(eq(unlocks.accountId, me.id));
+    expect(owned.map((u) => u.itemId)).toContain('trail_emberwake');
+    const dup = await app.inject({
+      method: 'POST',
+      url: '/api/merchant/buy',
+      headers: { cookie: me.cookie },
+      payload: { itemId: 'trail_emberwake' },
+    });
+    expect(dup.statusCode).toBe(409);
+
+    // Start a run → the armed boon fires (+50 gold) and is consumed.
+    const start = await app.inject({
+      method: 'POST',
+      url: '/api/run/start',
+      headers: { cookie: me.cookie },
+      payload: { classId: 'vanguard', vows: [] },
+    });
+    expect(start.statusCode).toBe(201);
+    expect((start.json().state as RunState).gold).toBe(50);
+    const shop2 = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    expect(shop2.json().armedBoon).toBeNull(); // consumed
+  });
+
+  it('Vault of Champions: 3 Keys buy a Vault item; a fourth attempt is blocked (GDD §9)', async () => {
+    const me = await makeSession(`hb_vault_${Date.now().toString(36)}`);
+    const foe = await makeAccount(`hb_vfoe_${Date.now().toString(36)}`);
+    // Grant 3 Champion's Keys via winning skirmish rows.
+    for (let i = 0; i < 3; i++) {
+      await database.db.insert(skirmishes).values({
+        season,
+        attackerId: me.id,
+        defenderId: foe,
+        attackerWon: true,
+        honorDelta: 5,
+        keyAwarded: true,
+        seed: i + 1,
+      });
+    }
+    const shop = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    expect(shop.json().keys).toBe(3);
+
+    const buy = await app.inject({
+      method: 'POST',
+      url: '/api/merchant/buy',
+      headers: { cookie: me.cookie },
+      payload: { itemId: 'boon_prime' },
+    });
+    expect(buy.statusCode).toBe(200);
+    expect(buy.json().keys).toBe(0); // all 3 spent
+    expect(buy.json().bought.armedBoon).toBe('boon_prime');
+
+    // No Keys left → a second Vault purchase is refused.
+    const buy2 = await app.inject({
+      method: 'POST',
+      url: '/api/merchant/buy',
+      headers: { cookie: me.cookie },
+      payload: { itemId: 'vault_aura_gilded' },
+    });
+    expect(buy2.statusCode).toBe(402);
   });
 
   it('rejects unauthenticated run access with 401', async () => {

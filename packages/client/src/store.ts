@@ -12,6 +12,7 @@ import {
   type ClassChoice,
   type FightResult,
   type MeResponse,
+  type MerchantData,
   type SkirmishBoard,
   type SkirmishResult,
 } from './api/client.js';
@@ -28,13 +29,14 @@ interface Store {
   me: MeResponse | null;
   run: RunState | null;
   version: number;
-  view: 'gate' | 'ladder' | 'codex' | 'skirmish';
+  view: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant';
   playback: FightPlayback | null;
   accountCodex: CodexProgress | null;
   /** The bounty from the most recent Echo kill, shown on the Grave-Copy screen. */
   lastEchoReward: { bounty: number; marks: number } | null;
   skirmishBoard: SkirmishBoard | null;
   skirmishResult: SkirmishResult | null;
+  merchant: MerchantData | null;
   busy: boolean;
   error: string | null;
 
@@ -49,11 +51,13 @@ interface Store {
   fight: () => Promise<void>;
   endPlayback: () => void;
   dismissRun: () => void;
-  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish') => void;
+  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant') => void;
   fetchCodex: () => Promise<void>;
   fetchSkirmish: () => Promise<void>;
   attack: (defenderId: string) => Promise<void>;
   clearSkirmishResult: () => void;
+  fetchMerchant: () => Promise<void>;
+  buy: (itemId: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -72,6 +76,7 @@ export const useStore = create<Store>((set, get) => ({
   lastEchoReward: null,
   skirmishBoard: null,
   skirmishResult: null,
+  merchant: null,
   busy: false,
   error: null,
 
@@ -230,5 +235,24 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
   clearSkirmishResult: () => set({ skirmishResult: null }),
+  fetchMerchant: async () => {
+    try {
+      set({ merchant: await api.merchant() });
+    } catch (err) {
+      set({ error: messageOf(err) });
+    }
+  },
+  buy: async (itemId) => {
+    set({ busy: true, error: null });
+    try {
+      await api.buy(itemId);
+      void get().refreshMe(); // Marks changed
+      await get().fetchMerchant();
+    } catch (err) {
+      set({ error: messageOf(err) });
+    } finally {
+      set({ busy: false });
+    }
+  },
   clearError: () => set({ error: null }),
 }));

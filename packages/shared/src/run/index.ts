@@ -53,3 +53,4 @@ export {
   ECHO_DEFENSE_MARKS,
 } from './echo.js';
 export { deriveRng, deriveFightSeed, RNG_PURPOSE, type RngPurpose } from './rng.js';
+export { applyBoon } from './boons.js';

@@ -33,6 +33,8 @@ export const accounts = pgTable(
     flags: jsonb('flags')
       .notNull()
       .default(sql`'{}'::jsonb`),
+    /** The War Chest boon armed at the Merchant, consumed at the next run's start (GDD §10.2). */
+    armedBoon: text('armed_boon'),
   },
   (t) => [uniqueIndex('accounts_name_lower_uq').on(sql`lower(${t.name})`)],
 );
@@ -267,6 +269,22 @@ export const skirmishes = pgTable(
     index('skirmishes_attacker_at_idx').on(t.attackerId, t.at),
     index('skirmishes_pair_at_idx').on(t.attackerId, t.defenderId, t.at),
   ],
+);
+
+/**
+ * Cosmetic unlocks owned at the Honor Merchant / Vault (GDD §10.2) — one row per
+ * owned item, permanent (not seasonal). Prestige flags until the Phase 4 art pass.
+ */
+export const unlocks = pgTable(
+  'unlocks',
+  {
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    itemId: text('item_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.itemId] })],
 );
 
 /** Per-account, per-season climb frontier — the deepest floor banked this season. */

@@ -11,6 +11,7 @@ import {
 import { VOW_IDS } from '../content/vows.js';
 import { runStartSchema } from '../protocol/schemas.js';
 import { simulate } from '../sim/index.js';
+import { applyBoon } from './boons.js';
 import { buildCombatSpec, buildDuelSpec, buildHeroSpec, snapshotOf, tagCounts } from './build.js';
 import { buildCodex } from './codex.js';
 import {
@@ -899,6 +900,33 @@ describe('Echo economy math (BALANCE §6)', () => {
     expect(opts.length).toBeLessThanOrEqual(3);
     expect(opts).toContain('sawtooth_dirk'); // an equipped Duelist starter
     expect(opts).not.toContain('twin_fang_oath'); // the relic is class-bound, not lootable
+  });
+});
+
+describe('War Chest boons (CONTENT §8)', () => {
+  it('apply mild run-start head starts that never touch combat stats', () => {
+    const purse = freshVanguard();
+    expect(applyBoon(purse, 'boon_purse')).toBe(true);
+    expect(purse.gold).toBe(50);
+
+    const pack = freshVanguard();
+    const cap = pack.backpackSize;
+    expect(applyBoon(pack, 'boon_wide_pack')).toBe(true);
+    expect(pack.backpackSize).toBe(cap + 2);
+
+    const kit = freshVanguard();
+    const before = kit.backpack.length;
+    expect(applyBoon(kit, 'boon_travel_kit')).toBe(true);
+    expect(kit.backpack.length).toBe(before + 1);
+    expect(kit.backpack.at(-1)!.itemId).toBe('whetstone');
+
+    const prime = freshVanguard();
+    const pcap = prime.backpackSize;
+    expect(applyBoon(prime, 'boon_prime')).toBe(true);
+    expect(prime.gold).toBe(100);
+    expect(prime.backpackSize).toBe(pcap + 2);
+
+    expect(applyBoon(freshVanguard(), 'not_a_boon')).toBe(false);
   });
 });
 

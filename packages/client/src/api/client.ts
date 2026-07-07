@@ -159,4 +159,28 @@ export const api = {
   skirmish: () => req<SkirmishBoard>('GET', '/api/skirmish'),
   attack: (defenderId: string) =>
     req<SkirmishResult>('POST', '/api/skirmish/attack', { defenderId }),
+
+  merchant: () => req<MerchantData>('GET', '/api/merchant'),
+  buy: (itemId: string) =>
+    req<{ bought: unknown; marks: number; keys: number }>('POST', '/api/merchant/buy', { itemId }),
 };
+
+export interface MerchantEntry {
+  id: string;
+  name: string;
+  kind: 'boon' | 'trail' | 'aura' | 'banner' | 'title';
+  price: number;
+  vault?: boolean;
+  boon?: string;
+  flavor: string;
+  owned: boolean;
+  armed: boolean;
+  affordable: boolean;
+}
+export interface MerchantData {
+  items: MerchantEntry[];
+  marks: number;
+  keys: number;
+  keysForVault: number;
+  armedBoon: string | null;
+}
