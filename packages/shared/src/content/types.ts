@@ -160,6 +160,25 @@ export interface ClassDef {
   unlockTier: number;
 }
 
+/** One choice at an event door; its index maps to a handler in run/events. */
+export interface EventOption {
+  label: string;
+  /** Short outcome description for the UI. */
+  blurb: string;
+}
+
+/**
+ * An event (door type, CONTENT §5). Display metadata is authored here; the bespoke
+ * state changes per option live in run/events (they touch run state in ways too
+ * varied to model declaratively).
+ */
+export interface EventDef {
+  id: string;
+  name: string;
+  flavor: string;
+  options: EventOption[];
+}
+
 export interface BiomeDef {
   id: string;
   name: string;

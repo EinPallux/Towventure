@@ -10,6 +10,7 @@ import { BIOMES } from './biomes.js';
 import { CLASSES } from './classes.js';
 import { CONSUMABLES } from './consumables.js';
 import { ENEMIES } from './enemies.js';
+import { EVENTS } from './events.js';
 import { ITEMS } from './items.js';
 import { MATERIALS } from './materials.js';
 import type {
@@ -19,6 +20,7 @@ import type {
   ConsumableDef,
   EnemyDef,
   EquipSlot,
+  EventDef,
   ItemDef,
   ItemKind,
   MaterialDef,
@@ -40,6 +42,7 @@ const MATERIAL_MAP = index(MATERIALS);
 const ENEMY_MAP = index(ENEMIES);
 const CLASS_MAP = index(CLASSES);
 const BIOME_MAP = index(BIOMES);
+const EVENT_MAP = index(EVENTS);
 
 export function getItem(id: string): ItemDef {
   const d = ITEM_MAP.get(id);
@@ -80,8 +83,11 @@ export function getBiome(id: string): BiomeDef {
   if (!d) throw new Error(`unknown biome: ${id}`);
   return d;
 }
+export function findEvent(id: string): EventDef | undefined {
+  return EVENT_MAP.get(id);
+}
 
-export { ITEMS, CONSUMABLES, MATERIALS, ENEMIES, CLASSES, BIOMES };
+export { ITEMS, CONSUMABLES, MATERIALS, ENEMIES, CLASSES, BIOMES, EVENTS };
 
 /** Cooldown seconds → whole ticks (content authoring is in seconds; sim is ticks). */
 export function cooldownTicks(seconds: number): number {

@@ -375,6 +375,9 @@ input {
 .door.boss .kind {
   color: var(--danger);
 }
+.door.event .kind {
+  color: #8fc7b8;
+}
 
 /* Fight overlay */
 .fight-hud {

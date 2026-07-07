@@ -13,6 +13,7 @@ export const RNG_PURPOSE = {
   shop: 3,
   requestedCopy: 4,
   fight: 5,
+  events: 6,
 } as const;
 
 export type RngPurpose = (typeof RNG_PURPOSE)[keyof typeof RNG_PURPOSE];

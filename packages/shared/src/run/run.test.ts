@@ -8,6 +8,7 @@ import {
   isEquippable,
 } from '../content/registry.js';
 import { buildHeroSpec, tagCounts } from './build.js';
+import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 import { climbHonorForFloor, cumulativeClimbHonor, honorTier } from './honor.js';
 import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
 import type { EquipSlotId, RunState } from './types.js';
@@ -47,6 +48,10 @@ function autoClimb(seed: number, floorCap = 60): RunState {
       const l = applyCommand(state, { type: 'leaveShop' });
       if (!l.ok) throw new Error(l.error);
       state = l.state;
+    } else if (state.phase === 'event') {
+      const e = applyCommand(state, { type: 'resolveEvent', optionIndex: 0 });
+      if (!e.ok) throw new Error(e.error);
+      state = e.state;
     } else {
       break;
     }
@@ -148,6 +153,10 @@ describe('a full climb', () => {
         const l = applyCommand(state, { type: 'leaveShop' });
         if (!l.ok) break;
         state = l.state;
+      } else if (state.phase === 'event') {
+        const e = applyCommand(state, { type: 'resolveEvent', optionIndex: 0 });
+        if (!e.ok) break;
+        state = e.state;
       } else break;
     }
     // Either it reached a shop (floor 5) or died before it — both are valid; assert the
@@ -213,6 +222,120 @@ describe('consumable auto-triggers', () => {
       condition: 'doomfall',
     });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe('events', () => {
+  function eventState(id: string, seed = 1): RunState {
+    const s = structuredClone(freshVanguard(seed));
+    s.phase = 'event';
+    s.pendingEvent = id;
+    s.doors = null;
+    return s;
+  }
+
+  it('offers event doors yet always keeps a battle option', () => {
+    let sawEvent = false;
+    for (let f = 1; f <= 80; f++) {
+      if (isBossFloor(f) || isShopFloor(f)) continue;
+      const doors = generateDoors(12345, f);
+      if (doors.some((d) => d.kind === 'event')) {
+        sawEvent = true;
+        expect(doors.some((d) => d.kind === 'battle')).toBe(true); // never the sole path
+        expect(doors.find((d) => d.kind === 'event')!.eventId).toBeTruthy();
+      }
+    }
+    expect(sawEvent).toBe(true);
+  });
+
+  it('choosing an event door enters the event phase', () => {
+    // Find a floor whose door 0 is an event under this seed, then choose it.
+    let s = freshVanguard(12345);
+    let guard = 0;
+    while (guard++ < 200 && !(s.phase === 'doors' && s.doors?.[0]?.kind === 'event')) {
+      if (s.phase === 'doors') {
+        const evIdx = s.doors!.findIndex((d) => d.kind === 'event');
+        if (evIdx >= 0) {
+          const r = applyCommand(s, { type: 'chooseDoor', doorIndex: evIdx });
+          expect(r.ok).toBe(true);
+          if (r.ok) {
+            expect(r.state.phase).toBe('event');
+            expect(r.state.pendingEvent).toBeTruthy();
+          }
+          return;
+        }
+        const r = applyCommand(s, { type: 'chooseDoor', doorIndex: 0 });
+        if (!r.ok) break;
+        s = r.state;
+      } else if (s.phase === 'fight') {
+        const out = runPendingFight(s);
+        if (!out) break;
+        s = out.state;
+      } else if (s.phase === 'reward') {
+        const r = applyCommand(s, s.pendingItem ? { type: 'takeLoot', take: false } : { type: 'proceed' });
+        if (!r.ok) break;
+        s = r.state;
+      } else if (s.phase === 'shop') {
+        const r = applyCommand(s, { type: 'leaveShop' });
+        if (!r.ok) break;
+        s = r.state;
+      } else break;
+    }
+  });
+
+  it('Shrine upgrades a random item and consumes a material', () => {
+    const s = eventState('shrine_of_mended_blade');
+    s.backpack.push({ uid: 'it', itemId: 'rusty_cleaver', star: 1 });
+    s.backpack.push({ uid: 'mat', itemId: 'whetstone', star: 1 });
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // Only rusty_cleaver is upgradeable (small_ale + whetstone are excluded).
+    expect(res.state.backpack.find((i) => i.uid === 'it')!.star).toBe(2);
+    expect(res.state.backpack.some((i) => i.uid === 'mat')).toBe(false);
+  });
+
+  it("Sleepwalker's Bargain swaps the two trinkets' ★ tiers", () => {
+    const s = eventState('sleepwalkers_bargain');
+    s.equipment.trinket1 = { uid: 't1', itemId: 'singed_grimoire', star: 3 };
+    s.equipment.trinket2 = { uid: 't2', itemId: 'tax_stamp_of_the_gate', star: 1 };
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.equipment.trinket1!.star).toBe(1);
+    expect(res.state.equipment.trinket2!.star).toBe(3);
+  });
+
+  it("Gambler's Alcove stakes a quarter of gold (deterministic), decline keeps it", () => {
+    const s = eventState('gamblers_alcove', 42);
+    s.gold = 100;
+    const win = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(win.ok).toBe(true);
+    if (win.ok) expect([75, 125]).toContain(win.state.gold); // ±stake of 25
+    const declined = applyCommand(s, { type: 'resolveEvent', optionIndex: 1 });
+    if (declined.ok) expect(declined.state.gold).toBe(100);
+  });
+
+  it('Cursed Reliquary grants a pending Epic and routes to the reward screen', () => {
+    const s = eventState('cursed_reliquary');
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.phase).toBe('reward');
+    expect(res.state.pendingItem).toBeTruthy();
+    expect(getItem(res.state.pendingItem!).rarity).toBe('epic');
+  });
+
+  it('declining advances the floor; a bad option index is rejected', () => {
+    const s = eventState('shrine_of_mended_blade');
+    const before = s.floor;
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 1 });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.state.floor).toBe(before + 1);
+    expect(applyCommand(eventState('shrine_of_mended_blade'), {
+      type: 'resolveEvent',
+      optionIndex: 9,
+    }).ok).toBe(false);
   });
 });
 

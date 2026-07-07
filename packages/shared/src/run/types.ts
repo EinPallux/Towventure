@@ -32,11 +32,13 @@ export interface EquipState {
 
 export type EquipSlotId = keyof EquipState;
 
-export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss';
+export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss' | 'event';
 
 export interface DoorOffer {
   kind: DoorKind;
   enemyIds: string[];
+  /** Event doors carry the event id (kind === 'event'). */
+  eventId?: string;
   /** Honest-but-partial preview string (GDD §3.2). */
   preview: string;
 }
@@ -70,7 +72,7 @@ export interface DeathInfo {
   endTick: number;
 }
 
-export type RunPhase = 'doors' | 'fight' | 'reward' | 'shop' | 'ended';
+export type RunPhase = 'doors' | 'fight' | 'reward' | 'shop' | 'event' | 'ended';
 
 export type RunStatus = 'active' | 'dead' | 'abandoned';
 
@@ -89,6 +91,8 @@ export interface RunState {
   backpackSize: number;
   doors: DoorOffer[] | null;
   pendingFight: PendingFight | null;
+  /** Event id awaiting a resolveEvent choice (phase === 'event'). */
+  pendingEvent: string | null;
   /** Monotonic fight index; derives fight + loot seeds so resume stays deterministic. */
   fightCounter: number;
   /** Item id of the drop awaiting a takeLoot decision (gold is auto-credited). */
@@ -122,6 +126,7 @@ export type Command =
   | { type: 'buy'; slotIndex: number }
   | { type: 'reroll' }
   | { type: 'leaveShop' }
+  | { type: 'resolveEvent'; optionIndex: number }
   | { type: 'proceed' }
   | { type: 'abandonRun' };
 

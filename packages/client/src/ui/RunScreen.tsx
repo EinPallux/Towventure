@@ -1,3 +1,4 @@
+import { findEvent } from '@towventure/shared/content';
 import { useStore } from '../store.js';
 import { HeroPanel } from './HeroPanel.js';
 import { describeItem } from './itemText.js';
@@ -16,7 +17,13 @@ function Doors() {
         >
           <div className="kind">{door.kind}</div>
           <div className="title" style={{ fontSize: 18 }}>
-            {door.kind === 'boss' ? '☗ ' : door.kind === 'elite' ? '✦ ' : ''}
+            {door.kind === 'boss'
+              ? '☗ '
+              : door.kind === 'elite'
+                ? '✦ '
+                : door.kind === 'event'
+                  ? '❖ '
+                  : ''}
             {door.preview}
           </div>
           <div className="muted grow" />
@@ -137,6 +144,38 @@ function Shop() {
   );
 }
 
+function Event() {
+  const run = useStore((s) => s.run)!;
+  const busy = useStore((s) => s.busy);
+  const cmd = useStore((s) => s.cmd);
+  const ev = run.pendingEvent ? findEvent(run.pendingEvent) : null;
+  if (!ev) return null;
+  return (
+    <div className="card col" style={{ margin: 12 }}>
+      <div className="row spread">
+        <div className="title">{ev.name}</div>
+        <div className="muted">Floor {run.floor}</div>
+      </div>
+      <div className="muted" style={{ fontStyle: 'italic' }}>
+        {ev.flavor}
+      </div>
+      <div className="col" style={{ gap: 8, marginTop: 8 }}>
+        {ev.options.map((opt, i) => (
+          <button
+            key={i}
+            className={i === 0 ? 'primary' : 'ghost'}
+            style={{ textAlign: 'left' }}
+            disabled={busy}
+            onClick={() => void cmd({ type: 'resolveEvent', optionIndex: i })}
+          >
+            <strong>{opt.label}</strong> <span className="muted">— {opt.blurb}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RunScreen() {
   const phase = useStore((s) => s.run?.phase);
   return (
@@ -144,6 +183,7 @@ export function RunScreen() {
       {phase === 'doors' && <Doors />}
       {phase === 'reward' && <Reward />}
       {phase === 'shop' && <Shop />}
+      {phase === 'event' && <Event />}
       <HeroPanel />
     </div>
   );

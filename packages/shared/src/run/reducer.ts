@@ -6,11 +6,12 @@
  * resolveFight) because the sim seed is server-drawn.
  */
 
-import { findConsumable, getClass, getEnemy } from '../content/registry.js';
+import { findConsumable, findEvent, getClass, getEnemy } from '../content/registry.js';
 import { simulate } from '../sim/engine.js';
 import type { SimEvent, SimResult } from '../sim/types.js';
 import { buildCombatSpec, goldPerWin } from './build.js';
 import { generateDoors, isShopFloor } from './doors.js';
+import { applyEvent } from './events.js';
 import { climbHonorForFrontier, honorTier } from './honor.js';
 import { equip, fuse, infuse, pushBackpack, sell, unequip } from './inventory.js';
 import { rollLoot } from './loot.js';
@@ -60,6 +61,7 @@ export function startRun(classId: RunState['classId'], vows: string[], seed: num
     backpackSize: STARTING_BACKPACK,
     doors: null,
     pendingFight: null,
+    pendingEvent: null,
     fightCounter: 0,
     pendingItem: null,
     lastGold: 0,
@@ -104,6 +106,12 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       const door = draft.doors[command.doorIndex];
       if (!door) return reject('no such door');
       if (door.kind === 'shop') return reject('shop floors have no doors');
+      if (door.kind === 'event') {
+        draft.pendingEvent = door.eventId ?? null;
+        draft.phase = 'event';
+        draft.doors = null;
+        return { ok: true, state: draft };
+      }
       draft.pendingFight = { kind: door.kind, enemyIds: door.enemyIds };
       draft.phase = 'fight';
       draft.doors = null;
@@ -162,6 +170,23 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       if (draft.phase !== 'shop') return reject('not in a shop');
       draft.shop = null;
       advanceFloor(draft);
+      return { ok: true, state: draft };
+    }
+    case 'resolveEvent': {
+      if (draft.phase !== 'event' || !draft.pendingEvent) return reject('no event to resolve');
+      const ev = findEvent(draft.pendingEvent);
+      if (!ev) return reject('unknown event');
+      if (command.optionIndex < 0 || command.optionIndex >= ev.options.length) {
+        return reject('no such option');
+      }
+      const rng = deriveRng(draft.seed, draft.floor, RNG_PURPOSE.events, 0);
+      const err = applyEvent(draft, draft.pendingEvent, command.optionIndex, rng);
+      if (err) return reject(err);
+      draft.pendingEvent = null;
+      // An event that granted loot routes to the reward screen; otherwise the event
+      // was the floor — advance. (advanceFloor clears pendingItem, so guard on it.)
+      if (draft.pendingItem) draft.phase = 'reward';
+      else advanceFloor(draft);
       return { ok: true, state: draft };
     }
     case 'proceed': {

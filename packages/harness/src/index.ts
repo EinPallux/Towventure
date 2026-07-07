@@ -99,6 +99,9 @@ function policy(state: RunState): Command {
       }
       return { type: 'leaveShop' };
     }
+    case 'event':
+      // Greedy: always accept (option 0) — the anchor events are mostly upside.
+      return { type: 'resolveEvent', optionIndex: 0 };
     default:
       return { type: 'abandonRun' };
   }

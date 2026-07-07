@@ -5,7 +5,7 @@
  * Shop/Boss). All draws are seeded so the client can't peek at undrawn floors.
  */
 
-import { biomeForFloor, getEnemy } from '../content/registry.js';
+import { EVENTS, biomeForFloor, getEnemy } from '../content/registry.js';
 import { RNG_PURPOSE, deriveRng } from './rng.js';
 import type { DoorOffer } from './types.js';
 
@@ -59,6 +59,17 @@ export function generateDoors(seed: number, floor: number): DoorOffer[] {
     const enemyIds: string[] = [];
     for (let i = 0; i < count; i++) enemyIds.push(rng.pick(biome.regularIds));
     doors[0] = { kind: 'battle', enemyIds, preview: battlePreview(enemyIds) };
+  }
+
+  // ~1 in 5 floors, turn one battle door into an Event — but only if a battle
+  // option would remain (an event is a choice, never the sole path forward).
+  if (EVENTS.length > 0 && rng.chance(20)) {
+    const battleIdx = doors.map((d, i) => (d.kind === 'battle' ? i : -1)).filter((i) => i >= 0);
+    if (battleIdx.length > 1) {
+      const target = battleIdx[rng.nextInt(battleIdx.length)]!;
+      const ev = rng.pick(EVENTS);
+      doors[target] = { kind: 'event', enemyIds: [], eventId: ev.id, preview: ev.name };
+    }
   }
 
   return doors;
