@@ -331,3 +331,168 @@ describe('conditional & buffered damage ops', () => {
     expect(bleedAfter.length).toBe(0);
   });
 });
+
+describe('one-shot (consumable) reporting', () => {
+  it('reports exactly the one-shot bindings whose condition fired', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Blade', cooldownTicks: 10, damage: 10 }],
+        effects: [
+          {
+            source: 'Adrenal',
+            oneShotId: 'a',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'gainArmor', amount: 5 }],
+          },
+          {
+            source: 'Ale',
+            oneShotId: 'b',
+            trigger: { kind: 'OnHpBelow', pct: 40 },
+            ops: [{ op: 'heal', amount: 5 }],
+          },
+        ],
+      }),
+      // Unarmed enemy: the hero never drops below 40%, so the Ale must NOT fire.
+      enemies: [combatant({ id: 'e0', name: 'Dummy', maxHp: 30, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    expect(r.firedOneShots).toContain('a');
+    expect(r.firedOneShots).not.toContain('b');
+  });
+});
+
+describe('deferred ops wave 2', () => {
+  it('a multi-hit weapon strikes hitsPerSwing times per swing', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Choir', cooldownTicks: 10, damage: 5, hitsPerSwing: 3 }],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Sponge', maxHp: 9999, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    // First swing at t=10 → exactly 3 hit events at that tick.
+    const firstSwingHits = r.events.filter((e) => e.type === 'hit' && e.t === 10);
+    expect(firstSwingHits.length).toBe(3);
+  });
+
+  it('buffStatusDamagePct amplifies the hero’s DoT on enemies', () => {
+    const build = (buffPct: number): number => {
+      const s = spec({
+        hero: combatant({
+          id: 'hero',
+          name: 'Hero',
+          weapons: [],
+          effects: [
+            {
+              source: 'buff',
+              trigger: { kind: 'OnFightStart' },
+              ops: [
+                { op: 'buffStatusDamagePct', status: 'burn', pct: buffPct },
+                { op: 'applyStatus', status: 'burn', stacks: 4, to: 'target' },
+              ],
+            },
+          ],
+        }),
+        enemies: [combatant({ id: 'e0', name: 'Kindling', maxHp: 9999, weapons: [] })],
+      });
+      const r = simulate(s, 1);
+      const firstBurn = r.events.find((e) => e.type === 'dot' && e.status === 'burn');
+      return firstBurn && firstBurn.type === 'dot' ? firstBurn.dmg : -1;
+    };
+    expect(build(0)).toBe(12); // 4 stacks × 3 dmg/s
+    expect(build(50)).toBe(18); // ×150%
+  });
+
+  it('buffNextHitStatus rides exactly one landing hit', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Hook', cooldownTicks: 10, damage: 8 }],
+        effects: [
+          {
+            source: 'hook',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'buffNextHitStatus', status: 'burn', stacks: 3 }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Kindling', maxHp: 9999, weapons: [] })],
+    });
+    const r = simulate(s, 2);
+    const burnApplies = r.events.filter((e) => e.type === 'status' && e.status === 'burn');
+    // One application, on the first landing hit — the buffer does not persist.
+    expect(burnApplies.length).toBe(1);
+    expect(burnApplies[0]!.t).toBe(10);
+  });
+
+  it('cleanse strips all non-Ward statuses', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 999,
+        weapons: [],
+        effects: [
+          {
+            source: 'seed',
+            trigger: { kind: 'OnFightStart' },
+            ops: [
+              { op: 'applyStatus', status: 'bleed', stacks: 4, to: 'self' },
+              { op: 'applyStatus', status: 'venom', stacks: 3, to: 'self' },
+            ],
+          },
+          {
+            source: 'cleanse',
+            trigger: { kind: 'Every', seconds: 1 },
+            ops: [{ op: 'cleanse', to: 'self' }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Sponge', maxHp: 9999, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    // After the first cleanse (t=10) no further Bleed/Venom DoT lands on the hero.
+    const dotAfter = r.events.filter(
+      (e) => e.type === 'dot' && e.to === 0 && e.dmg > 0 && e.t > 10,
+    );
+    expect(dotAfter.length).toBe(0);
+  });
+});
+
+describe('OnStatusApplied stack threshold', () => {
+  it('fires only once the target reaches the minStacks threshold', () => {
+    function detonationsAtStart(applied: number): number {
+      const s = spec({
+        hero: combatant({
+          id: 'hero',
+          name: 'Hero',
+          weapons: [],
+          effects: [
+            {
+              source: 'seed',
+              trigger: { kind: 'OnFightStart' },
+              ops: [{ op: 'applyStatus', status: 'burn', stacks: applied, to: 'target' }],
+            },
+            {
+              source: 'Solarlash',
+              trigger: { kind: 'OnStatusApplied', status: 'burn', minStacks: 10 },
+              ops: [{ op: 'detonateStatus', status: 'burn', pctPerStack: 200, to: 'allEnemies' }],
+            },
+          ],
+        }),
+        enemies: [combatant({ id: 'e0', name: 'Kindling', maxHp: 9999, weapons: [] })],
+      });
+      const r = simulate(s, 1);
+      // The detonation is the only hero→enemy hit, and it lands at fight start.
+      return r.events.filter((e) => e.type === 'hit' && e.from === 0 && e.to === 1 && e.t === 0)
+        .length;
+    }
+    expect(detonationsAtStart(8)).toBe(0); // below 10 → the gate holds
+    expect(detonationsAtStart(10)).toBe(1); // reaches 10 → detonates once
+  });
+});

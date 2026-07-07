@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import type { EquipSlotId, InventoryItem } from '@towventure/shared/run';
+import type { ConsumableCondition } from '@towventure/shared/content';
 import { useStore } from '../store.js';
 import { TagMeter } from './TagMeter.js';
-import { describeItem } from './itemText.js';
+import {
+  CONDITION_LABEL,
+  CONSUMABLE_CONDITIONS,
+  consumableInfo,
+  describeItem,
+  isMaterial,
+  socketCapacity,
+  socketLabels,
+} from './itemText.js';
 
 const SLOTS: { key: EquipSlotId; label: string }[] = [
   { key: 'weapon1', label: 'Weapon' },
@@ -37,6 +46,39 @@ export function HeroPanel() {
     if (a && b && a.itemId === b.itemId && a.star === b.star && a.star < 5) return [a, b] as const;
     return null;
   })();
+
+  // One selected material + one selected socketable item → offer an infusion.
+  const infusePair = (() => {
+    if (sel.length !== 2) return null;
+    const x = run.backpack.find((i) => i.uid === sel[0]);
+    const y = run.backpack.find((i) => i.uid === sel[1]);
+    if (!x || !y) return null;
+    for (const [item, mat] of [
+      [x, y],
+      [y, x],
+    ] as const) {
+      if (isMaterial(mat.itemId) && !isMaterial(item.itemId) && socketCapacity(item.itemId) > 0) {
+        return { item, mat } as const;
+      }
+    }
+    return null;
+  })();
+
+  const socketRow = (inst: InventoryItem) => {
+    const cap = socketCapacity(inst.itemId);
+    if (cap === 0) return null;
+    const filled = socketLabels(inst.sockets);
+    return (
+      <div className="sockets-row" title={filled.length ? filled.join(', ') : 'empty sockets'}>
+        {Array.from({ length: cap }).map((_, k) => (
+          <span key={k} className={`socket ${k < filled.length ? 'filled' : ''}`}>
+            {k < filled.length ? '◈' : '◇'}
+          </span>
+        ))}
+        {filled.length > 0 && <span className="muted socket-names">{filled.join(' · ')}</span>}
+      </div>
+    );
+  };
 
   const onDrop = (slot: EquipSlotId) => (e: React.DragEvent) => {
     e.preventDefault();
@@ -89,6 +131,7 @@ export function HeroPanel() {
                         </button>
                       )}
                     </div>
+                    {socketRow(inst)}
                   </>
                 ) : (
                   <span>{label}</span>
@@ -119,37 +162,85 @@ export function HeroPanel() {
               Fuse → ★{fusePair[0].star + 1}
             </button>
           )}
+          {infusePair && (
+            <button
+              className="primary small"
+              disabled={busy}
+              onClick={() => {
+                void cmd({
+                  type: 'infuse',
+                  itemUid: infusePair.item.uid,
+                  materialUid: infusePair.mat.uid,
+                });
+                setSel([]);
+              }}
+            >
+              Infuse {describeItem(infusePair.mat.itemId, 1).name}
+            </button>
+          )}
         </div>
         <div className="backpack">
           {run.backpack.map((inst) => {
             const d = describeItem(inst.itemId, inst.star);
+            const cons = consumableInfo(inst.itemId);
+            const mat = isMaterial(inst.itemId);
+            const marker = cons ? '⚗' : mat ? '◈' : '★'.repeat(inst.star);
             return (
               <div
                 key={inst.uid}
                 className={`bp-item ${sel.includes(inst.uid) ? 'selected' : ''}`}
-                draggable
+                draggable={!cons && !mat}
                 title={itemTitle(inst)}
                 onDragStart={(e) => e.dataTransfer.setData('text/uid', inst.uid)}
-                onClick={() => toggleSel(inst.uid)}
+                onClick={() => !cons && toggleSel(inst.uid)}
               >
                 <div className="row spread">
                   <span className={`r-${d.rarity} item-name`}>{d.name}</span>
-                  <span className="stars">{'★'.repeat(inst.star)}</span>
+                  <span className="stars">{marker}</span>
                 </div>
                 <div className="muted" style={{ fontSize: 12 }}>
                   {d.lines[0] ?? d.flavor}
                 </div>
+                {socketRow(inst)}
                 <div className="item-actions">
-                  <button
-                    className="small"
-                    disabled={busy}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void cmd({ type: 'equip', uid: inst.uid });
-                    }}
-                  >
-                    Equip
-                  </button>
+                  {cons ? (
+                    <select
+                      className="small"
+                      value={inst.condition ?? cons.condition}
+                      disabled={busy}
+                      title="When this consumable auto-fires"
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        void cmd({
+                          type: 'setConsumableCondition',
+                          uid: inst.uid,
+                          condition: e.target.value as ConsumableCondition,
+                        });
+                      }}
+                    >
+                      {CONSUMABLE_CONDITIONS.map((c) => (
+                        <option key={c} value={c}>
+                          {CONDITION_LABEL[c]}
+                        </option>
+                      ))}
+                    </select>
+                  ) : mat ? (
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      select + a socketed item to infuse
+                    </span>
+                  ) : (
+                    <button
+                      className="small"
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void cmd({ type: 'equip', uid: inst.uid });
+                      }}
+                    >
+                      Equip
+                    </button>
+                  )}
                   <button
                     className="small ghost"
                     disabled={busy}

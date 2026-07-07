@@ -1,9 +1,13 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as THREE from 'three';
+import { HONOR_TIERS, VOWS } from '@towventure/shared/content';
 import { buildFloor, buildHero, buildLantern } from '../engine/meshes.js';
 import { paletteForBiome } from '../engine/palettes.js';
 import { useStore } from '../store.js';
+import { api, type GauntletInfo } from '../api/client.js';
 import { Diorama, addLanternLighting } from './Diorama.js';
+
+const MAX_VOWS = 5;
 
 function GateScene() {
   const setup = useCallback((scene: THREE.Scene, camera: THREE.PerspectiveCamera) => {
@@ -80,10 +84,20 @@ function AuthForm() {
 }
 
 const CLASS_CHOICES = [
-  { id: 'vanguard' as const, name: 'Vanguard', fantasy: 'the wall that hits back' },
-  { id: 'duelist' as const, name: 'Duelist', fantasy: 'speed, crits, bleed, greed' },
-  { id: 'arcanist' as const, name: 'Arcanist', fantasy: 'cooldowns, statuses, detonations' },
+  { id: 'vanguard' as const, name: 'Vanguard', fantasy: 'the wall that hits back', unlockTier: 0 },
+  { id: 'duelist' as const, name: 'Duelist', fantasy: 'speed, crits, bleed, greed', unlockTier: 2 },
+  {
+    id: 'arcanist' as const,
+    name: 'Arcanist',
+    fantasy: 'cooldowns, statuses, detonations',
+    unlockTier: 3,
+  },
 ];
+
+/** The tier name a class unlocks at (for the lock label). */
+function tierName(rank: number): string {
+  return HONOR_TIERS[rank]?.name ?? HONOR_TIERS[HONOR_TIERS.length - 1]!.name;
+}
 
 function Menu() {
   const me = useStore((s) => s.me)!;
@@ -92,7 +106,14 @@ function Menu() {
   const startRun = useStore((s) => s.startRun);
   const setView = useStore((s) => s.setView);
   const [cls, setCls] = useState<'vanguard' | 'duelist' | 'arcanist'>('vanguard');
+  const [vows, setVows] = useState<string[]>([]);
   const hasRun = run && run.status === 'active';
+  const tierRank = me.tierRank;
+
+  const toggleVow = (id: string) =>
+    setVows((cur) =>
+      cur.includes(id) ? cur.filter((v) => v !== id) : cur.length < MAX_VOWS ? [...cur, id] : cur,
+    );
 
   if (hasRun) {
     return (
@@ -112,22 +133,78 @@ function Menu() {
     <div className="card col" style={{ gap: 12 }}>
       <div className="muted">Choose your Vow, {me.account.name}.</div>
       <div className="col" style={{ gap: 6 }}>
-        {CLASS_CHOICES.map((c) => (
+        {CLASS_CHOICES.map((c) => {
+          const locked = c.unlockTier > tierRank;
+          return (
+            <button
+              key={c.id}
+              className={cls === c.id ? 'primary' : 'ghost'}
+              style={{ textAlign: 'left', opacity: locked ? 0.55 : 1 }}
+              disabled={locked}
+              title={locked ? `Unlocks at ${tierName(c.unlockTier)}` : undefined}
+              onClick={() => setCls(c.id)}
+            >
+              <strong>{c.name}</strong>{' '}
+              <span className="muted">
+                {locked ? `— 🔒 ${tierName(c.unlockTier)}` : `— ${c.fantasy}`}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="col" style={{ gap: 4 }}>
+        <div className="muted" style={{ fontSize: 12 }}>
+          Vows — each +15% Honor, at a price ({vows.length}/{MAX_VOWS})
+        </div>
+        {VOWS.map((v) => (
           <button
-            key={c.id}
-            className={cls === c.id ? 'primary' : 'ghost'}
+            key={v.id}
+            className={vows.includes(v.id) ? 'primary small' : 'ghost small'}
             style={{ textAlign: 'left' }}
-            onClick={() => setCls(c.id)}
+            onClick={() => toggleVow(v.id)}
           >
-            <strong>{c.name}</strong> <span className="muted">— {c.fantasy}</span>
+            <strong>{v.name}</strong> <span className="muted">— {v.penalty}</span>
           </button>
         ))}
       </div>
-      <button className="primary" disabled={busy} onClick={() => void startRun(cls)}>
-        Enter the Tower
+      <button className="primary" disabled={busy} onClick={() => void startRun(cls, vows)}>
+        Enter the Tower{vows.length ? ` · +${vows.length * 15}% Honor` : ''}
       </button>
+      <GauntletPanel />
       <button className="ghost" onClick={() => setView('ladder')}>
         The Ladder
+      </button>
+    </div>
+  );
+}
+
+function GauntletPanel() {
+  const busy = useStore((s) => s.busy);
+  const startGauntlet = useStore((s) => s.startGauntlet);
+  const [info, setInfo] = useState<GauntletInfo | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .gauntlet()
+      .then((d) => live && setInfo(d))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!info) return null;
+  return (
+    <div className="col" style={{ gap: 4, borderTop: '1px solid #2a2630', paddingTop: 8 }}>
+      <div className="muted" style={{ fontSize: 12 }}>
+        ⚔ Daily Gauntlet — everyone climbs the same {info.className}, same seed.
+        {info.board.total > 0 ? ` ${info.board.total} entered.` : ''}
+      </div>
+      <button
+        className={info.entered ? 'ghost small' : 'primary small'}
+        disabled={busy || info.entered}
+        onClick={() => void startGauntlet()}
+      >
+        {info.entered ? "Today's Gauntlet run recorded" : `Enter the Gauntlet · ${info.className}`}
       </button>
     </div>
   );

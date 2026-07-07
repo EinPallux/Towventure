@@ -199,6 +199,32 @@ input {
 .r-mythic {
   color: var(--mythic);
 }
+.r-consumable {
+  color: #cdb98a;
+}
+.r-material {
+  color: #8fc7b8;
+}
+
+/* Infusion sockets */
+.sockets-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 3px;
+}
+.sockets-row .socket {
+  color: #5c5670;
+  font-size: 12px;
+  line-height: 1;
+}
+.sockets-row .socket.filled {
+  color: #8fc7b8;
+}
+.sockets-row .socket-names {
+  font-size: 10px;
+  margin-left: 2px;
+}
 
 /* Hero screen */
 .hero-screen {
@@ -348,6 +374,9 @@ input {
 }
 .door.boss .kind {
   color: var(--danger);
+}
+.door.event .kind {
+  color: #8fc7b8;
 }
 
 /* Fight overlay */
@@ -504,6 +533,32 @@ tr.self {
   padding: 10px 16px;
   border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.live-toasts {
+  position: fixed;
+  top: 64px;
+  right: 20px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+.toast.live {
+  position: static;
+  background: var(--accent, #b98a3a);
+  cursor: pointer;
+  animation: toast-in 0.2s ease-out;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .center {
   margin: auto;

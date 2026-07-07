@@ -2,3 +2,9 @@
 export * from './types.js';
 export * from './constants.js';
 export * from './registry.js';
+export {
+  MERCHANT_ITEMS,
+  findMerchantItem,
+  type MerchantItem,
+  type MerchantKind,
+} from './merchant.js';

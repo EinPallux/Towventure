@@ -19,8 +19,11 @@ export type Trigger =
   | { kind: 'OnFightStart' }
   | { kind: 'OnHpBelow'; pct: number }
   | { kind: 'OnDoomfall' }
-  /** Fires on the applier when it applies status X (Phase 2 vocabulary). */
-  | { kind: 'OnStatusApplied'; status: StatusKind }
+  /**
+   * Fires on the applier when it applies status X. With `minStacks`, only when the
+   * target's resulting stack count is ≥ that threshold (Solarlash: at 10+ Burn).
+   */
+  | { kind: 'OnStatusApplied'; status: StatusKind; minStacks?: number }
   /** Fires on this combatant when an opposing combatant dies. */
   | { kind: 'OnEnemyDeath' };
 
@@ -53,6 +56,14 @@ export type EffectOp =
    * status's per-second bite × stacks, through Ward (Redline: crits detonate Bleed).
    */
   | { op: 'detonateStatus'; status: StatusKind; pctPerStack: number; to: EffectTarget }
+  /** Deal `pct`% weapon damage to up to `targets` enemies, lowest-HP first (Sparkrod chain). */
+  | { op: 'chainHit'; pct: number; targets: number }
+  /** Remove all (non-Ward) statuses from `to` (Molt, Bottled Yesterday). */
+  | { op: 'cleanse'; to: EffectTarget }
+  /** Fight-scoped: this side's DoT of `status` deals +`pct`% (Ember (2), Cinderheart). */
+  | { op: 'buffStatusDamagePct'; status: StatusKind; pct: number }
+  /** Buffer: the combatant's NEXT weapon hit also applies `stacks` of `status` (Lantern-Hook). */
+  | { op: 'buffNextHitStatus'; status: StatusKind; stacks: number }
   /** Deal self.thorns × mult to the triggering attacker (Bulwark Sigil OnBlock). */
   | { op: 'retaliateThorns'; mult: number }
   /** Delay the target's next action(s) by `ticks` (Toll-Keeper's Bell). */
@@ -73,6 +84,11 @@ export interface EffectBinding {
   everyNthHit?: number;
   /** OnHurt gate: incoming hit must be ≥ this % of max HP to qualify. */
   minHitPctMax?: number;
+  /**
+   * If set, this binding is a one-shot (a consumable): the sim records the id the
+   * first time its ops run, so the run layer knows the consumable was spent.
+   */
+  oneShotId?: string;
 }
 
 // ─── Combatant + combat specs (sim input) ────────────────────────────────────
@@ -83,6 +99,8 @@ export interface WeaponSpec {
   cooldownTicks: number;
   /** Base per-hit damage (already ★-scaled). */
   damage: number;
+  /** Strikes per swing (default 1); each strike is a full hit (Choir of Nails). */
+  hitsPerSwing?: number;
 }
 
 export interface CombatantSpec {
@@ -160,4 +178,6 @@ export interface SimResult {
   /** FNV-1a digest of the numeric event stream — the cross-platform cross-check. */
   logHash: number;
   events: SimEvent[];
+  /** ids of one-shot bindings (consumables) that fired — the run layer consumes these. */
+  firedOneShots: string[];
 }

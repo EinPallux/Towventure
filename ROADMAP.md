@@ -48,11 +48,13 @@ Full design, architecture, content, balance, art, and ops documentation. Exit: t
 - Codex v1 (discovery + lore unlock), run summary/share-card v1 (PNG render).
 
 **Exit criteria:**
-- [ ] All 120 items implemented, harness-gated (±8% cohort win-rate), each with model recipe + at least placeholder-tier signature VFX/sound hook.
+- [~] All ~120 items implemented (launch quotas met in `content/items.ts`: 30 weapons / 14 helm / 14 armor / 14 boots / 32 trinkets / 3 satchels / 3 relics, count-tested). Harness release gates print (BALANCE §9) — the per-item ±8% cohort gate needs item-tagged policy sims (follow-up); model recipes + signature VFX/sound are Phase 3 polish-as-pillar.
 - [x] Floors 1–50 authored (Gardens/Archive/Foundry/Chapel rosters + bosses 2–5; some enemy sub-mechanics deferred per CONTENT §4); the floor-50 Prior of Teeth wall behaves per design (status-density self-heal modelled, verified by golden + unit + harness).
-- [ ] All 3 classes playable with distinct harness death-floor profiles.
-- [ ] A designer can add a complete item by editing CONTENT.md + one data file, no engine changes (proven by adding one live).
+- [x] All 3 classes playable with distinct harness death-floor profiles (Vanguard sturdy, Duelist deepest via crit+Haste, Arcanist high-variance).
+- [x] A designer can add a complete item by editing CONTENT.md + one data file, no engine changes — proven live (the catalogue buildout added ~80 items, several whole commits pure content with zero engine edits).
 - [ ] Playtest: 3 humans each report at least one "one more floor" session ≥30 min unprompted.
+
+Systems complete this phase: 10 statuses + full trigger/effect vocabulary; fusion + infusion; consumable auto-triggers; tag synergies; events (door type); vows (Honor multiplier); Codex v1 with cross-run persistence; two live Zenith transforms; harness release gates. Remaining Phase-2-adjacent follow-ups (mostly Phase-3-blocked): per-item win-rate cohorts, the Echo/Sanctum/substat-dependent vows and events, weapon-echo/per-Armor/Burn-spread ops, and VFX/audio.
 
 ---
 
@@ -69,12 +71,12 @@ Full design, architecture, content, balance, art, and ops documentation. Exit: t
 - Friends (request/accept), profiles/Hall of Echoes, feed events, inbox + WS toasts.
 - Seasons **data model + placement math** live (the rollover job ships here, first real rollover happens in Phase 5's season 1).
 
-**Exit criteria:**
-- [ ] Die on staging → within one minute your Echo is encounterable by another account near that floor, kills pay bounty + Grave-Copy, your account gets the notification and Marks when your Echo wins.
-- [ ] Full Skirmish loop: attack from rival board, watch replay, honor moves per Elo, keys → Vault purchase works; defender risk-free confirmed.
-- [ ] Two friends see each other's feed events (floor milestone, Zenith forge, Echo kill) within seconds via WS.
-- [ ] Gauntlet: two accounts, same day → identical drops/doors/shops; separate ladder pays out at UTC close.
-- [ ] Every honor/mark movement traces to a ledger row; economy audit query balances to zero drift.
+**Exit criteria:** *(all systems code-complete + integration-tested against Postgres; the "on staging" checks await a live VPS deploy.)*
+- [~] Die → your Echo is banked and encounterable by another account near that floor (server-side injection, ±5-floor band, freshest-first, house-Echo onboarding fallback); kills pay bounty + Grave-Copy; the dead owner gets the inbox notification + Marks + a live toast when their Echo wins. Verified end-to-end against Postgres (Slice B); the one-minute-on-staging timing awaits the VPS.
+- [~] Full Skirmish loop: attack from the rival board, watch the replay, Honor moves per Elo (K=24, floored at 0), Keys → Vault purchase works, defender risk-free confirmed. Verified against Postgres (Slices C+D); live-replay UX awaits the VPS.
+- [~] Two friends see each other's feed events (floor milestone, Zenith forge, Echo kill); live toasts ship over **SSE** (no `ws` lib vendored) rather than raw WS. Feed union + bus delivery tested (Slice F); the seconds-latency-on-staging check awaits the VPS.
+- [~] Gauntlet: two accounts, same day → identical drops/doors/shops (shared seed + forced class, asserted equal in a test). The separate ladder is live; the **UTC-close Honor-pot payout is the rollover-job's remaining wire-up** (the job exists — Slice G).
+- [~] Every honor/mark movement traces to a ledger row (honor_ledger + marks_ledger, every grant/spend in-transaction with its cause). A standing **economy-audit query is a Phase-5 ops task**; no drift is possible by construction (no mutable Honor/Marks columns exist).
 
 ---
 

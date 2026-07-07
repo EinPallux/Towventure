@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { VOW_IDS } from '../content/vows.js';
 import type { Command, EquipSlotId } from '../run/types.js';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -31,14 +32,19 @@ export const guestSchema = z.object({}).optional();
 /** All three classes are playable in Phase 2; Honor-tier unlock gating is Phase 3. */
 export const classIdSchema = z.enum(['vanguard', 'duelist', 'arcanist']);
 
+/** Only vows with an enforced penalty are accepted — the +15%/vow Honor must be paid for. */
+export const vowIdSchema = z.enum(VOW_IDS);
+
 export const runStartSchema = z.object({
   classId: classIdSchema,
-  // Vows are locked empty in Phase 1. Each vow multiplies climb Honor (+15%), but the
-  // vow catalog, per-vow penalties, and Honor-tier unlock gating are Phase 2/3
-  // (ROADMAP). Accepting arbitrary/duplicate vow strings now would hand out free Honor
-  // for penalties that aren't implemented — an economy/ladder exploit. When vows ship,
-  // this becomes a validated, de-duplicated, tier-gated enum.
-  vows: z.array(z.string()).max(0).default([]),
+  // Each vow multiplies climb Honor (+15%) and carries a real, enforced penalty
+  // (run/build, shop, loot). Validated to known vow ids, de-duplicated, ≤5 (CONTENT §6).
+  // Honor-tier *unlock* gating (which vows a given tier may pick) is Phase 3.
+  vows: z
+    .array(vowIdSchema)
+    .max(5)
+    .default([])
+    .refine((v) => new Set(v).size === v.length, { message: 'vows must be unique' }),
 });
 
 export const equipSlotSchema = z.enum([
@@ -52,16 +58,37 @@ export const equipSlotSchema = z.enum([
   'relic',
 ]);
 
+export const consumableConditionSchema = z.enum([
+  'fightStart',
+  'hpBelow70',
+  'hpBelow40',
+  'doomfall',
+  'vsElite',
+]);
+
 export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('chooseDoor'), doorIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('takeLoot'), take: z.boolean() }),
   z.object({ type: z.literal('equip'), uid: z.string().min(1), slot: equipSlotSchema.optional() }),
   z.object({ type: z.literal('unequip'), slot: equipSlotSchema }),
   z.object({ type: z.literal('fuse'), uid1: z.string().min(1), uid2: z.string().min(1) }),
+  z.object({
+    type: z.literal('infuse'),
+    itemUid: z.string().min(1),
+    materialUid: z.string().min(1),
+    socketIndex: z.number().int().min(0).max(2).optional(),
+  }),
   z.object({ type: z.literal('sell'), uid: z.string().min(1) }),
+  z.object({
+    type: z.literal('setConsumableCondition'),
+    uid: z.string().min(1),
+    condition: consumableConditionSchema,
+  }),
   z.object({ type: z.literal('buy'), slotIndex: z.number().int().min(0) }),
   z.object({ type: z.literal('reroll') }),
   z.object({ type: z.literal('leaveShop') }),
+  z.object({ type: z.literal('resolveEvent'), optionIndex: z.number().int().min(0).max(7) }),
+  z.object({ type: z.literal('chooseGraveCopy'), index: z.number().int().min(0).max(2) }),
   z.object({ type: z.literal('proceed') }),
   z.object({ type: z.literal('abandonRun') }),
 ]);
@@ -77,6 +104,16 @@ export const laddersQuerySchema = z.object({
   page: z.coerce.number().int().min(0).max(10_000).default(0),
 });
 export const profileParamsSchema = z.object({ name: nameSchema });
+
+/** Attack a rival's defense snapshot by account id (GDD §9). */
+export const skirmishAttackSchema = z.object({ defenderId: z.string().uuid() });
+
+/** Buy a Merchant/Vault item by its catalogue id (GDD §10.2). */
+export const merchantBuySchema = z.object({ itemId: z.string().min(1).max(64) });
+
+/** Friend request by name; accept by the requester's account id (GDD §10). */
+export const friendRequestSchema = z.object({ name: nameSchema });
+export const friendAcceptSchema = z.object({ requesterId: z.string().uuid() });
 
 // ─── Inferred types ──────────────────────────────────────────────────────────
 

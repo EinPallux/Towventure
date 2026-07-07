@@ -11,12 +11,14 @@ import { scaleToStar } from '../content/constants.js';
 import {
   cooldownTicks,
   deriveWeaponDamage,
+  findConsumable,
+  findMaterial,
   getClass,
   getEnemy,
   getItem,
 } from '../content/registry.js';
 import { TAG_SYNERGIES } from '../content/synergies.js';
-import type { ItemDef, ItemEffect, StatMod, Tag } from '../content/types.js';
+import type { ConsumableCondition, ItemDef, ItemEffect, StatMod, Tag } from '../content/types.js';
 import {
   DOOMFALL_START_TICKS,
   DOOMFALL_START_TICKS_HASTE,
@@ -27,9 +29,10 @@ import type {
   CombatantSpec,
   EffectBinding,
   EffectOp,
+  Trigger,
   WeaponSpec,
 } from '../sim/types.js';
-import type { InventoryItem, RunState } from './types.js';
+import type { HeroBuild, InventoryItem, RunState } from './types.js';
 
 const SLOT_ORDER = [
   'weapon1',
@@ -68,7 +71,14 @@ function scaleOp(op: EffectOp, star: number): EffectOp {
       return { ...op, pct: scaleToStar(op.pct, star) };
     case 'detonateStatus':
       return { ...op, pctPerStack: scaleToStar(op.pctPerStack, star) };
+    case 'chainHit':
+      return { ...op, pct: scaleToStar(op.pct, star) };
+    case 'buffStatusDamagePct':
+      return { ...op, pct: scaleToStar(op.pct, star) };
+    case 'buffNextHitStatus':
+      return { ...op, stacks: scaleToStar(op.stacks, star) };
     // Structural magnitudes that must not scale with ★.
+    case 'cleanse':
     case 'retaliateThorns':
     case 'stun':
       return op;
@@ -147,16 +157,36 @@ function applyItem(acc: Accum, def: ItemDef, inst: InventoryItem): void {
     acc.effects.push(compileEffect(def.name, e, star));
   }
   if (def.cooldownSeconds !== undefined) {
-    acc.weapons.push({
+    const weapon: WeaponSpec = {
       name: def.name,
       cooldownTicks: cooldownTicks(def.cooldownSeconds),
       damage: scaleToStar(deriveWeaponDamage(def), star),
-    });
+    };
+    if (def.hitsPerSwing !== undefined) weapon.hitsPerSwing = def.hitsPerSwing;
+    acc.weapons.push(weapon);
+  }
+  // Infusions: each socketed material's mods + micro-effect (GDD §4.2). Materials
+  // don't scale with ★ — the socket is the same whatever tier the host item is.
+  for (const matId of inst.sockets ?? []) {
+    const mat = findMaterial(matId);
+    if (!mat) continue;
+    for (const m of mat.mods ?? []) addStat(acc, m.stat, m.value);
+    if (mat.effect) acc.effects.push(compileEffect(mat.name, mat.effect, 1));
   }
 }
 
+/** A minimal, portable snapshot of what determines a hero's combat spec (Phase 3). */
+export function snapshotOf(state: HeroBuild): HeroBuild {
+  return {
+    classId: state.classId,
+    floorsCleared: state.floorsCleared,
+    equipment: state.equipment,
+    vows: state.vows,
+  };
+}
+
 /** Count each tag across the 8 equip slots (CONTENT §2.2). Insertion-ordered. */
-export function tagCounts(state: RunState): Map<Tag, number> {
+export function tagCounts(state: HeroBuild): Map<Tag, number> {
   const counts = new Map<Tag, number>();
   for (const slot of SLOT_ORDER) {
     const inst = state.equipment[slot];
@@ -178,8 +208,8 @@ function applySynergies(acc: Accum, counts: Map<Tag, number>): void {
   }
 }
 
-/** Compile the hero's current class + equipment into a `CombatantSpec`. */
-export function buildHeroSpec(state: RunState): CombatantSpec {
+/** Compile a hero build (a live run or a Phase 3 snapshot) into a `CombatantSpec`. */
+export function buildHeroSpec(state: HeroBuild): CombatantSpec {
   const cls = getClass(state.classId);
   const acc: Accum = {
     maxHp: cls.base.maxHp + HP_PER_FLOOR * state.floorsCleared,
@@ -200,6 +230,15 @@ export function buildHeroSpec(state: RunState): CombatantSpec {
     if (inst) applyItem(acc, getItem(inst.itemId), inst);
   }
   applySynergies(acc, tagCounts(state));
+  // Vow of Glass: −25% Max HP, +25% damage (a fight-start damage buff). CONTENT §6.
+  if (state.vows.includes('vow_of_glass')) {
+    acc.maxHp = Math.trunc((acc.maxHp * 75) / 100);
+    acc.effects.push({
+      source: 'Vow of Glass',
+      trigger: { kind: 'OnFightStart' },
+      ops: [{ op: 'buffDamagePct', pct: 25 }],
+    });
+  }
   const spec: CombatantSpec = {
     id: 'hero',
     name: cls.name,
@@ -283,11 +322,82 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
   });
 }
 
+/** The sim trigger a consumable condition maps to (`vsElite` gates eligibility, then fires at start). */
+function conditionTrigger(condition: ConsumableCondition): Trigger {
+  switch (condition) {
+    case 'hpBelow70':
+      return { kind: 'OnHpBelow', pct: 70 };
+    case 'hpBelow40':
+      return { kind: 'OnHpBelow', pct: 40 };
+    case 'doomfall':
+      return { kind: 'OnDoomfall' };
+    case 'fightStart':
+    case 'vsElite':
+      return { kind: 'OnFightStart' };
+  }
+}
+
+/**
+ * Compile held consumables into one-shot hero effect bindings for THIS fight
+ * (CONTENT §3.4). `vsElite` consumables are only eligible when the roster has an
+ * elite or boss. The sim reports which fired (`firedOneShots`); resolveFight
+ * consumes exactly those. Consumables don't scale with ★ (they aren't fused).
+ */
+export function consumableBindings(state: RunState, enemyIds: string[]): EffectBinding[] {
+  const vsElitePresent = enemyIds.some((id) => {
+    const role = getEnemy(id).role;
+    return role === 'elite' || role === 'boss';
+  });
+  const out: EffectBinding[] = [];
+  for (const inst of state.backpack) {
+    const def = findConsumable(inst.itemId);
+    if (!def) continue;
+    const condition = inst.condition ?? def.defaultCondition;
+    if (condition === 'vsElite' && !vsElitePresent) continue;
+    out.push({
+      source: def.name,
+      trigger: conditionTrigger(condition),
+      ops: def.ops,
+      oneShotId: inst.uid,
+    });
+  }
+  return out;
+}
+
+/**
+ * A duel between two hero builds (Echoes/Skirmishes, Phase 3): attacker vs foe, both
+ * driven by the same sim. `foeBonusPct` is the Echo's staleness-scaled aggression
+ * bonus (BALANCE §6), applied as a fight-start damage buff on the foe.
+ */
+export function buildDuelSpec(
+  attacker: HeroBuild,
+  foe: HeroBuild,
+  foeBonusPct = 0,
+): CombatSpec {
+  const hero = buildHeroSpec(attacker);
+  const foeSpec = buildHeroSpec(foe);
+  foeSpec.id = 'e0';
+  foeSpec.name = getClass(foe.classId).name;
+  if (foeBonusPct > 0) {
+    foeSpec.effects = [
+      ...foeSpec.effects,
+      { source: 'Echo', trigger: { kind: 'OnFightStart' }, ops: [{ op: 'buffDamagePct', pct: foeBonusPct }] },
+    ];
+  }
+  return { hero, enemies: [foeSpec], doomfallStartTicks: DOOMFALL_START_TICKS };
+}
+
 /** Build the full `CombatSpec` for a pending fight (hero + scaled enemies + Doomfall). */
 export function buildCombatSpec(state: RunState, enemyIds: string[]): CombatSpec {
   const haste = state.vows.includes('vow_of_haste');
+  const hero = buildHeroSpec(state);
+  // Consumables fire after equipment/synergy effects, in backpack order — unless the
+  // Vow of Silence forbids them (CONTENT §6).
+  if (!state.vows.includes('vow_of_silence')) {
+    hero.effects = [...hero.effects, ...consumableBindings(state, enemyIds)];
+  }
   return {
-    hero: buildHeroSpec(state),
+    hero,
     enemies: buildEnemySpecs(enemyIds, state.floor),
     doomfallStartTicks: haste ? DOOMFALL_START_TICKS_HASTE : DOOMFALL_START_TICKS,
   };

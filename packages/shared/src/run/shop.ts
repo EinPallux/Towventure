@@ -5,7 +5,7 @@
  * item slots. "Shop minimal" for Phase 1 — no War Chest, no free-reroll tokens yet.
  */
 
-import { CONSUMABLES, MATERIALS, findItem, getItem } from '../content/registry.js';
+import { CONSUMABLES, ITEMS, MATERIALS, findItem, getItem } from '../content/registry.js';
 import {
   RARITY_POWER,
   REQUESTED_COPY_ESCALATE_DEN,
@@ -73,12 +73,13 @@ export function generateShop(
   const floor = state.floor;
   const slots: ShopSlot[] = [];
 
-  // 5 random item slots + pity.
+  // Item slots + pity. The Vow of Hunger stocks one fewer (CONTENT §6).
+  const itemSlots = state.vows.includes('vow_of_hunger') ? 4 : 5;
   const rarities: Rarity[] = [];
-  for (let i = 0; i < 5; i++) rarities.push(rollRarity(floor, rng));
+  for (let i = 0; i < itemSlots; i++) rarities.push(rollRarity(floor, rng));
   let sinceEpic = state.shopSlotsSinceEpic;
-  if (!rarities.some(isEpicPlus) && sinceEpic + 5 >= SHOP_PITY_SLOTS) {
-    rarities[rng.nextInt(5)] = 'epic'; // pity-force an Epic (BALANCE §5)
+  if (!rarities.some(isEpicPlus) && sinceEpic + itemSlots >= SHOP_PITY_SLOTS) {
+    rarities[rng.nextInt(itemSlots)] = 'epic'; // pity-force an Epic (BALANCE §5)
   }
   for (const rarity of rarities) {
     const itemId = pickItemOfRarity(rarity, rng);
@@ -92,7 +93,7 @@ export function generateShop(
       sold: false,
     });
   }
-  sinceEpic = slots.some((s) => isEpicPlus(getItem(s.refId).rarity)) ? 0 : sinceEpic + 5;
+  sinceEpic = slots.some((s) => isEpicPlus(getItem(s.refId).rarity)) ? 0 : sinceEpic + itemSlots;
 
   // Requested Copy slot (the fusion-targeting valve).
   const owned = requestableOwned(state);
@@ -139,6 +140,13 @@ export function generateShop(
     price: itemPrice(cons.rarity, floor),
     sold: false,
   });
+
+  // ~1 in 6 shops offers a Satchel (backpack expansion, GDD §3.4).
+  const satchels = ITEMS.filter((i) => i.kind === 'satchel');
+  if (satchels.length > 0 && rng.chance(16)) {
+    const sat = rng.pick(satchels);
+    slots.push({ kind: 'item', refId: sat.id, star: 1, price: itemPrice(sat.rarity, floor), sold: false });
+  }
 
   return {
     shop: { slots, rerollCount: 0, rerollPrice: SHOP_REROLL_BASE },

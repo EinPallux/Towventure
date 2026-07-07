@@ -1,3 +1,4 @@
+import { findEvent } from '@towventure/shared/content';
 import { useStore } from '../store.js';
 import { HeroPanel } from './HeroPanel.js';
 import { describeItem } from './itemText.js';
@@ -14,15 +15,75 @@ function Doors() {
           className={`card door ${door.kind}`}
           onClick={() => !busy && void cmd({ type: 'chooseDoor', doorIndex: i })}
         >
-          <div className="kind">{door.kind}</div>
+          <div className="kind">{door.kind === 'echo' ? 'echo' : door.kind}</div>
           <div className="title" style={{ fontSize: 18 }}>
-            {door.kind === 'boss' ? '☗ ' : door.kind === 'elite' ? '✦ ' : ''}
+            {door.kind === 'boss'
+              ? '☗ '
+              : door.kind === 'elite'
+                ? '✦ '
+                : door.kind === 'event'
+                  ? '❖ '
+                  : door.kind === 'echo'
+                    ? '❂ '
+                    : ''}
             {door.preview}
           </div>
+          {door.kind === 'echo' && door.echo && (
+            <div className="muted" style={{ fontSize: 12, fontStyle: 'italic' }}>
+              {door.echo.classId} · fell {door.echo.ageDays === 0 ? 'today' : `${door.echo.ageDays}d ago`}
+              {door.echo.bonusPct > 0 ? ` · +${door.echo.bonusPct}% fury` : ''}
+            </div>
+          )}
           <div className="muted grow" />
           <div className="muted">Floor {run.floor}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function GraveCopy() {
+  const run = useStore((s) => s.run)!;
+  const busy = useStore((s) => s.busy);
+  const cmd = useStore((s) => s.cmd);
+  const reward = useStore((s) => s.lastEchoReward);
+  const opts = run.pendingGraveCopy ?? [];
+  return (
+    <div className="card col" style={{ margin: 12 }}>
+      <div className="row spread">
+        <div className="title">❂ Grave-Copy</div>
+        <div className="muted">
+          {reward ? `the Echo falls · +${reward.bounty} Honor · ◈${reward.marks}` : 'the Echo falls'}
+        </div>
+      </div>
+      <div className="muted" style={{ fontStyle: 'italic' }}>
+        Take one piece of the fallen build — a ★1 copy. The dead lose nothing.
+      </div>
+      <div className="col" style={{ gap: 8, marginTop: 8 }}>
+        {opts.map((itemId, i) => {
+          const info = describeItem(itemId, 1);
+          return (
+            <button
+              key={i}
+              className="ghost"
+              style={{ textAlign: 'left' }}
+              disabled={busy}
+              onClick={() => void cmd({ type: 'chooseGraveCopy', index: i })}
+            >
+              <span className={`r-${info.rarity} item-name`}>{info.name}</span>{' '}
+              <span className="muted">— {info.lines[0] ?? info.flavor}</span>
+            </button>
+          );
+        })}
+        <button
+          className="small ghost"
+          disabled={busy}
+          onClick={() => void cmd({ type: 'proceed' })}
+          title="Claim nothing and climb on"
+        >
+          Leave them all ↑
+        </button>
+      </div>
     </div>
   );
 }
@@ -32,6 +93,7 @@ function Reward() {
   const busy = useStore((s) => s.busy);
   const cmd = useStore((s) => s.cmd);
   const loot = run.pendingItem ? describeItem(run.pendingItem, 1) : null;
+  if (run.pendingGraveCopy) return <GraveCopy />;
   return (
     <div className="card col" style={{ margin: 12 }}>
       <div className="row spread">
@@ -137,6 +199,38 @@ function Shop() {
   );
 }
 
+function Event() {
+  const run = useStore((s) => s.run)!;
+  const busy = useStore((s) => s.busy);
+  const cmd = useStore((s) => s.cmd);
+  const ev = run.pendingEvent ? findEvent(run.pendingEvent) : null;
+  if (!ev) return null;
+  return (
+    <div className="card col" style={{ margin: 12 }}>
+      <div className="row spread">
+        <div className="title">{ev.name}</div>
+        <div className="muted">Floor {run.floor}</div>
+      </div>
+      <div className="muted" style={{ fontStyle: 'italic' }}>
+        {ev.flavor}
+      </div>
+      <div className="col" style={{ gap: 8, marginTop: 8 }}>
+        {ev.options.map((opt, i) => (
+          <button
+            key={i}
+            className={i === 0 ? 'primary' : 'ghost'}
+            style={{ textAlign: 'left' }}
+            disabled={busy}
+            onClick={() => void cmd({ type: 'resolveEvent', optionIndex: i })}
+          >
+            <strong>{opt.label}</strong> <span className="muted">— {opt.blurb}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RunScreen() {
   const phase = useStore((s) => s.run?.phase);
   return (
@@ -144,6 +238,7 @@ export function RunScreen() {
       {phase === 'doors' && <Doors />}
       {phase === 'reward' && <Reward />}
       {phase === 'shop' && <Shop />}
+      {phase === 'event' && <Event />}
       <HeroPanel />
     </div>
   );

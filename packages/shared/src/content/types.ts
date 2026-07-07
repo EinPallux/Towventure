@@ -14,7 +14,7 @@ export type Tag = 'blade' | 'bulwark' | 'arcane' | 'ember' | 'venom' | 'frost' |
 /** Equip slots (GDD §3.4): 8 total — weapon×2 (or one 2-hand), helm, armor, boots, trinket×2, relic. */
 export type EquipSlot = 'weapon' | 'helm' | 'armor' | 'boots' | 'trinket' | 'relic';
 
-export type ItemKind = EquipSlot | 'weapon2h' | 'consumable' | 'material';
+export type ItemKind = EquipSlot | 'weapon2h' | 'consumable' | 'material' | 'satchel';
 
 /** Hero stat keys that item modifiers can touch. */
 export type StatKey =
@@ -64,6 +64,8 @@ export interface ItemDef {
   cooldownSeconds?: number;
   /** Weapons: explicit ★1 per-hit damage; if omitted, derived from rarity×cooldown. */
   weaponDamage?: number;
+  /** Weapons: strikes per swing (default 1), each a full hit (Choir of Nails). */
+  hitsPerSwing?: number;
   twoHanded?: boolean;
   /** Start-of-fight Ward as % of max HP (e.g. Aegis). */
   startWardPct?: number;
@@ -75,15 +77,30 @@ export interface ItemDef {
   relicOf?: ClassId;
   /** Run-level economy: bonus gold per fight won (e.g. Tax-Stamp of the Gate). Scales with ★. */
   goldPerWin?: number;
+  /** Satchels only: permanent backpack-size increase when acquired (GDD §3.4, capped at 20). */
+  backpackBonus?: number;
 }
+
+/**
+ * When an auto-trigger consumable fires (CONTENT §3.4, "player sets condition").
+ * Maps to a sim trigger (or a fight-eligibility gate for `vsElite`) in run/build.
+ */
+export type ConsumableCondition =
+  | 'fightStart'
+  | 'hpBelow70'
+  | 'hpBelow40'
+  | 'doomfall'
+  | 'vsElite';
 
 export interface ConsumableDef {
   id: string;
   name: string;
   rarity: Rarity;
   flavor: string;
-  /** Effect applied when the consumable auto-triggers (combat wiring is Phase 2). */
+  /** Effect applied when the consumable auto-triggers. */
   ops: EffectOp[];
+  /** Condition it fires on until the player picks another (CONTENT §3.4). */
+  defaultCondition: ConsumableCondition;
 }
 
 export interface MaterialDef {
@@ -145,6 +162,33 @@ export interface ClassDef {
   startConsumableIds: string[];
   /** Honor tier at which this class unlocks (0 = from the start). */
   unlockTier: number;
+}
+
+/** A run modifier (CONTENT §6). Grants +15% Honor; the penalty is enforced in run code. */
+export interface VowDef {
+  id: string;
+  name: string;
+  flavor: string;
+  penalty: string;
+}
+
+/** One choice at an event door; its index maps to a handler in run/events. */
+export interface EventOption {
+  label: string;
+  /** Short outcome description for the UI. */
+  blurb: string;
+}
+
+/**
+ * An event (door type, CONTENT §5). Display metadata is authored here; the bespoke
+ * state changes per option live in run/events (they touch run state in ways too
+ * varied to model declaratively).
+ */
+export interface EventDef {
+  id: string;
+  name: string;
+  flavor: string;
+  options: EventOption[];
 }
 
 export interface BiomeDef {

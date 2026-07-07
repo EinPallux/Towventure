@@ -3,7 +3,7 @@
  * Cookies carry the session, so every call is `credentials: 'include'`.
  */
 
-import type { Command, RunState, RunSummary } from '@towventure/shared/run';
+import type { CodexProgress, Command, HeroBuild, RunState, RunSummary } from '@towventure/shared/run';
 
 export type ClassChoice = 'vanguard' | 'duelist' | 'arcanist';
 
@@ -34,12 +34,32 @@ export interface Account {
   name: string;
   isGuest: boolean;
 }
+export interface OwnEcho {
+  floor: number;
+  kills: number;
+  defeats: number;
+  expired: boolean;
+}
 export interface MeResponse {
   account: Account;
   season: number;
   honor: number;
+  marks: number;
+  /** Lifetime Honor — earned across all seasons, never resets (GDD §11). */
+  lifetime: number;
   tier: string;
+  /** 0-based Honor tier rank; gates class/Vow unlocks (GDD §7). */
+  tierRank: number;
+  /** The account's own Echo standing in the tower, if any (GDD §8). */
+  echo: OwnEcho | null;
   activeRunFloor: number | null;
+}
+export interface InboxEntry {
+  id: string;
+  kind: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
 }
 export interface RunResponse {
   runId: string;
@@ -60,21 +80,62 @@ export interface FightResponse {
   state: RunState;
   stateVersion: number;
   summary: RunSummary | null;
+  /** Present when this fight killed an Echo — the Honor bounty + Marks paid (GDD §8). */
+  echoReward: { bounty: number; marks: number } | null;
 }
+export type LadderBoard = 'global' | 'weekly' | 'echo-kills' | 'unnumbered' | 'gauntlet';
+export type LadderMetric = 'honor' | 'floor' | 'kills';
 export interface LadderRow {
   rank: number;
   name: string;
-  honor: number;
-  tier: string;
+  value: number;
+  tier: string | null;
   isSelf: boolean;
 }
 export interface LadderPage {
+  board: string;
+  metric: LadderMetric;
   season: number;
   page: number;
   pageSize: number;
   total: number;
   rows: LadderRow[];
   self: LadderRow | null;
+}
+
+export interface Rival {
+  accountId: string;
+  name: string;
+  class: string;
+  floor: number;
+  honor: number;
+  band: 'below' | 'even' | 'above';
+}
+export interface SkirmishBoard {
+  board: Rival[];
+  tickets: { used: number; cap: number; remaining: number };
+  keys: number;
+  keysForVault: number;
+  defense: { class: string; floor: number; honor: number } | null;
+}
+export interface DuelSide {
+  name: string;
+  class: string;
+  floor: number;
+  build: HeroBuild;
+}
+export interface SkirmishResult {
+  seed: number;
+  result: FightResult;
+  attacker: DuelSide;
+  defender: DuelSide;
+  outcome: {
+    attackerWon: boolean;
+    honorDelta: number;
+    keyAwarded: boolean;
+    defenderReward: { honor: number; marks: number } | null;
+  };
+  keys: number;
 }
 
 export const api = {
@@ -85,6 +146,7 @@ export const api = {
   guest: () => req<{ account: Account }>('POST', '/api/auth/guest', {}),
   logout: () => req<{ ok: true }>('POST', '/api/auth/logout'),
   me: () => req<MeResponse>('GET', '/api/me'),
+  codex: () => req<{ codex: CodexProgress }>('GET', '/api/me/codex'),
 
   startRun: (classId: ClassChoice, vows: string[]) =>
     req<RunResponse>('POST', '/api/run/start', { classId, vows }),
@@ -97,5 +159,79 @@ export const api = {
   fight: (expectedStateVersion: number) =>
     req<FightResponse>('POST', '/api/run/fight/start', { expectedStateVersion }),
 
-  ladder: (page = 0) => req<LadderPage>('GET', `/api/ladders/global?page=${page}`),
+  ladder: (board: LadderBoard = 'global', page = 0) =>
+    req<LadderPage>('GET', `/api/ladders/${board}?page=${page}`),
+  gauntlet: () => req<GauntletInfo>('GET', '/api/gauntlet'),
+  gauntletStart: () => req<RunResponse>('POST', '/api/gauntlet/start', {}),
+
+  skirmish: () => req<SkirmishBoard>('GET', '/api/skirmish'),
+  attack: (defenderId: string) =>
+    req<SkirmishResult>('POST', '/api/skirmish/attack', { defenderId }),
+
+  merchant: () => req<MerchantData>('GET', '/api/merchant'),
+  buy: (itemId: string) =>
+    req<{ bought: unknown; marks: number; keys: number }>('POST', '/api/merchant/buy', { itemId }),
+
+  friends: () => req<FriendsData>('GET', '/api/friends'),
+  requestFriend: (name: string) =>
+    req<{ status: string }>('POST', '/api/friends/request', { name }),
+  acceptFriend: (requesterId: string) =>
+    req<{ ok: true }>('POST', '/api/friends/accept', { requesterId }),
+  feed: () => req<{ feed: FeedItem[] }>('GET', '/api/feed'),
+  inbox: () => req<{ inbox: InboxEntry[]; unread: number }>('GET', '/api/me/inbox'),
+  inboxRead: () => req<{ ok: true }>('POST', '/api/me/inbox/read'),
+  season: () => req<SeasonInfo>('GET', '/api/season'),
 };
+
+export interface SeasonInfo {
+  season: { number: number; startsAt: string; endsAt: string; status: string };
+  honor?: number;
+  lifetime?: number;
+  nextPlacement?: number;
+}
+
+export interface FriendSummary {
+  id: string;
+  name: string;
+  tier: string;
+  honor: number;
+}
+export interface FriendsData {
+  friends: FriendSummary[];
+  incoming: { id: string; name: string }[];
+  outgoing: { id: string; name: string }[];
+}
+export interface FeedItem {
+  name: string;
+  kind: string;
+  body: string;
+  at: string;
+}
+
+export interface MerchantEntry {
+  id: string;
+  name: string;
+  kind: 'boon' | 'trail' | 'aura' | 'banner' | 'title';
+  price: number;
+  vault?: boolean;
+  boon?: string;
+  flavor: string;
+  owned: boolean;
+  armed: boolean;
+  affordable: boolean;
+}
+export interface MerchantData {
+  items: MerchantEntry[];
+  marks: number;
+  keys: number;
+  keysForVault: number;
+  armedBoon: string | null;
+}
+export interface GauntletInfo {
+  day: number;
+  seed: number;
+  classId: string;
+  className: string;
+  entered: boolean;
+  board: LadderPage;
+}

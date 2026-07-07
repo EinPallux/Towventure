@@ -1,9 +1,13 @@
 import { useStore } from './store.js';
+import { Codex } from './ui/Codex.js';
 import { Death } from './ui/Death.js';
 import { Fight } from './ui/Fight.js';
 import { Gate } from './ui/Gate.js';
 import { Ladder } from './ui/Ladder.js';
+import { Merchant } from './ui/Merchant.js';
 import { RunScreen } from './ui/RunScreen.js';
+import { Skirmish } from './ui/Skirmish.js';
+import { Social } from './ui/Social.js';
 import { TopBar } from './ui/TopBar.js';
 
 function ErrorToast() {
@@ -13,6 +17,21 @@ function ErrorToast() {
   return (
     <div className="toast" onClick={clear} role="alert">
       {error}
+    </div>
+  );
+}
+
+function LiveToasts() {
+  const toasts = useStore((s) => s.toasts);
+  const dismiss = useStore((s) => s.dismissToast);
+  if (toasts.length === 0) return null;
+  return (
+    <div className="live-toasts">
+      {toasts.map((t) => (
+        <div key={t.id} className="toast live" onClick={() => dismiss(t.id)} role="status">
+          ❂ {t.body}
+        </div>
+      ))}
     </div>
   );
 }
@@ -28,6 +47,14 @@ export function App() {
     body = <Gate />;
   } else if (view === 'ladder') {
     body = <Ladder />;
+  } else if (view === 'codex') {
+    body = <Codex />;
+  } else if (view === 'skirmish') {
+    body = <Skirmish />;
+  } else if (view === 'merchant') {
+    body = <Merchant />;
+  } else if (view === 'social') {
+    body = <Social />;
   } else if (playback) {
     body = <Fight />;
   } else if (run && run.status === 'dead') {
@@ -45,6 +72,7 @@ export function App() {
         {body}
       </div>
       <ErrorToast />
+      <LiveToasts />
     </div>
   );
 }

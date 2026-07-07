@@ -7,12 +7,58 @@
  */
 
 import { MAX_STAR, SELL_PCT, scaleToStar } from '../content/constants.js';
-import { equipSlotForKind, findItem, getConsumable, getItem } from '../content/registry.js';
+import {
+  equipSlotForKind,
+  findItem,
+  findMaterial,
+  getConsumable,
+  getItem,
+  socketsFor,
+} from '../content/registry.js';
 import type { Rarity } from '../content/types.js';
+import { recordCodexItem } from './codex.js';
 import { itemPrice } from './shop.js';
 import type { EquipSlotId, InventoryItem, RunState } from './types.js';
 
+const EQUIP_SLOTS: EquipSlotId[] = [
+  'weapon1',
+  'weapon2',
+  'helm',
+  'armor',
+  'boots',
+  'trinket1',
+  'trinket2',
+  'relic',
+];
+
+/** An item instance by uid, whether it sits in the backpack or an equip slot. */
+function findInstance(draft: RunState, uid: string): InventoryItem | undefined {
+  const b = draft.backpack.find((i) => i.uid === uid);
+  if (b) return b;
+  for (const slot of EQUIP_SLOTS) {
+    const e = draft.equipment[slot];
+    if (e && e.uid === uid) return e;
+  }
+  return undefined;
+}
+
 const MATERIAL_SELL_BASE = 40;
+
+/** Backpack size ceiling — satchels expand toward it (GDD §3.4). */
+export const MAX_BACKPACK = 20;
+
+/** Is this id a satchel (a backpack-size upgrade, consumed on pickup, not stored)? */
+export function isSatchel(itemId: string): boolean {
+  return findItem(itemId)?.kind === 'satchel';
+}
+
+/** Apply a satchel's backpack-size bonus (capped). Returns true if it was a satchel. */
+export function applySatchel(draft: RunState, itemId: string): boolean {
+  const def = findItem(itemId);
+  if (!def || def.kind !== 'satchel') return false;
+  draft.backpackSize = Math.min(MAX_BACKPACK, draft.backpackSize + (def.backpackBonus ?? 0));
+  return true;
+}
 
 function backpackIndex(draft: RunState, uid: string): number {
   return draft.backpack.findIndex((i) => i.uid === uid);
@@ -48,6 +94,7 @@ export function pushBackpack(draft: RunState, itemId: string, star = 1): Invento
   const inst: InventoryItem = { uid: `i${draft.nextUid}`, itemId, star };
   draft.nextUid += 1;
   draft.backpack.push(inst);
+  recordCodexItem(draft.codex, itemId, star); // discovery: acquiring an item logs it
   return inst;
 }
 
@@ -155,6 +202,52 @@ export function fuse(draft: RunState, uid1: string, uid2: string): string | null
   const lo = Math.min(i1, i2);
   draft.backpack.splice(hi, 1);
   draft.backpack.splice(lo, 1);
-  pushBackpack(draft, a.itemId, a.star + 1);
+  const fused = pushBackpack(draft, a.itemId, a.star + 1);
+  // The better socket set survives the fuse (GDD §4.2): keep whichever has more
+  // infusions (ties keep the first-picked copy's).
+  const better = (b.sockets?.length ?? 0) > (a.sockets?.length ?? 0) ? b.sockets : a.sockets;
+  if (better && better.length > 0) fused.sockets = [...better];
+  return null;
+}
+
+/**
+ * Infuse a material into one of an item's sockets (GDD §4.2). The item can be in
+ * the backpack or equipped; the material is consumed from the backpack. Append to
+ * the next free socket by default, or overwrite an existing one (`socketIndex`),
+ * which permanently destroys the infusion it replaces. Sockets by rarity:
+ * Common 0 · Uncommon 1 · Rare 2 · Epic/Mythic 3.
+ */
+export function infuse(
+  draft: RunState,
+  itemUid: string,
+  materialUid: string,
+  socketIndex?: number,
+): string | null {
+  if (itemUid === materialUid) return 'pick an item and a material';
+  const item = findInstance(draft, itemUid);
+  if (!item) return 'that item is not in your inventory';
+  const def = findItem(item.itemId);
+  if (!def) return 'only equipment can be infused';
+  const capacity = socketsFor(def.rarity);
+  if (capacity === 0) return `${def.name} has no infusion sockets`;
+
+  const matIdx = backpackIndex(draft, materialUid);
+  if (matIdx < 0) return 'the material must be in your backpack';
+  const mat = draft.backpack[matIdx]!;
+  if (!findMaterial(mat.itemId)) return 'that is not a material';
+
+  const sockets = item.sockets ?? [];
+  const next = [...sockets];
+  if (socketIndex !== undefined) {
+    if (socketIndex < 0 || socketIndex >= sockets.length) {
+      return 'no such socket to overwrite';
+    }
+    next[socketIndex] = mat.itemId; // the old infusion is destroyed
+  } else {
+    if (sockets.length >= capacity) return 'all sockets are full — overwrite one instead';
+    next.push(mat.itemId);
+  }
+  item.sockets = next;
+  draft.backpack.splice(matIdx, 1); // the material is consumed
   return null;
 }

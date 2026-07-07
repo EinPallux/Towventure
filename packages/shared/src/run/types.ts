@@ -5,13 +5,17 @@
  * Everything here is integer/enumerable — no floats, no wall-clock (AGENTS §3.1).
  */
 
-import type { ClassId } from '../content/types.js';
+import type { ClassId, ConsumableCondition } from '../content/types.js';
 
 /** An item instance in a run: a content id + fusion tier + a run-unique id. */
 export interface InventoryItem {
   uid: string;
   itemId: string;
   star: number;
+  /** Consumables only: the auto-fire condition (defaults to the def's, player-settable). */
+  condition?: ConsumableCondition;
+  /** Infused material ids, one per filled socket (≤ socketsFor(rarity); GDD §4.2). */
+  sockets?: string[];
 }
 
 /** The 8 equip slots (GDD §3.4). A 2-hand weapon lives in `weapon1`; `weapon2` is then blocked. */
@@ -28,20 +32,60 @@ export interface EquipState {
 
 export type EquipSlotId = keyof EquipState;
 
-export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss';
+/**
+ * The minimal slice of a run that determines a hero's combat spec — everything
+ * `buildHeroSpec` reads. A death Echo or a Skirmish defense is a snapshot of exactly
+ * this (Phase 3), so the same builder produces the fighting spec on both sides.
+ */
+export interface HeroBuild {
+  classId: ClassId;
+  floorsCleared: number;
+  equipment: EquipState;
+  vows: string[];
+}
+
+export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss' | 'event' | 'echo';
+
+/**
+ * A dead player's Echo, placed into a live run (GDD §8). Carries the full build
+ * snapshot so both server and client build the identical duel spec (the fight is
+ * `buildDuelSpec(snapshotOf(hero), echo.build, echo.bonusPct)`), plus the display
+ * metadata for the door/duel card. `echoId` is the server row this challenge scores.
+ */
+export interface EchoRef {
+  echoId: string;
+  ownerName: string;
+  tier: string;
+  classId: ClassId;
+  /** The floor the owner died on (the Echo's home floor). */
+  floor: number;
+  /** Whole days since the owner died — drives the staleness-decayed AI bonus. */
+  ageDays: number;
+  /** Owner's season Honor at death — scores the bounty's punch-up bonus. */
+  ownerHonor: number;
+  /** Fight-start damage buff modelling the Echo's aggression (BALANCE §6). */
+  bonusPct: number;
+  build: HeroBuild;
+}
 
 export interface DoorOffer {
   kind: DoorKind;
   enemyIds: string[];
+  /** Event doors carry the event id (kind === 'event'). */
+  eventId?: string;
+  /** Echo doors carry the dead player's build + display metadata (kind === 'echo'). */
+  echo?: EchoRef;
   /** Honest-but-partial preview string (GDD §3.2). */
   preview: string;
 }
 
-export type FightKind = 'battle' | 'elite' | 'boss';
+export type FightKind = 'battle' | 'elite' | 'boss' | 'echo';
 
 export interface PendingFight {
   kind: FightKind;
   enemyIds: string[];
+  /** Echo fights (kind === 'echo') duel this dead player's build instead of enemies. */
+  echo?: EchoRef;
 }
 
 export type ShopSlotKind = 'item' | 'material' | 'consumable' | 'requestedCopy';
@@ -64,9 +108,17 @@ export interface DeathInfo {
   floor: number;
   killerEnemyId: string;
   endTick: number;
+  /** When killed by an Echo (killerEnemyId === 'echo'), the dead player's name. */
+  echoOwnerName?: string;
 }
 
-export type RunPhase = 'doors' | 'fight' | 'reward' | 'shop' | 'ended';
+/** Codex discovery progress (CONTENT §7): items by highest ★ seen, enemies by kills. */
+export interface CodexProgress {
+  items: Record<string, number>;
+  enemies: Record<string, number>;
+}
+
+export type RunPhase = 'doors' | 'fight' | 'reward' | 'shop' | 'event' | 'ended';
 
 export type RunStatus = 'active' | 'dead' | 'abandoned';
 
@@ -85,10 +137,16 @@ export interface RunState {
   backpackSize: number;
   doors: DoorOffer[] | null;
   pendingFight: PendingFight | null;
+  /** Event id awaiting a resolveEvent choice (phase === 'event'). */
+  pendingEvent: string | null;
   /** Monotonic fight index; derives fight + loot seeds so resume stays deterministic. */
   fightCounter: number;
   /** Item id of the drop awaiting a takeLoot decision (gold is auto-credited). */
   pendingItem: string | null;
+  /** Grave-Copy candidates (up to 3 itemIds) awaiting a chooseGraveCopy pick after an Echo kill (GDD §8). */
+  pendingGraveCopy: string[] | null;
+  /** Server-managed: floor of the last Echo door offered (anti-clustering; reducers ignore it). */
+  lastEchoFloor?: number;
   /** Gold credited by the most recent fight (for the reward screen). */
   lastGold: number;
   shop: ShopState | null;
@@ -102,6 +160,8 @@ export interface RunState {
   /** Requested-copy escalation counter. */
   requestsThisRun: number;
   deathInfo: DeathInfo | null;
+  /** Codex discovery accrued this run (CONTENT §7). */
+  codex: CodexProgress;
 }
 
 // ─── Commands (the one gameplay mutation surface; validated by protocol zod) ──
@@ -112,10 +172,14 @@ export type Command =
   | { type: 'equip'; uid: string; slot?: EquipSlotId }
   | { type: 'unequip'; slot: EquipSlotId }
   | { type: 'fuse'; uid1: string; uid2: string }
+  | { type: 'infuse'; itemUid: string; materialUid: string; socketIndex?: number }
   | { type: 'sell'; uid: string }
+  | { type: 'setConsumableCondition'; uid: string; condition: ConsumableCondition }
   | { type: 'buy'; slotIndex: number }
   | { type: 'reroll' }
   | { type: 'leaveShop' }
+  | { type: 'resolveEvent'; optionIndex: number }
+  | { type: 'chooseGraveCopy'; index: number }
   | { type: 'proceed' }
   | { type: 'abandonRun' };
 

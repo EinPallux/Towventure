@@ -67,7 +67,7 @@ Design constraint: **no tag's (6) may be strictly mandatory** for its archetype 
 
 Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may reference one status or one trigger interaction; Epics may cross two systems (e.g., gold + combat); Mythics may bend a rule of the game (and there are only 7 of them). **Every item gets:** a unique procedural model recipe, a signature VFX, one line of flavor, and a Zenith transformation (name + visual). Anchor set below; remaining items are authored here in Phase 2 under the same table format before any code.
 
-*Implementation status (Phase 2):* ★1 and Awakened (★3) lines are live for the anchor set. **Zenith (★5) transforms** are now activatable in code (gated at `minStar: 5`); the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) is the first one wired, via the `detonateStatus` op. Zenith/Awakened lines whose text needs ops not yet in the vocabulary (weapon-echo/chain, per-Armor damage, Burn-spread, stack-threshold triggers like Solarlash's "at 10+ Burn") are noted deferred in `content/items.ts` and light up as those ops land.
+*Implementation status (Phase 2):* the launch **quotas are met in code** (`content/items.ts`): 30 weapons, 14 helm, 14 armor, 14 boots, 32 trinkets, 3 satchels, 3 class relics (a `has no empty effect lines` + per-slot count test guards it). ★1 and Awakened (★3) lines are live; **Zenith (★5) transforms** activate at `minStar: 5` — the Sawtooth Dirk's **Redline** (`[OnCrit]` → detonate Bleed 150%) and the Kindlewhip's **Solarlash** (10+ Burn → detonate Burn 200% AoE) are the wired examples. The named anchors are transcribed, including the ones freed by later ops — Choir of Nails (3×-multi-hit), Lantern-Hook (next-hit Burn), Stormcaller/Stormcell (chain), Heartpiercer (Bleed-detonate), the Pyre Idol (Burn-damage buff). Satchels are a distinct pickup that grows the backpack toward 20 (shop-stocked ~1/6, applied on take, never stored). Lines whose *identity* still needs an unbuilt mechanic — per-Armor damage, weapon-echo/chain-of-crits, Burn-spread, the death-rewind (Cracked Hourglass), run-permanent stacking (Butcher's Ledger, Glutton's Fork), and the Echo/Skirmish trinkets (Pale Candle, The Wrong Key, Cartographer's Regret) — ship with a faithful stand-in effect and a deferred note. **Adding an expressible item stays a pure content edit** — an entry in `items.ts` (and its row here), no engine change (ROADMAP Phase 2 criterion).
 
 ### 3.1 Weapons (anchor set)
 
@@ -94,7 +94,10 @@ Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may ref
 | Item | Effect | ★5 Zenith |
 |---|---|---|
 | **Dented Pot-Helm** (C, Bulwark, helm) | +14 HP. `[Awakened]` +6 Armor. | **The Unbowed** — first stun each fight is ignored |
+| **Rawhide Hood** (C, Shadow, helm) | +4% Dodge. `[Awakened]` +6 HP. | **Hunter's Patience** — `[OnDodge]` → +2% Crit this fight (stacks) |
 | **Quickstep Boots** (C, Shadow, boots) | +5% Speed. `[Awakened]` +4% Dodge. | **Rumor** — `[OnDodge]` → +8% Speed 3s |
+| **Ironshod Sabatons** (C, Bulwark, boots) | +4 Armor. `[Awakened]` +3 Armor. | **Standfast** — `[OnBlock]` → +1 Armor this fight (stacks) |
+| **Boiled Leather Vest** (C, Wild, armor) | +12 HP. `[Awakened]` +6 HP. | **Second Skin** — heal 4% Max HP on kill |
 | **Hearthplate** (U, Ember/Bulwark, armor) | +20 HP; attackers take 2 Burn `[OnHurt]` (melee flavor: any hit). `[Awakened]` +15% Burn damage. | **The Standing Fire** — while above 8 Armor, your Burn ticks 20% faster |
 | **Verdigris Scale** (R, Venom/Bulwark, armor) | +8 Armor. `[OnHurt]` → 30% apply 1 Venom to attacker. `[Awakened]` your Armor counts +25% vs Venomed enemies. | **Molt** — `[OnHpBelow 50%]` → shed: cleanse all statuses on you, gain 15 Armor (once) |
 | **Owl-Eyed Sallet** (R, Arcane, helm) | Your `Every(Xs)` effects run 12% faster. `[Awakened]` `[OnFightStart]` → trigger your slowest `Every` effect immediately. | **Midnight Faculty** — +1 charge: your fastest `Every` effect fires twice each cycle |
@@ -121,6 +124,8 @@ Budget rules: Commons have exactly 1 effect line (+1 at Awakened); Rares may ref
 
 Small Ale (heal 25%), Adrenal Vial (+25% Speed 6s), Cinder Phial (6 Burn to all), Frostjar (4 Chill to all), Leadbelly Draught (+20 Armor 8s), Blackout Bomb (enemies miss 2s), Bottled Yesterday (cleanse self), Honey of the Gardens (12 Regen), Powder of Sundering (8 Sunder to target), Vial of the Widow (5 Venom to target), Doomglass (start Doomfall 10s early — *for slow-proof builds that want it*), Wick-Oil (your next 5 hits apply 2 Burn), The Modest Fanfare (+15% damage 10s). Conditions selectable: fight start / HP<70% / HP<40% / Doomfall / vs Elite+.
 
+*Implementation status (Phase 2):* auto-trigger is **live** for the 5 anchor consumables (`content/consumables.ts`). Each held consumable compiles into a one-shot hero effect for the fight whose condition maps to a sim trigger (`fightStart`/`vsElite`→OnFightStart, `hpBelow70`/`hpBelow40`→OnHpBelow, `doomfall`→OnDoomfall); `vsElite` only compiles when the roster has an elite/boss. The sim reports which one-shots fired and the run layer spends exactly those (an un-triggered emergency heal is kept). Players retarget the condition via the `setConsumableCondition` command (backpack selector in the client). Authored defaults: Small Ale = HP<40%, Honey = HP<70%, Leadbelly = vs Elite+, Cinder Phial & Adrenal Vial = fight start. The remaining 8 consumables (Frostjar, Blackout Bomb, etc.) author here before code in a later wave.
+
 ### 3.5 Materials (infusions)
 
 | Material | Socket effect | Drops from |
@@ -135,6 +140,8 @@ Small Ale (heal 25%), Adrenal Vial (+25% Speed 6s), Cinder Phial (6 Burn to all)
 | Quickquill | `Every(Xs)` effects −4% interval | Archive biome |
 | Blood-Amber | +10 Max HP | events |
 | Void-Tallow | effect procs +5% chance (any "% chance" line) | Torment floors only |
+
+*Implementation status (Phase 2):* the **infusion socket system is live** (GDD §4.2). Sockets per item = rarity (Common 0 · Uncommon 1 · Rare 2 · Epic/Mythic 3); the `infuse` command sockets a backpack material into a backpack-or-equipped item (append or overwrite — overwriting destroys the old infusion), the material is consumed, and `run/build` compiles a socketed item's material mods/effects into the hero. **Fusing keeps the better socket set** (the copy with more infusions survives). Functional materials: Whetstone (+6% weapon damage, as a fight-start damage buff), Emberdust, Frostmote, Leadweave, Hollowfang, Glimmergrit, Blood-Amber. Materials are shop-stocked (2 slots/shop). Grave-Salt (needs the Echo/Skirmish system), Quickquill (needs an Every-interval-modifier op) and Void-Tallow (needs a proc-chance modifier) are authored and await their systems. The client backpack shows socket pips (◈ filled / ◇ empty) and offers an Infuse action on a selected material + socketable item.
 
 ---
 
@@ -197,14 +204,50 @@ Rule: **every enemy past floor 10 checks a build axis** (speed, burst, sustain, 
 
 Shrine of the Mended Blade (upgrade a random item's ★, destroy a random material), The Tithe-Collector (pay 30% gold or he *marks* the next 3 fights: enemies +10% but +1 drop), The Quiet Forge (free infusion socket use; 25% the item comes back Weakened −5% for 10 floors), A Door Left Ajar (skip 1 floor; the skipped floor's Echo — if any — moves 1 floor up to wait for you), Cursed Reliquary (take a random Epic; your next boss gains The Apology's Relic-copy), The Beggar Who Knows You (give any item, receive its sell value in Honor — *the only gold→Honor valve, terrible rate, once per run*), Sleepwalker's Bargain (swap your two trinkets' ★ tiers), Fountain of Verdigris (heal 50%; 30% gain 2 Venom permanently until next Sanctum), The Lost Courier (deliver a package 5 floors up for escalating gold; it *ticks*), Gambler's Alcove (double-or-nothing one item's sell value, 3 max), Hall of Small Portraits (see the next 5 floors' door types), The Molting Wall (sacrifice 10% Max HP this run, gain a material choice), An Honest Mirror (reroll your class Relic's numbers ±15%, keep the result), The Last Merchant's Grave (buy from a dead shop at 60% price; 20% each item is cursed: −1 random substat).
 
+*Implementation status (Phase 2):* the **event door type is live** — `generateDoors` turns ~1 in 5 regular floors' battle door into an event (never the only path forward), `chooseDoor` enters the `event` phase, and the `resolveEvent` command applies the chosen option (`content/events.ts` for copy, `run/events.ts` for the bespoke effect). **Ten events are wired:** Shrine of the Mended Blade (upgrade a random item +1★, consume a material), Sleepwalker's Bargain (swap the two trinkets' ★), Gambler's Alcove (stake ¼ gold, double-or-nothing), Cursed Reliquary / An Honest Mirror (take a random Epic → reward screen), The Tithe-Collector (pay ¼ gold for a Rare), The Beggar Who Knows You (give 20 gold for a Common), The Quiet Forge (a material) and The Molting Wall (two materials). Option 0 is "accept", option 1 declines (a no-op that still resolves the floor). The parts still tied to unbuilt systems — the Tithe's "mark", the Beggar's gold→Honor valve, Echoes (A Door Left Ajar), Sanctum (Fountain of Verdigris), the relic-number reroll, the Molting Wall's Max-HP tax — ship with a faithful stand-in effect. The remaining events toward the 20 quota (Lost Courier, Hall of Small Portraits, Last Merchant's Grave) are authored above and land incrementally.
+
 ---
 
 ## 6. Vows (run modifiers; +15% Honor each, pick ≤5; unlock across tiers 1–5)
 
 Vow of Hunger (shops stock −1 item), Vow of Haste (Doomfall at 35s), Vow of Poverty (fights pay −40% gold), Vow of the Open Door (Echo doors *cannot* be declined when offered), Vow of Silence (no consumables), Vow of the Mirror (Gallery Mirrorkin at 100% stats, all biomes can spawn 1), Vow of Rust (items drop at −1 substat until infused), Vow of the Long Night (no Sanctum heals), Vow of the Numbered (your Echo hunts *you*: your previous Echo appears once, somewhere, at full strength), Vow of Glass (you: +25% damage, −25% Max HP).
 
+*Implementation status (Phase 2):* vows are **unlocked** (Phase 1 locked them empty). Each grants +15% climb Honor — already applied by the Honor formulas via vow count and credited to the ledger by `awardClimbHonor` — so **only vows whose penalty is actually enforced may be offered**, or the bonus would be free Honor. The five enforced vows ship: **Haste** (Doomfall 35s, in `buildCombatSpec`), **Hunger** (`generateShop` stocks one fewer item), **Poverty** (`resolveFight` cuts fight gold 40%), **Silence** (`buildCombatSpec` skips consumable compilation), and **Glass** (`buildHeroSpec`: −25% Max HP, +25% damage). The protocol enum (`vowIdSchema = z.enum(VOW_IDS)`) accepts only these, de-duplicated and ≤5; `startRun` re-sanitizes defensively. The other five (Open Door, Mirror, Rust, Long Night, Numbered) depend on the Echo/Sanctum/substat systems and stay authored-but-unoffered until those land. Honor-*tier* unlock gating (which vows a tier may pick) is Phase 3. The Gate offers the five with their penalties and a live Honor-bonus readout.
+
 ---
 
 ## 7. Codex & flavor
 
 Every item, enemy, boss, and event gets a Codex entry: 1 line at discovery, +1 lore line at ★3, +1 at ★5 (items) or 3/10 kills (enemies). Tone per [ART_DIRECTION.md](ART_DIRECTION.md) §8: wry, melancholy, never explaining the Tower. Example (Sawtooth Dirk ★5): *"The smith who made it filed her teeth to match. The Tower keeps her on floor 44."* — lore is allowed to point at real floors; players will look.
+
+*Implementation status (Phase 2):* Codex v1 is **live**, run-scoped. `RunState.codex` records each item at the highest ★ seen (stamped by `pushBackpack` on acquisition, so fusing to ★3/★5 unlocks the deeper lines) and each enemy by kill count (tallied in `resolveFight` on a win); the class relic and starting kit are logged at run start. `run/codex.ts` `buildCodex` turns that into a display list — discovery flavor at first sight, the authored ★3/★5 (or 3/10-kill) lore lines unlocking with progress, undiscovered entries shown as `???`. Lore is authored (`content/codex.ts`) for a curated anchor set; other entries appear with just their discovery line until their lore is written. The client gains a Codex screen (relics/gear + bestiary, with a discovered/total count and locked-line hints). **Cross-run, per-account persistence is live:** a run banks its discovery into a lifetime `codex` table when it ends (items keep the higher ★, enemies accumulate kills — banked once at death/abandon so kills don't double-count), `GET /api/me/codex` returns the merged progress, and the client merges the persisted account codex with the current run's fresh finds (`mergeCodexProgress` + `buildCodexFrom`). Verified through the DB (a dead run's relic + kills appear in the account codex).
+
+## 8. Honor Merchant & Valor Marks (GDD §7.3, §10.2)
+
+Valor Marks (earned from Echo bounties + Skirmishes) spend at the **Honor Merchant**. Two shelves: **cosmetics** (pure prestige — owned forever, no gameplay effect) and **War Chest boons** (the *only* gameplay purchase, deliberately mild and capped at **one armed boon per run**). The **Vault of Champions** is a third shelf gated by 3 Champion's Keys (from Skirmish wins), stocking a season-exclusive cosmetic + the strongest boon (*War Chest Prime* — still mild).
+
+**War Chest boons** (Marks; arm one, consumed at the next run's start):
+
+| id | name | price (Marks) | effect (applied at run start) |
+|---|---|---|---|
+| `boon_purse` | Heavy Purse | 40 | Start the run with **+50 gold**. |
+| `boon_wide_pack` | Wide Straps | 40 | **+2 backpack slots** for the run. |
+| `boon_travel_kit` | Traveler's Kit | 50 | Start with a **Whetstone** material in the backpack. |
+
+**Cosmetics** (Marks; owned permanently — flags now, art in Phase 4):
+
+| id | name | kind | price (Marks) |
+|---|---|---|---|
+| `trail_emberwake` | Emberwake Trail | weapon trail | 60 |
+| `aura_lanternwake` | Lanternwake Aura | Echo aura | 80 |
+| `banner_ashen` | Ashen Banner | profile banner | 60 |
+| `title_the_unbowed` | "the Unbowed" | title | 100 |
+
+**Vault of Champions** (3 Champion's Keys each — season-exclusive):
+
+| id | name | kind | cost |
+|---|---|---|---|
+| `vault_aura_gilded` | Gilded Echo Aura | Echo aura | 3 Keys |
+| `boon_prime` | War Chest Prime | boon | 3 Keys → **+100 gold and +2 backpack** at run start |
+
+*Implementation status (Phase 3, Slice D):* **live.** `content/merchant.ts` is the catalogue; `run/boons.ts applyBoon` mutates run state at start (gold/backpack/starter material — none touch fight determinism). Purchases move Marks via ledger rows (or spend Keys for Vault items) in a transaction; cosmetics land in an `unlocks` table (owned once), boons arm on `accounts.armed_boon` and are consumed at the next run start. `GET /api/merchant` lists the catalogue with owned/affordable/armed flags; `POST /api/merchant/buy` purchases. Cosmetics are prestige flags until the Phase 4 art pass gives trails/auras/banners their VFX.

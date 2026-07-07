@@ -3,8 +3,58 @@
  * always exact (ART_DIRECTION §8); flavor never obscures math.
  */
 
-import { findItem, scaleToStar, type ItemEffect, type Rarity } from '@towventure/shared/content';
+import {
+  findConsumable,
+  findItem,
+  findMaterial,
+  scaleToStar,
+  socketsFor,
+  type ConsumableCondition,
+  type ItemEffect,
+  type Rarity,
+} from '@towventure/shared/content';
 import type { EffectOp } from '@towventure/shared/sim';
+
+/** How many infusion sockets this item id has (0 if not an item or a Common). */
+export function socketCapacity(itemId: string): number {
+  const def = findItem(itemId);
+  return def ? socketsFor(def.rarity) : 0;
+}
+
+/** True if this id is a droppable material (for the infusion UI). */
+export function isMaterial(itemId: string): boolean {
+  return findMaterial(itemId) !== undefined;
+}
+
+/** Short display names for an item's filled sockets. */
+export function socketLabels(sockets: string[] | undefined): string[] {
+  return (sockets ?? []).map((id) => findMaterial(id)?.name ?? id);
+}
+
+export const CONSUMABLE_CONDITIONS: ConsumableCondition[] = [
+  'fightStart',
+  'hpBelow70',
+  'hpBelow40',
+  'doomfall',
+  'vsElite',
+];
+
+export const CONDITION_LABEL: Record<ConsumableCondition, string> = {
+  fightStart: 'Fight start',
+  hpBelow70: 'HP < 70%',
+  hpBelow40: 'HP < 40%',
+  doomfall: 'Doomfall',
+  vsElite: 'vs Elite+',
+};
+
+/** A consumable's data if this id is one (else undefined) — for the backpack UI. */
+export function consumableInfo(
+  itemId: string,
+): { condition: ConsumableCondition; label: string } | undefined {
+  const def = findConsumable(itemId);
+  if (!def) return undefined;
+  return { condition: def.defaultCondition, label: CONDITION_LABEL[def.defaultCondition] };
+}
 
 const STATUS_LABEL: Record<string, string> = {
   bleed: 'Bleed',
@@ -46,6 +96,14 @@ function opText(op: EffectOp, star: number): string {
       return `+${s(op.pct)}% damage vs ${STATUS_LABEL[op.status] ?? op.status}`;
     case 'detonateStatus':
       return `detonate ${STATUS_LABEL[op.status] ?? op.status} (${s(op.pctPerStack)}%/stack)`;
+    case 'chainHit':
+      return `chain ${s(op.pct)}% weapon damage to ${op.targets} enemies`;
+    case 'cleanse':
+      return 'cleanse all statuses';
+    case 'buffStatusDamagePct':
+      return `+${s(op.pct)}% ${STATUS_LABEL[op.status] ?? op.status} damage`;
+    case 'buffNextHitStatus':
+      return `next hit: +${s(op.stacks)} ${STATUS_LABEL[op.status] ?? op.status}`;
     case 'retaliateThorns':
       return `retaliate for Thorns ×${op.mult}`;
     case 'stun':
@@ -75,7 +133,9 @@ function triggerText(e: ItemEffect): string {
     case 'OnDoomfall':
       return 'On Doomfall';
     case 'OnStatusApplied':
-      return `On applying ${STATUS_LABEL[t.status] ?? t.status}`;
+      return t.minStacks !== undefined
+        ? `At ${t.minStacks}+ ${STATUS_LABEL[t.status] ?? t.status}`
+        : `On applying ${STATUS_LABEL[t.status] ?? t.status}`;
     case 'OnEnemyDeath':
       return 'On kill';
   }
@@ -93,7 +153,7 @@ export function effectLine(e: ItemEffect, star: number): string {
 
 export interface ItemText {
   name: string;
-  rarity: Rarity | 'consumable';
+  rarity: Rarity | 'consumable' | 'material';
   tags: string[];
   lines: string[];
   flavor: string;
@@ -102,6 +162,22 @@ export interface ItemText {
 export function describeItem(itemId: string, star: number): ItemText {
   const def = findItem(itemId);
   if (!def) {
+    const cons = findConsumable(itemId);
+    if (cons) {
+      return {
+        name: cons.name,
+        rarity: 'consumable',
+        tags: [],
+        lines: cons.ops.map((op) => opText(op, star)),
+        flavor: cons.flavor,
+      };
+    }
+    const mat = findMaterial(itemId);
+    if (mat) {
+      const lines = (mat.mods ?? []).map((m) => `${m.value > 0 ? '+' : ''}${m.value} ${m.stat}`);
+      if (mat.effect) lines.push(effectLine(mat.effect, 1));
+      return { name: mat.name, rarity: 'material', tags: [], lines, flavor: mat.flavor };
+    }
     return { name: itemId, rarity: 'consumable', tags: [], lines: [], flavor: '' };
   }
   const lines: string[] = [];

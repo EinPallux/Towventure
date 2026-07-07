@@ -1,10 +1,45 @@
 import { describe, expect, it } from 'vitest';
 import { scaleToStar } from '../content/constants.js';
-import { deriveWeaponDamage, getItem } from '../content/registry.js';
-import { buildHeroSpec, tagCounts } from './build.js';
-import { climbHonorForFloor, cumulativeClimbHonor, honorTier } from './honor.js';
-import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
-import type { RunState } from './types.js';
+import {
+  ITEMS,
+  VOWS,
+  deriveWeaponDamage,
+  equipSlotForKind,
+  getItem,
+  isEquippable,
+} from '../content/registry.js';
+import { VOW_IDS } from '../content/vows.js';
+import { runStartSchema } from '../protocol/schemas.js';
+import { simulate } from '../sim/index.js';
+import { applyBoon } from './boons.js';
+import { buildCombatSpec, buildDuelSpec, buildHeroSpec, snapshotOf, tagCounts } from './build.js';
+import { buildCodex } from './codex.js';
+import {
+  echoAiBonusPct,
+  echoBounty,
+  echoIsSpent,
+  echoMarks,
+  graveCopyOptions,
+} from './echo.js';
+import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
+import {
+  climbHonorForFloor,
+  climbHonorForFrontier,
+  cumulativeClimbHonor,
+  honorTier,
+  honorTierRank,
+} from './honor.js';
+import {
+  applyCommand,
+  killerName,
+  makeSummary,
+  prepareFight,
+  runPendingFight,
+  startRun,
+} from './reducer.js';
+import { RNG_PURPOSE, deriveRng } from './rng.js';
+import { generateShop } from './shop.js';
+import type { EchoRef, EquipSlotId, RunState } from './types.js';
 
 function freshVanguard(seed = 20260706): RunState {
   return startRun('vanguard', [], seed);
@@ -41,6 +76,10 @@ function autoClimb(seed: number, floorCap = 60): RunState {
       const l = applyCommand(state, { type: 'leaveShop' });
       if (!l.ok) throw new Error(l.error);
       state = l.state;
+    } else if (state.phase === 'event') {
+      const e = applyCommand(state, { type: 'resolveEvent', optionIndex: 0 });
+      if (!e.ok) throw new Error(e.error);
+      state = e.state;
     } else {
       break;
     }
@@ -84,6 +123,18 @@ describe('startRun', () => {
     };
     expect(hasDetonate(4)).toBe(false); // Awakened only, no Zenith yet
     expect(hasDetonate(5)).toBe(true); // Redline online
+  });
+
+  it("activates the Kindlewhip's ★5 Solarlash (10+ Burn detonation) only at ★5", () => {
+    const base = startRun('arcanist', [], 5);
+    const hasSolarlash = (star: number): boolean => {
+      const s = { ...base, equipment: { ...base.equipment, weapon1: { uid: 'kw', itemId: 'kindlewhip', star } } };
+      return buildHeroSpec(s).effects.some(
+        (e) => e.trigger.kind === 'OnStatusApplied' && e.trigger.minStacks === 10,
+      );
+    };
+    expect(hasSolarlash(4)).toBe(false);
+    expect(hasSolarlash(5)).toBe(true);
   });
 });
 
@@ -130,11 +181,453 @@ describe('a full climb', () => {
         const l = applyCommand(state, { type: 'leaveShop' });
         if (!l.ok) break;
         state = l.state;
+      } else if (state.phase === 'event') {
+        const e = applyCommand(state, { type: 'resolveEvent', optionIndex: 0 });
+        if (!e.ok) break;
+        state = e.state;
       } else break;
     }
     // Either it reached a shop (floor 5) or died before it — both are valid; assert the
     // shop machinery is reachable by construction for a run that gets to floor 5.
     expect(typeof sawShop).toBe('boolean');
+  });
+});
+
+describe('consumable auto-triggers', () => {
+  /** Enter the first available battle (non-elite) door and resolve the fight. */
+  function fightFirstBattle(s: RunState): RunState {
+    const idx = s.doors!.findIndex((d) => d.kind === 'battle');
+    const doored = applyCommand(s, { type: 'chooseDoor', doorIndex: idx >= 0 ? idx : 0 });
+    if (!doored.ok) throw new Error(doored.error);
+    const out = runPendingFight(doored.state);
+    if (!out) throw new Error('no pending fight');
+    return out.state;
+  }
+
+  it('spends a fightStart consumable after any fight', () => {
+    const start = startRun('duelist', [], 999); // Duelist starts with an Adrenal Vial (fightStart)
+    const vial = start.backpack.find((i) => i.itemId === 'adrenal_vial')!;
+    expect(vial).toBeTruthy();
+    const after = fightFirstBattle(start);
+    expect(after.backpack.some((i) => i.uid === vial.uid)).toBe(false);
+  });
+
+  it('keeps a vsElite consumable out of a plain battle', () => {
+    const s = structuredClone(freshVanguard(2024));
+    s.backpack.push({ uid: 'lead1', itemId: 'leadbelly_draught', star: 1 }); // vsElite by default
+    const after = fightFirstBattle(s);
+    // Not eligible in a non-elite fight → never compiled, never fired, still held.
+    expect(after.backpack.some((i) => i.uid === 'lead1')).toBe(true);
+  });
+
+  it('keeps an hpBelow40 consumable that never triggered', () => {
+    // A fresh Vanguard one-shots floor-1 fodder without dropping to 40% → Ale survives.
+    const start = freshVanguard(31);
+    const ale = start.backpack.find((i) => i.itemId === 'small_ale')!;
+    const after = fightFirstBattle(start);
+    if (after.status !== 'dead') {
+      expect(after.backpack.some((i) => i.uid === ale.uid)).toBe(true);
+    }
+  });
+
+  it('setConsumableCondition retargets a held consumable and rejects non-consumables', () => {
+    const s = structuredClone(freshVanguard(7));
+    const ale = s.backpack.find((i) => i.itemId === 'small_ale')!;
+    expect(ale.condition).toBeUndefined(); // follows the def default until set
+    const ok = applyCommand(s, {
+      type: 'setConsumableCondition',
+      uid: ale.uid,
+      condition: 'fightStart',
+    });
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) throw new Error(ok.error);
+    expect(ok.state.backpack.find((i) => i.uid === ale.uid)!.condition).toBe('fightStart');
+
+    s.backpack.push({ uid: 'w1', itemId: 'rusty_cleaver', star: 1 });
+    const bad = applyCommand(s, {
+      type: 'setConsumableCondition',
+      uid: 'w1',
+      condition: 'doomfall',
+    });
+    expect(bad.ok).toBe(false);
+  });
+});
+
+describe('codex', () => {
+  it('records the relic and starting kit at run start (consumables excluded)', () => {
+    const s = startRun('vanguard', [], 1);
+    expect(s.codex.items['bulwark_sigil']).toBe(1); // relic
+    expect(s.codex.items['rusty_cleaver']).toBe(1); // start weapon
+    expect(s.codex.items['small_ale']).toBeUndefined(); // consumables aren't items
+  });
+
+  it('tallies enemy kills on a won fight', () => {
+    const start = startRun('vanguard', [], 555);
+    const idx = start.doors!.findIndex((d) => d.kind === 'battle');
+    const doored = applyCommand(start, { type: 'chooseDoor', doorIndex: idx >= 0 ? idx : 0 });
+    const pre = doored.ok ? doored.state : start;
+    const enemyIds = pre.pendingFight!.enemyIds;
+    const out = runPendingFight(pre);
+    if (out && out.state.status !== 'dead') {
+      for (const id of enemyIds) expect(out.state.codex.enemies[id]).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('fusing to a higher ★ records it and unlocks the deeper lore line', () => {
+    const s = structuredClone(startRun('vanguard', [], 1));
+    s.backpack.push({ uid: 'a', itemId: 'sawtooth_dirk', star: 2 });
+    s.backpack.push({ uid: 'b', itemId: 'sawtooth_dirk', star: 2 });
+    const res = applyCommand(s, { type: 'fuse', uid1: 'a', uid2: 'b' });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.codex.items['sawtooth_dirk']).toBe(3);
+    const entry = buildCodex(res.state).items.find((e) => e.id === 'sawtooth_dirk')!;
+    expect(entry.discovered).toBe(true);
+    expect(entry.lore[0]!.unlocked).toBe(true); // ★3 line
+    expect(entry.lore[1]!.unlocked).toBe(false); // ★5 line still locked
+  });
+
+  it('buildCodex hides undiscovered entries and counts discovery', () => {
+    const codex = buildCodex(startRun('vanguard', [], 1));
+    const rat = codex.enemies.find((e) => e.id === 'tunnel_rat')!;
+    expect(rat.discovered).toBe(false);
+    expect(rat.name).toBe('???');
+    const relic = codex.items.find((e) => e.id === 'bulwark_sigil')!;
+    expect(relic.discovered).toBe(true);
+    expect(relic.name).toBe('Bulwark Sigil');
+    expect(codex.discovered).toBeGreaterThan(0);
+    expect(codex.total).toBe(codex.items.length + codex.enemies.length);
+  });
+
+  it('enemy lore unlocks at 3 then 10 kills', () => {
+    const s = startRun('vanguard', [], 1);
+    s.codex.enemies['tunnel_rat'] = 3;
+    const at3 = buildCodex(s).enemies.find((e) => e.id === 'tunnel_rat')!;
+    expect(at3.lore[0]!.unlocked).toBe(true);
+    expect(at3.lore[1]!.unlocked).toBe(false);
+    s.codex.enemies['tunnel_rat'] = 10;
+    expect(buildCodex(s).enemies.find((e) => e.id === 'tunnel_rat')!.lore[1]!.unlocked).toBe(true);
+  });
+});
+
+describe('vows', () => {
+  it('Vow of Glass trades Max HP for damage', () => {
+    const plain = buildHeroSpec(startRun('vanguard', [], 1));
+    const glass = buildHeroSpec(startRun('vanguard', ['vow_of_glass'], 1));
+    expect(glass.maxHp).toBe(Math.trunc((plain.maxHp * 75) / 100));
+    expect(glass.effects.some((e) => e.source === 'Vow of Glass')).toBe(true);
+  });
+
+  it('Vow of Silence keeps consumables from compiling into the fight', () => {
+    const oneShots = (vows: string[]): number =>
+      buildCombatSpec(startRun('vanguard', vows, 1), ['tunnel_rat']).hero.effects.filter(
+        (e) => e.oneShotId !== undefined,
+      ).length;
+    expect(oneShots([])).toBeGreaterThan(0); // the starting Small Ale compiles
+    expect(oneShots(['vow_of_silence'])).toBe(0);
+  });
+
+  it('Vow of Hunger stocks one fewer shop item', () => {
+    const items = (vows: string[]): number => {
+      const s = { ...startRun('vanguard', vows, 1), floor: 5 };
+      const shop = generateShop(s, deriveRng(1, 5, RNG_PURPOSE.shop, 0)).shop;
+      return shop.slots.filter((slot) => slot.kind === 'item').length;
+    };
+    expect(items([]) - items(['vow_of_hunger'])).toBe(1);
+  });
+
+  it('Vow of Haste pulls Doomfall earlier', () => {
+    const plain = buildCombatSpec(startRun('vanguard', [], 1), ['tunnel_rat']);
+    const hasted = buildCombatSpec(startRun('vanguard', ['vow_of_haste'], 1), ['tunnel_rat']);
+    expect(hasted.doomfallStartTicks).toBeLessThan(plain.doomfallStartTicks);
+  });
+
+  it('Vow of Poverty pays 40% less fight gold', () => {
+    const fightGold = (vows: string[]): number => {
+      const s0 = startRun('vanguard', vows, 555);
+      const idx = s0.doors!.findIndex((d) => d.kind === 'battle');
+      const doored = applyCommand(s0, { type: 'chooseDoor', doorIndex: idx >= 0 ? idx : 0 });
+      const out = runPendingFight(doored.ok ? doored.state : s0);
+      return out?.state.lastGold ?? -1;
+    };
+    const rich = fightGold([]);
+    expect(rich).toBeGreaterThan(0); // a real reward to reduce
+    expect(fightGold(['vow_of_poverty'])).toBe(Math.trunc((rich * 60) / 100));
+  });
+
+  it('each vow adds 15% climb Honor', () => {
+    const base = climbHonorForFrontier(0, 20, 0);
+    expect(climbHonorForFrontier(0, 20, 2)).toBe(Math.trunc((base * 130) / 100));
+  });
+
+  it('startRun sanitizes vows (drops unknown, de-dupes, keeps order)', () => {
+    const s = startRun('vanguard', ['vow_of_glass', 'vow_of_glass', 'made_up', 'vow_of_haste'], 1);
+    expect(s.vows).toEqual(['vow_of_glass', 'vow_of_haste']);
+  });
+
+  it('the run-start schema accepts known unique vows and rejects the rest', () => {
+    const parse = (vows: string[]) =>
+      runStartSchema.safeParse({ classId: 'vanguard', vows }).success;
+    expect(parse(['vow_of_haste', 'vow_of_glass'])).toBe(true);
+    expect(parse(['made_up'])).toBe(false);
+    expect(parse(['vow_of_haste', 'vow_of_haste'])).toBe(false);
+    expect(parse([...VOW_IDS, 'vow_of_haste'])).toBe(false); // 6 > max 5
+  });
+
+  it('the vow enum matches the VOWS catalogue exactly', () => {
+    expect([...VOW_IDS].sort()).toEqual(VOWS.map((v) => v.id).sort());
+  });
+});
+
+describe('events', () => {
+  function eventState(id: string, seed = 1): RunState {
+    const s = structuredClone(freshVanguard(seed));
+    s.phase = 'event';
+    s.pendingEvent = id;
+    s.doors = null;
+    return s;
+  }
+
+  it('offers event doors yet always keeps a battle option', () => {
+    let sawEvent = false;
+    for (let f = 1; f <= 80; f++) {
+      if (isBossFloor(f) || isShopFloor(f)) continue;
+      const doors = generateDoors(12345, f);
+      if (doors.some((d) => d.kind === 'event')) {
+        sawEvent = true;
+        expect(doors.some((d) => d.kind === 'battle')).toBe(true); // never the sole path
+        expect(doors.find((d) => d.kind === 'event')!.eventId).toBeTruthy();
+      }
+    }
+    expect(sawEvent).toBe(true);
+  });
+
+  it('choosing an event door enters the event phase', () => {
+    // Find a floor whose door 0 is an event under this seed, then choose it.
+    let s = freshVanguard(12345);
+    let guard = 0;
+    while (guard++ < 200 && !(s.phase === 'doors' && s.doors?.[0]?.kind === 'event')) {
+      if (s.phase === 'doors') {
+        const evIdx = s.doors!.findIndex((d) => d.kind === 'event');
+        if (evIdx >= 0) {
+          const r = applyCommand(s, { type: 'chooseDoor', doorIndex: evIdx });
+          expect(r.ok).toBe(true);
+          if (r.ok) {
+            expect(r.state.phase).toBe('event');
+            expect(r.state.pendingEvent).toBeTruthy();
+          }
+          return;
+        }
+        const r = applyCommand(s, { type: 'chooseDoor', doorIndex: 0 });
+        if (!r.ok) break;
+        s = r.state;
+      } else if (s.phase === 'fight') {
+        const out = runPendingFight(s);
+        if (!out) break;
+        s = out.state;
+      } else if (s.phase === 'reward') {
+        const r = applyCommand(s, s.pendingItem ? { type: 'takeLoot', take: false } : { type: 'proceed' });
+        if (!r.ok) break;
+        s = r.state;
+      } else if (s.phase === 'shop') {
+        const r = applyCommand(s, { type: 'leaveShop' });
+        if (!r.ok) break;
+        s = r.state;
+      } else break;
+    }
+  });
+
+  it('Shrine upgrades a random item and consumes a material', () => {
+    const s = eventState('shrine_of_mended_blade');
+    s.backpack.push({ uid: 'it', itemId: 'rusty_cleaver', star: 1 });
+    s.backpack.push({ uid: 'mat', itemId: 'whetstone', star: 1 });
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // Only rusty_cleaver is upgradeable (small_ale + whetstone are excluded).
+    expect(res.state.backpack.find((i) => i.uid === 'it')!.star).toBe(2);
+    expect(res.state.backpack.some((i) => i.uid === 'mat')).toBe(false);
+  });
+
+  it("Sleepwalker's Bargain swaps the two trinkets' ★ tiers", () => {
+    const s = eventState('sleepwalkers_bargain');
+    s.equipment.trinket1 = { uid: 't1', itemId: 'singed_grimoire', star: 3 };
+    s.equipment.trinket2 = { uid: 't2', itemId: 'tax_stamp_of_the_gate', star: 1 };
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.equipment.trinket1!.star).toBe(1);
+    expect(res.state.equipment.trinket2!.star).toBe(3);
+  });
+
+  it("Gambler's Alcove stakes a quarter of gold (deterministic), decline keeps it", () => {
+    const s = eventState('gamblers_alcove', 42);
+    s.gold = 100;
+    const win = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(win.ok).toBe(true);
+    if (win.ok) expect([75, 125]).toContain(win.state.gold); // ±stake of 25
+    const declined = applyCommand(s, { type: 'resolveEvent', optionIndex: 1 });
+    if (declined.ok) expect(declined.state.gold).toBe(100);
+  });
+
+  it('Cursed Reliquary grants a pending Epic and routes to the reward screen', () => {
+    const s = eventState('cursed_reliquary');
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.phase).toBe('reward');
+    expect(res.state.pendingItem).toBeTruthy();
+    expect(getItem(res.state.pendingItem!).rarity).toBe('epic');
+  });
+
+  it('the Tithe-Collector takes a quarter of gold and offers a Rare', () => {
+    const s = eventState('tithe_collector');
+    s.gold = 100;
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.gold).toBe(75);
+    expect(res.state.phase).toBe('reward');
+    expect(res.state.pendingItem).toBeTruthy();
+  });
+
+  it('the Molting Wall grants materials to the backpack', () => {
+    const s = eventState('molting_wall');
+    const before = s.backpack.length;
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 0 });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.backpack.length).toBe(before + 2);
+  });
+
+  it('declining advances the floor; a bad option index is rejected', () => {
+    const s = eventState('shrine_of_mended_blade');
+    const before = s.floor;
+    const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 1 });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.state.floor).toBe(before + 1);
+    expect(applyCommand(eventState('shrine_of_mended_blade'), {
+      type: 'resolveEvent',
+      optionIndex: 9,
+    }).ok).toBe(false);
+  });
+});
+
+describe('item catalogue', () => {
+  it('every equippable item compiles into a hero spec at ★1 and ★5', () => {
+    const base = freshVanguard();
+    for (const def of ITEMS) {
+      if (def.kind === 'relic' || !isEquippable(def)) continue;
+      const slot = equipSlotForKind(def.kind)!;
+      const key: EquipSlotId =
+        slot === 'weapon' ? 'weapon1' : slot === 'trinket' ? 'trinket1' : slot;
+      for (const star of [1, 5]) {
+        const s = { ...base, equipment: { ...base.equipment, [key]: { uid: 't', itemId: def.id, star } } };
+        expect(() => buildHeroSpec(s)).not.toThrow();
+      }
+    }
+  });
+
+  it('every weapon derives positive ★1 damage', () => {
+    for (const def of ITEMS) {
+      if (def.cooldownSeconds === undefined) continue;
+      expect(deriveWeaponDamage(def)).toBeGreaterThan(0);
+    }
+  });
+
+  it('has no empty effect lines (every authored line does something)', () => {
+    for (const def of ITEMS) {
+      for (const e of def.effects ?? []) {
+        expect(e.ops.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('meets the launch quotas per slot (CONTENT §3.0)', () => {
+    const count = (pred: (k: string) => boolean) => ITEMS.filter((i) => pred(i.kind)).length;
+    expect(count((k) => k === 'weapon' || k === 'weapon2h')).toBe(30);
+    expect(count((k) => k === 'helm')).toBe(14);
+    expect(count((k) => k === 'armor')).toBe(14);
+    expect(count((k) => k === 'boots')).toBe(14);
+    expect(count((k) => k === 'trinket')).toBe(32);
+    expect(count((k) => k === 'satchel')).toBe(3);
+    expect(count((k) => k === 'relic')).toBe(3);
+  });
+
+  it('a satchel grows the backpack instead of being stored', () => {
+    const s = structuredClone(freshVanguard());
+    s.phase = 'reward';
+    s.pendingItem = 'patched_satchel';
+    const before = s.backpackSize;
+    const res = applyCommand(s, { type: 'takeLoot', take: true });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.backpackSize).toBe(before + 2);
+    expect(res.state.backpack.some((i) => i.itemId === 'patched_satchel')).toBe(false);
+    expect(res.state.pendingItem).toBeNull();
+  });
+});
+
+describe('infusion sockets', () => {
+  const apply = (st: RunState, c: Parameters<typeof applyCommand>[1]): RunState => {
+    const r = applyCommand(st, c);
+    if (!r.ok) throw new Error(r.error);
+    return r.state;
+  };
+
+  it('compiles a socketed material into the hero (Leadweave = +8 Armor, −3% Speed)', () => {
+    const s = freshVanguard();
+    const bare = { ...s, equipment: { ...s.equipment, weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1 } } };
+    const socketed = {
+      ...s,
+      equipment: {
+        ...s.equipment,
+        weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1, sockets: ['leadweave'] },
+      },
+    };
+    expect(buildHeroSpec(socketed).armor - buildHeroSpec(bare).armor).toBe(8);
+    expect(buildHeroSpec(socketed).speedPct - buildHeroSpec(bare).speedPct).toBe(-3);
+  });
+
+  it('infuses a material into a free socket and consumes it', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'k1', itemId: 'kindlewhip', star: 1 }); // Uncommon → 1 socket
+    s.backpack.push({ uid: 'm1', itemId: 'leadweave', star: 1 });
+    const after = apply(s, { type: 'infuse', itemUid: 'k1', materialUid: 'm1' });
+    expect(after.backpack.find((i) => i.uid === 'k1')!.sockets).toEqual(['leadweave']);
+    expect(after.backpack.some((i) => i.uid === 'm1')).toBe(false); // material spent
+  });
+
+  it('rejects infusing a socketless Common item', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'c1', itemId: 'sawtooth_dirk', star: 1 }); // Common → 0 sockets
+    s.backpack.push({ uid: 'm1', itemId: 'whetstone', star: 1 });
+    expect(applyCommand(s, { type: 'infuse', itemUid: 'c1', materialUid: 'm1' }).ok).toBe(false);
+  });
+
+  it('fills to capacity, rejects the overflow, and overwrites on request', () => {
+    let s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'r1', itemId: 'gravediggers_shovel', star: 1 }); // Rare → 2 sockets
+    s.backpack.push({ uid: 'ma', itemId: 'whetstone', star: 1 });
+    s.backpack.push({ uid: 'mb', itemId: 'hollowfang', star: 1 });
+    s.backpack.push({ uid: 'mc', itemId: 'glimmergrit', star: 1 });
+    s = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'ma' });
+    s = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mb' });
+    expect(s.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual(['whetstone', 'hollowfang']);
+    // A third append is refused — both sockets are full.
+    expect(applyCommand(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc' }).ok).toBe(false);
+    // …but overwriting socket 0 works and destroys the old infusion.
+    const over = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc', socketIndex: 0 });
+    expect(over.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual(['glimmergrit', 'hollowfang']);
+  });
+
+  it('keeps the better socket set when two copies fuse', () => {
+    const s = structuredClone(freshVanguard());
+    s.backpack.push({ uid: 'a', itemId: 'kindlewhip', star: 1, sockets: ['whetstone'] });
+    s.backpack.push({ uid: 'b', itemId: 'kindlewhip', star: 1 });
+    const after = apply(s, { type: 'fuse', uid1: 'b', uid2: 'a' });
+    const fused = after.backpack.find((i) => i.itemId === 'kindlewhip' && i.star === 2)!;
+    expect(fused.sockets).toEqual(['whetstone']); // the infused copy's set survives
   });
 });
 
@@ -309,5 +802,218 @@ describe('honor formula (BALANCE §7)', () => {
     expect(honorTier(0).id).toBe('ashbound');
     expect(honorTier(600).id).toBe('gatekeeper');
     expect(honorTier(5000).id).toBe('crownseeker');
+  });
+  it('ranks tiers 0-based for unlock gating (GDD §7)', () => {
+    expect(honorTierRank(0)).toBe(0); // Ashbound
+    expect(honorTierRank(199)).toBe(0);
+    expect(honorTierRank(200)).toBe(1); // Stairborn
+    expect(honorTierRank(500)).toBe(2); // Gatekeeper (Duelist gate is 2)
+    expect(honorTierRank(1000)).toBe(3); // Vaultbreaker (Arcanist gate is 3)
+    // The Unnumbered is rank-based, never a threshold — the ceiling is Crownseeker.
+    expect(honorTierRank(999999)).toBe(6);
+  });
+});
+
+describe('Phase 3 duel primitive (snapshotOf + buildDuelSpec)', () => {
+  it('snapshotOf captures exactly the build slice buildHeroSpec reads', () => {
+    const run = freshVanguard();
+    const snap = snapshotOf(run);
+    expect(snap).toEqual({
+      classId: run.classId,
+      floorsCleared: run.floorsCleared,
+      equipment: run.equipment,
+      vows: run.vows,
+    });
+    // The two builders produce an identical hero spec from run vs. snapshot.
+    expect(buildHeroSpec(snap)).toEqual(buildHeroSpec(run));
+  });
+
+  it('buildDuelSpec puts the foe as enemy e0 and reuses the same sim deterministically', () => {
+    const attacker = snapshotOf(startRun('vanguard', [], 111));
+    const foe = snapshotOf(startRun('duelist', [], 222));
+    const spec = buildDuelSpec(attacker, foe);
+    expect(spec.enemies).toHaveLength(1);
+    expect(spec.enemies[0]!.id).toBe('e0');
+    expect(spec.enemies[0]!.name).toBe('Duelist');
+    // Same (spec, seed) → identical outcome + hash (the duel is just a normal fight).
+    const a = simulate(spec, 42);
+    const b = simulate(spec, 42);
+    expect(a.logHash).toBe(b.logHash);
+    expect(a.winner).toBe(b.winner);
+  });
+
+  it('the Echo aggression bonus adds a fight-start damage buff to the foe only', () => {
+    const attacker = snapshotOf(startRun('vanguard', [], 1));
+    const foe = snapshotOf(startRun('vanguard', [], 2));
+    const plain = buildDuelSpec(attacker, foe, 0);
+    const buffed = buildDuelSpec(attacker, foe, 10);
+    expect(buffed.enemies[0]!.effects.length).toBe(plain.enemies[0]!.effects.length + 1);
+    // The attacker's spec is untouched by the foe bonus.
+    expect(buffed.hero.effects.length).toBe(plain.hero.effects.length);
+  });
+});
+
+// Build an EchoRef from a run snapshot — mirrors what the server stamps into the door.
+function echoRefFrom(build: RunState, over: Partial<EchoRef> = {}): EchoRef {
+  return {
+    echoId: 'echo-1',
+    ownerName: 'Maro',
+    tier: 'Gatekeeper',
+    classId: build.classId,
+    floor: 8,
+    ageDays: 0,
+    ownerHonor: 500,
+    bonusPct: 10,
+    build: snapshotOf(build),
+    ...over,
+  };
+}
+
+describe('Echo economy math (BALANCE §6)', () => {
+  it('bounty scales with floor and pays extra for punching up', () => {
+    // Even tiers: B = 12 + trunc(1.1×floor). Floor 8 → 12 + 8 = 20.
+    expect(echoBounty(8, 500, 500)).toBe(20);
+    // Echo two tiers above (Vaultbreaker 1000 vs Stairborn 200): +25×2 on top.
+    expect(echoBounty(8, 1000, 200)).toBe(20 + 50);
+    // Echo ≥2 tiers below → halved (Ashbound 0 vs Vaultbreaker 1000): base 20 → 10.
+    expect(echoBounty(8, 0, 1000)).toBe(10);
+  });
+  it('marks = 5 + floor/4 (integer)', () => {
+    expect(echoMarks(8)).toBe(7);
+    expect(echoMarks(40)).toBe(15);
+  });
+  it('AI bonus is +10% fresh, decaying −2%/day to 0', () => {
+    expect(echoAiBonusPct(0)).toBe(10);
+    expect(echoAiBonusPct(3)).toBe(4);
+    expect(echoAiBonusPct(5)).toBe(0);
+    expect(echoAiBonusPct(99)).toBe(0);
+  });
+  it('an Echo is spent after 3 defeats or 14 days', () => {
+    expect(echoIsSpent(0, 0)).toBe(false);
+    expect(echoIsSpent(3, 0)).toBe(true);
+    expect(echoIsSpent(0, 14)).toBe(true);
+  });
+  it('grave-copy options are the distinct equipped items, relic excluded', () => {
+    const duelist = startRun('duelist', [], 7);
+    const opts = graveCopyOptions(snapshotOf(duelist));
+    expect(opts.length).toBeGreaterThan(0);
+    expect(opts.length).toBeLessThanOrEqual(3);
+    expect(opts).toContain('sawtooth_dirk'); // an equipped Duelist starter
+    expect(opts).not.toContain('twin_fang_oath'); // the relic is class-bound, not lootable
+  });
+});
+
+describe('War Chest boons (CONTENT §8)', () => {
+  it('apply mild run-start head starts that never touch combat stats', () => {
+    const purse = freshVanguard();
+    expect(applyBoon(purse, 'boon_purse')).toBe(true);
+    expect(purse.gold).toBe(50);
+
+    const pack = freshVanguard();
+    const cap = pack.backpackSize;
+    expect(applyBoon(pack, 'boon_wide_pack')).toBe(true);
+    expect(pack.backpackSize).toBe(cap + 2);
+
+    const kit = freshVanguard();
+    const before = kit.backpack.length;
+    expect(applyBoon(kit, 'boon_travel_kit')).toBe(true);
+    expect(kit.backpack.length).toBe(before + 1);
+    expect(kit.backpack.at(-1)!.itemId).toBe('whetstone');
+
+    const prime = freshVanguard();
+    const pcap = prime.backpackSize;
+    expect(applyBoon(prime, 'boon_prime')).toBe(true);
+    expect(prime.gold).toBe(100);
+    expect(prime.backpackSize).toBe(pcap + 2);
+
+    expect(applyBoon(freshVanguard(), 'not_a_boon')).toBe(false);
+  });
+});
+
+describe('Echo fights (GDD §8)', () => {
+  // Splice a real Echo door into a fresh run's doors, the way the server injects it.
+  function runFacingEcho(echo: EchoRef, seed = 5): RunState {
+    const state = freshVanguard(seed);
+    state.doors = [{ kind: 'echo', enemyIds: [], echo, preview: `Here fell ${echo.ownerName}` }];
+    return state;
+  }
+
+  it('choosing an Echo door enters a duel that the same sim resolves deterministically', () => {
+    const echo = echoRefFrom(startRun('duelist', [], 99));
+    const state = runFacingEcho(echo);
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    expect(chosen.state.phase).toBe('fight');
+    expect(chosen.state.pendingFight).toEqual({ kind: 'echo', enemyIds: [], echo });
+
+    const out = runPendingFight(chosen.state);
+    expect(out).not.toBeNull();
+    // Foe is placed as e0 — the duel spec, not an enemy roster.
+    const prepared = prepareFight(chosen.state)!;
+    expect(prepared.spec.enemies[0]!.id).toBe('e0');
+    const again = runPendingFight(chosen.state)!;
+    expect(again.result.logHash).toBe(out!.result.logHash); // deterministic
+  });
+
+  it('killing an Echo offers a Grave-Copy (1 of 3), claimable as a ★1 copy', () => {
+    // A soft target: a floor-1 Duelist Echo an equipped Vanguard should beat.
+    const echo = echoRefFrom(startRun('duelist', [], 3), { bonusPct: 0 });
+    let state = runFacingEcho(echo, 12);
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    const out = runPendingFight(chosen.state)!;
+    state = out.state;
+    if (out.result.winner !== 'hero') return; // if the hero lost this seed, the loss path is covered below
+    expect(state.phase).toBe('reward');
+    expect(state.pendingGraveCopy).not.toBeNull();
+    expect(state.pendingItem).toBeNull(); // grave-copy replaces rolled loot
+    const before = state.backpack.length;
+    const pick = applyCommand(state, { type: 'chooseGraveCopy', index: 0 });
+    if (!pick.ok) throw new Error(pick.error);
+    expect(pick.state.backpack.length).toBe(before + 1);
+    expect(pick.state.backpack.at(-1)!.itemId).toBe(state.pendingGraveCopy![0]);
+    expect(pick.state.backpack.at(-1)!.star).toBe(1); // ★1 copy
+    expect(pick.state.pendingGraveCopy).toBeNull();
+    expect(applyCommand(pick.state, { type: 'proceed' }).ok).toBe(true);
+  });
+
+  it('proceeding past an unclaimed Grave-Copy forfeits it and advances', () => {
+    const echo = echoRefFrom(startRun('duelist', [], 3), { bonusPct: 0 });
+    const state = runFacingEcho(echo, 12);
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    const out = runPendingFight(chosen.state)!;
+    if (out.result.winner !== 'hero') return;
+    const before = out.state.backpack.length;
+    const skip = applyCommand(out.state, { type: 'proceed' });
+    if (!skip.ok) throw new Error(skip.error);
+    expect(skip.state.pendingGraveCopy).toBeNull();
+    expect(skip.state.backpack.length).toBe(before); // nothing claimed
+    expect(skip.state.floor).toBe(out.state.floor + 1); // advanced
+  });
+
+  it('losing to an Echo dies to the owner, named on the death ritual', () => {
+    // A brutal, fresh, deep Echo: a floor-40 Arcanist with a big aggression bonus.
+    const echo = echoRefFrom(startRun('arcanist', [], 4), { floor: 40, bonusPct: 10 });
+    // Force a loss by pitting a naked hero (strip equipment) against it.
+    const state = runFacingEcho(echo, 8);
+    state.equipment = {
+      weapon1: null,
+      weapon2: null,
+      helm: null,
+      armor: null,
+      boots: null,
+      trinket1: null,
+      trinket2: null,
+      relic: null,
+    };
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    const out = runPendingFight(chosen.state)!;
+    if (out.result.winner === 'hero') return; // unlikely; the win path is covered above
+    expect(out.state.status).toBe('dead');
+    expect(out.state.deathInfo?.killerEnemyId).toBe('echo');
+    expect(out.state.deathInfo?.echoOwnerName).toBe('Maro');
+    expect(killerName(out.state)).toBe("Maro's Echo");
   });
 });

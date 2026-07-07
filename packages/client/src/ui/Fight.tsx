@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getEnemy } from '@towventure/shared/content';
-import { buildCombatSpec } from '@towventure/shared/run';
+import { prepareFight } from '@towventure/shared/run';
 import { buildEnemy, buildFloor, buildHero, buildLantern, type Actor } from '../engine/meshes.js';
 import { paletteForBiome } from '../engine/palettes.js';
 import { Playback } from '../engine/playback.js';
@@ -57,13 +57,10 @@ export function Fight() {
   const pbRef = useRef<Playback | null>(null);
   const numId = useRef(0);
 
-  const spec = useMemo(
-    () =>
-      playback
-        ? buildCombatSpec(playback.preState, playback.preState.pendingFight!.enemyIds)
-        : null,
-    [playback],
-  );
+  // prepareFight handles both normal fights and Echo duels — the same builder the
+  // server used, so the client re-sims to the identical hash (ARCHITECTURE §3).
+  const spec = useMemo(() => (playback ? (prepareFight(playback.preState)?.spec ?? null) : null), [playback]);
+  const isEcho = playback?.preState.pendingFight?.kind === 'echo';
 
   const setup = useCallback(
     (scene: THREE.Scene, camera: THREE.PerspectiveCamera) => {
@@ -85,7 +82,10 @@ export function Fight() {
 
       const enemyCount = spec.enemies.length;
       const enemyActors: Actor[] = spec.enemies.map((_e, i) => {
-        const a = buildEnemy(playback.preState.pendingFight!.enemyIds[i]!, pal.accent);
+        // An Echo duel renders its foe as a rival hero (a mirror), not a bestiary enemy.
+        const a = isEcho
+          ? buildHero(pal.hero, pal.accent)
+          : buildEnemy(playback.preState.pendingFight!.enemyIds[i]!, pal.accent);
         a.group.position.set(2.6 + i * 1.4, 0, (i - (enemyCount - 1) / 2) * 1.1);
         a.group.rotation.y = -Math.PI / 2;
         scene.add(a.group);
@@ -94,11 +94,12 @@ export function Fight() {
       const actors = [hero, ...enemyActors];
       const anim = actors.map(() => ({ lunge: 0, dead: false, deadT: 0 }));
 
-      // Hydrate initial HP bars.
+      // Hydrate initial HP bars. An Echo's foe bar shows the dead owner's name.
+      const echoName = playback.preState.pendingFight?.echo?.ownerName;
       setHp([
         { name: spec.hero.name, side: 'hero', hp: spec.hero.maxHp, maxHp: spec.hero.maxHp },
         ...spec.enemies.map((e) => ({
-          name: e.name,
+          name: isEcho && echoName ? `${echoName}'s Echo` : e.name,
           side: 'enemy' as const,
           hp: e.maxHp,
           maxHp: e.maxHp,
