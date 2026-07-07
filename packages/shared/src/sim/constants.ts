@@ -33,17 +33,42 @@ export const LIFESTEAL_CAP_PCT = 35;
 /** Minimum damage a landed hit deals after Armor (BALANCE §1). */
 export const MIN_HIT_DAMAGE = 1;
 
-/** Status rules (per stack), BALANCE §3. Phase 1 subset: the five below. */
+/** Status rules (per stack unless noted), BALANCE §3 — all ten. */
 export const STATUS = {
   bleed: { dmgPerSecPerStack: 2, durationTicks: 4 * TICKS_PER_SECOND },
   burn: { dmgPerSecPerStack: 3, durationTicks: 3 * TICKS_PER_SECOND },
   chill: { speedPctPerStack: 4, durationTicks: 4 * TICKS_PER_SECOND, maxStacks: 8 },
   regen: { healPerSecPerStack: 2, durationTicks: 4 * TICKS_PER_SECOND },
   ward: { decayPctPerSec: 5, capPctOfMaxHp: 40 },
+  // Venom never expires; each stack is 1 dmg/s and the whole DoT ramps +1 dmg/s
+  // for every 5s it has been present (it only grows).
+  venom: { dmgPerSecPerStack: 1, rampPerStep: 1, rampEverySec: 5 },
+  // Next incoming hit on the target cannot miss and is a guaranteed crit; one stack
+  // is consumed on use. No duration — it waits until spent.
+  shock: { maxStacks: 3 },
+  weaken: { dmgPctPerStack: 5, durationTicks: 5 * TICKS_PER_SECOND, maxStacks: 5 },
+  // −3 Armor per stack; Armor may go negative (adds damage taken), floored at −15.
+  sunder: { armorPerStack: 3, durationTicks: 6 * TICKS_PER_SECOND, minArmor: -15 },
+  haste: { speedPctPerStack: 5, durationTicks: 3 * TICKS_PER_SECOND, maxStacks: 6 },
 } as const;
 
-/** Fixed iteration order over statuses — never iterate object keys (AGENTS §3.1). */
-export const STATUS_ORDER = ['bleed', 'burn', 'chill', 'regen', 'ward'] as const;
+/**
+ * Fixed iteration order over statuses — never iterate object keys (AGENTS §3.1).
+ * The Phase 1 five stay first so their status codes (and every committed golden
+ * hash) are unchanged; the Phase 2 five are appended.
+ */
+export const STATUS_ORDER = [
+  'bleed',
+  'burn',
+  'chill',
+  'regen',
+  'ward',
+  'venom',
+  'shock',
+  'weaken',
+  'sunder',
+  'haste',
+] as const;
 export type StatusKind = (typeof STATUS_ORDER)[number];
 
 /** Free HP scaling: +6 Max HP per floor cleared (BALANCE §2). */

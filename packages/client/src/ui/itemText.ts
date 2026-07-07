@@ -12,6 +12,11 @@ const STATUS_LABEL: Record<string, string> = {
   chill: 'Chill',
   regen: 'Regen',
   ward: 'Ward',
+  venom: 'Venom',
+  shock: 'Shock',
+  weaken: 'Weaken',
+  sunder: 'Sunder',
+  haste: 'Haste',
 };
 
 function opText(op: EffectOp, star: number): string {
@@ -33,6 +38,8 @@ function opText(op: EffectOp, star: number): string {
       return `deal ${s(op.pct)}% weapon damage`;
     case 'buffDamagePct':
       return `+${s(op.pct)}% damage`;
+    case 'buffSpeedPct':
+      return `+${s(op.pct)}% Speed`;
     case 'retaliateThorns':
       return `retaliate for Thorns ×${op.mult}`;
     case 'stun':
@@ -61,6 +68,10 @@ function triggerText(e: ItemEffect): string {
       return 'Fight start';
     case 'OnDoomfall':
       return 'On Doomfall';
+    case 'OnStatusApplied':
+      return `On applying ${STATUS_LABEL[t.status] ?? t.status}`;
+    case 'OnEnemyDeath':
+      return 'On kill';
   }
 }
 

@@ -78,5 +78,40 @@
     "hash": 311248149,
     "endTick": 108,
     "winner": "hero"
+  },
+  "venom-ramps": {
+    "hash": 614727595,
+    "endTick": 290,
+    "winner": "hero"
+  },
+  "shock-guarantees-crit": {
+    "hash": 87147051,
+    "endTick": 224,
+    "winner": "hero"
+  },
+  "weaken-reduces-damage": {
+    "hash": 1906046967,
+    "endTick": 280,
+    "winner": "enemies"
+  },
+  "sunder-negative-armor": {
+    "hash": 2969991346,
+    "endTick": 156,
+    "winner": "hero"
+  },
+  "haste-speeds-cooldowns": {
+    "hash": 2172095781,
+    "endTick": 510,
+    "winner": "hero"
+  },
+  "onstatusapplied-chill-to-shock": {
+    "hash": 58592072,
+    "endTick": 364,
+    "winner": "hero"
+  },
+  "onenemydeath-heal": {
+    "hash": 643098231,
+    "endTick": 20,
+    "winner": "hero"
   }
 }

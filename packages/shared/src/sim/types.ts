@@ -18,7 +18,11 @@ export type Trigger =
   | { kind: 'Every'; seconds: number }
   | { kind: 'OnFightStart' }
   | { kind: 'OnHpBelow'; pct: number }
-  | { kind: 'OnDoomfall' };
+  | { kind: 'OnDoomfall' }
+  /** Fires on the applier when it applies status X (Phase 2 vocabulary). */
+  | { kind: 'OnStatusApplied'; status: StatusKind }
+  /** Fires on this combatant when an opposing combatant dies. */
+  | { kind: 'OnEnemyDeath' };
 
 export type TriggerKind = Trigger['kind'];
 
@@ -38,6 +42,8 @@ export type EffectOp =
   | { op: 'damageWeaponPct'; pct: number; to: EffectTarget }
   /** Fight-scoped additive damage% buff on self (e.g. Moth-Eaten Standard). */
   | { op: 'buffDamagePct'; pct: number }
+  /** Fight-scoped additive Speed% buff on self (e.g. Pyrebrand ignite, Rumor). */
+  | { op: 'buffSpeedPct'; pct: number }
   /** Deal self.thorns × mult to the triggering attacker (Bulwark Sigil OnBlock). */
   | { op: 'retaliateThorns'; mult: number }
   /** Delay the target's next action(s) by `ticks` (Toll-Keeper's Bell). */

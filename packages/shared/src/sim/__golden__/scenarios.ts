@@ -391,4 +391,144 @@ export const SCENARIOS: Scenario[] = [
       ],
     ),
   },
+
+  // ── Phase 2 statuses + triggers ──────────────────────────────────────────
+  {
+    name: 'venom-ramps',
+    seed: 888,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 500,
+        weapons: [{ name: 'Kris', cooldownTicks: 15, damage: 4 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }])],
+      }),
+      [c({ id: 'e0', name: 'Envenomable', maxHp: 400, weapons: [] })],
+    ),
+  },
+  {
+    name: 'shock-guarantees-crit',
+    seed: 999,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Rod', cooldownTicks: 16, damage: 10 }],
+        critChancePct: 0,
+        critDamagePct: 100,
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'shock', stacks: 1, to: 'target' }])],
+      }),
+      // High dodge — Shock must force the next hit to land and crit.
+      [c({ id: 'e0', name: 'Slippery', maxHp: 300, dodgePct: 40, weapons: [] })],
+    ),
+  },
+  {
+    name: 'weaken-reduces-damage',
+    seed: 1212,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 600,
+        weapons: [{ name: 'Dagger', cooldownTicks: 10, damage: 6 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'weaken', stacks: 5, to: 'target' }])],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Courtier',
+          maxHp: 200,
+          weapons: [{ name: 'Rapier', cooldownTicks: 10, damage: 30 }],
+        }),
+      ],
+    ),
+  },
+  {
+    name: 'sunder-negative-armor',
+    seed: 1313,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Pick', cooldownTicks: 12, damage: 8 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'sunder', stacks: 5, to: 'target' }])],
+      }),
+      [c({ id: 'e0', name: 'Colossus', maxHp: 260, armor: 10, weapons: [] })],
+    ),
+  },
+  {
+    name: 'haste-speeds-cooldowns',
+    seed: 1414,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        weapons: [{ name: 'Blade', cooldownTicks: 20, damage: 10 }],
+        effects: [
+          {
+            source: 'Adrenal',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'applyStatus', status: 'haste', stacks: 6, to: 'self' }],
+          },
+        ],
+      }),
+      [c({ id: 'e0', name: 'Sack', maxHp: 300, weapons: [] })],
+    ),
+  },
+  {
+    name: 'onstatusapplied-chill-to-shock',
+    seed: 1515,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 400,
+        weapons: [{ name: 'Coldsnap', cooldownTicks: 14, damage: 8 }],
+        effects: [
+          bindOnHit([{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }]),
+          {
+            source: 'Frost (4)',
+            trigger: { kind: 'OnStatusApplied', status: 'chill' },
+            chancePct: 50,
+            ops: [{ op: 'applyStatus', status: 'shock', stacks: 1, to: 'target' }],
+          },
+        ],
+      }),
+      [c({ id: 'e0', name: 'Frostable', maxHp: 260, weapons: [] })],
+    ),
+  },
+  {
+    name: 'onenemydeath-heal',
+    seed: 1616,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 300,
+        weapons: [{ name: 'Fang', cooldownTicks: 10, damage: 30 }],
+        effects: [
+          {
+            source: 'Wild (4)',
+            trigger: { kind: 'OnEnemyDeath' },
+            ops: [{ op: 'healPctMax', pct: 8 }],
+          },
+        ],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Prey A',
+          maxHp: 30,
+          weapons: [{ name: 'Nip', cooldownTicks: 8, damage: 20 }],
+        }),
+        c({
+          id: 'e1',
+          name: 'Prey B',
+          maxHp: 30,
+          weapons: [{ name: 'Nip', cooldownTicks: 8, damage: 20 }],
+        }),
+      ],
+    ),
+  },
 ];

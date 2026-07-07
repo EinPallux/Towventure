@@ -105,3 +105,53 @@ describe('sim outcomes', () => {
     expect(r.enemyHpRemaining[0]).toBe(0); // both fell
   });
 });
+
+describe('Phase 2 statuses', () => {
+  it('Shock forces a guaranteed crit through dodge (hero has 0 base crit)', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        critChancePct: 0,
+        weapons: [{ name: 'Rod', cooldownTicks: 12, damage: 10 }],
+        effects: [
+          {
+            source: 'test',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'applyStatus', status: 'shock', stacks: 3, to: 'target' }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Slippery', maxHp: 400, dodgePct: 40, weapons: [] })],
+    });
+    const r = simulate(s, 7);
+    const firstHit = r.events.find((e) => e.type === 'hit');
+    // With 0 crit chance, a crit can only come from Shock; and it can't be dodged.
+    expect(firstHit && firstHit.type === 'hit' ? firstHit.crit : 0).toBe(1);
+  });
+
+  it('Venom never expires and ramps: later ticks exceed earlier ones', () => {
+    const s = spec({
+      hero: combatant({
+        id: 'hero',
+        name: 'Hero',
+        maxHp: 999,
+        weapons: [],
+        effects: [
+          {
+            source: 'test',
+            trigger: { kind: 'OnFightStart' },
+            ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+          },
+        ],
+      }),
+      enemies: [combatant({ id: 'e0', name: 'Sponge', maxHp: 9999, weapons: [] })],
+    });
+    const r = simulate(s, 1);
+    const venom = r.events.filter((e) => e.type === 'dot' && e.status === 'venom');
+    const dmgs = venom.map((e) => (e.type === 'dot' ? e.dmg : 0));
+    expect(dmgs.length).toBeGreaterThan(10);
+    expect(dmgs[0]).toBe(1); // 1 stack, no ramp yet
+    expect(dmgs[dmgs.length - 1]!).toBeGreaterThan(dmgs[0]!); // it only grows
+  });
+});

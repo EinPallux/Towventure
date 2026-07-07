@@ -59,6 +59,8 @@ function scaleOp(op: EffectOp, star: number): EffectOp {
       return { ...op, pct: scaleToStar(op.pct, star) };
     case 'buffDamagePct':
       return { ...op, pct: scaleToStar(op.pct, star) };
+    case 'buffSpeedPct':
+      return { ...op, pct: scaleToStar(op.pct, star) };
     // Structural magnitudes that must not scale with ★.
     case 'retaliateThorns':
     case 'stun':

@@ -90,7 +90,10 @@ interface Combatant {
   maxHp: number;
   armorBonus: number;
   damageBuffPct: number;
+  speedBuffPct: number;
   ward: number;
+  /** Ticks Venom has been present — drives its ramp (BALANCE §3). */
+  venomAge: number;
   statuses: Record<StatusKind, StatusState>;
   weapons: WeaponRuntime[];
   effects: EffectRuntime[];
@@ -104,6 +107,11 @@ function newStatuses(): Record<StatusKind, StatusState> {
     chill: { stacks: 0, remaining: 0 },
     regen: { stacks: 0, remaining: 0 },
     ward: { stacks: 0, remaining: 0 }, // ward magnitude lives on `.ward`; this slot unused
+    venom: { stacks: 0, remaining: 0 }, // never expires; ramps via venomAge
+    shock: { stacks: 0, remaining: 0 }, // consumed on use; no duration
+    weaken: { stacks: 0, remaining: 0 },
+    sunder: { stacks: 0, remaining: 0 },
+    haste: { stacks: 0, remaining: 0 },
   };
 }
 
@@ -118,6 +126,8 @@ class Sim {
   private ended = false;
   private winner: 'hero' | 'enemies' = 'enemies';
   private endTick = 0;
+  /** One-level re-entrancy guard so OnStatusApplied handlers can't loop. */
+  private inStatusTrigger = false;
 
   constructor(spec: CombatSpec, seed: number) {
     this.rng = new Rng(seed);
@@ -136,7 +146,9 @@ class Sim {
       maxHp: spec.maxHp,
       armorBonus: 0,
       damageBuffPct: 0,
+      speedBuffPct: 0,
       ward: 0,
+      venomAge: 0,
       statuses: newStatuses(),
       weapons: spec.weapons.map((w) => ({ ...w, nextSwing: 0 })),
       effects: spec.effects.map((b) => ({
@@ -153,12 +165,15 @@ class Sim {
   // ─── stat accessors ────────────────────────────────────────────────────────
 
   private armorOf(c: Combatant): number {
-    return Math.max(0, c.spec.armor + c.armorBonus);
+    // Sunder can push Armor negative (adds damage taken), floored at −15 (BALANCE §3).
+    const sunder = c.statuses.sunder.stacks * STATUS.sunder.armorPerStack;
+    return Math.max(STATUS.sunder.minArmor, c.spec.armor + c.armorBonus - sunder);
   }
 
   private speedOf(c: Combatant): number {
     const chill = c.statuses.chill.stacks * STATUS.chill.speedPctPerStack;
-    let s = c.spec.speedPct - chill;
+    const haste = c.statuses.haste.stacks * STATUS.haste.speedPctPerStack;
+    let s = c.spec.speedPct + c.speedBuffPct + haste - chill;
     if (s > SPEED_CAP_PCT) s = SPEED_CAP_PCT;
     if (s < -90) s = -90; // keep cooldown denominator sane
     return s;
@@ -268,7 +283,13 @@ class Sim {
     this.emit({ type: 'ward', t, who: c.idx, amount: c.ward });
   }
 
-  private applyStatus(c: Combatant, kind: StatusKind, stacks: number, t: number): void {
+  private applyStatus(
+    c: Combatant,
+    kind: StatusKind,
+    stacks: number,
+    t: number,
+    applier?: Combatant,
+  ): void {
     if (stacks <= 0 || !c.alive) return;
     if (kind === 'ward') {
       // "ward" as a status op adds Ward magnitude equal to stacks.
@@ -277,10 +298,32 @@ class Sim {
     }
     const s = c.statuses[kind];
     const def = STATUS[kind];
+    if (kind === 'venom' && s.stacks === 0) c.venomAge = 0; // a fresh Venom starts ramping at 0
     s.stacks += stacks;
-    if (kind === 'chill' && 'maxStacks' in def) s.stacks = Math.min(s.stacks, def.maxStacks);
-    s.remaining = 'durationTicks' in def ? def.durationTicks : s.remaining;
+    if ('maxStacks' in def) s.stacks = Math.min(s.stacks, def.maxStacks);
+    if ('durationTicks' in def) s.remaining = def.durationTicks;
     this.emit({ type: 'status', t, to: c.idx, status: kind, stacks: s.stacks });
+    // OnStatusApplied fires on the applier (one level deep — no cascades).
+    if (applier && !this.inStatusTrigger) {
+      this.inStatusTrigger = true;
+      this.fireStatusApplied(applier, kind, t, c);
+      this.inStatusTrigger = false;
+    }
+  }
+
+  private fireStatusApplied(
+    applier: Combatant,
+    kind: StatusKind,
+    t: number,
+    target: Combatant,
+  ): void {
+    if (!applier.alive) return;
+    for (const eff of applier.effects) {
+      const trig = eff.binding.trigger;
+      if (trig.kind !== 'OnStatusApplied' || trig.status !== kind) continue;
+      if (eff.binding.chancePct !== undefined && !this.rng.chance(eff.binding.chancePct)) continue;
+      this.runOps(applier, eff.binding, t, target);
+    }
   }
 
   // ─── the weapon hit (the only path that fires hit-triggers) ─────────────────
@@ -289,20 +332,37 @@ class Sim {
     const target = this.focusEnemyFor(att);
     if (!target) return;
 
-    // 1. dodge
+    // Shock on the target: the next incoming hit cannot miss and is a guaranteed
+    // crit; one stack is consumed (BALANCE §3). Consumes no RNG.
+    let shocked = false;
+    if (target.statuses.shock.stacks > 0) {
+      shocked = true;
+      target.statuses.shock.stacks -= 1;
+      this.emit({
+        type: 'status',
+        t,
+        to: target.idx,
+        status: 'shock',
+        stacks: target.statuses.shock.stacks,
+      });
+    }
+
+    // 1. dodge (Shock guarantees the hit lands)
     const dodge = Math.min(DODGE_CAP_PCT, target.spec.dodgePct);
-    if (this.rng.chance(dodge)) {
+    if (!shocked && this.rng.chance(dodge)) {
       this.emit({ type: 'dodge', t, from: att.idx, to: target.idx });
       this.fireTriggers(target, 'OnDodge', t, att);
       return;
     }
 
-    // 2. crit
-    const crit = this.rng.chance(att.spec.critChancePct);
+    // 2. crit (Shock guarantees it)
+    const crit = shocked || this.rng.chance(att.spec.critChancePct);
 
-    // 3. base × buffs × crit
+    // 3. base × buffs × Weaken × crit
     let dmg = w.damage;
     if (att.damageBuffPct !== 0) dmg = Math.trunc((dmg * (100 + att.damageBuffPct)) / 100);
+    const weaken = att.statuses.weaken.stacks * STATUS.weaken.dmgPctPerStack;
+    if (weaken > 0) dmg = Math.trunc((dmg * (100 - weaken)) / 100);
     if (crit) dmg = Math.trunc((dmg * (CRIT_BASE_MULT_PCT + att.spec.critDamagePct)) / 100);
 
     // 4. Armor flat reduction (min 1)
@@ -399,7 +459,7 @@ class Sim {
     switch (op.op) {
       case 'applyStatus': {
         for (const tgt of this.resolveTarget(self, op.to, other)) {
-          this.applyStatus(tgt, op.status, op.stacks, t);
+          this.applyStatus(tgt, op.status, op.stacks, t, self);
           this.checkDeath(tgt, t);
         }
         return;
@@ -422,6 +482,9 @@ class Sim {
         return;
       case 'buffDamagePct':
         self.damageBuffPct += op.pct;
+        return;
+      case 'buffSpeedPct':
+        self.speedBuffPct += op.pct;
         return;
       case 'damageWeaponPct': {
         const base = self.weapons[0]?.damage ?? 0;
@@ -467,6 +530,9 @@ class Sim {
       c.hp = 0;
       c.alive = false;
       this.emit({ type: 'death', t, who: c.idx });
+      // The opposing side's OnEnemyDeath fires when a combatant falls.
+      const watchers = c.side === 'hero' ? this.enemies : [this.hero];
+      for (const w of watchers) if (w.alive) this.fireTriggers(w, 'OnEnemyDeath', t, c);
     }
   }
 
@@ -495,21 +561,32 @@ class Sim {
     for (const c of this.combatants) {
       if (!c.alive) continue;
       for (const kind of STATUS_ORDER) {
-        if (kind === 'ward' || kind === 'chill') continue;
         const s = c.statuses[kind];
-        if (s.stacks <= 0 || s.remaining <= 0) continue;
-        if (kind === 'bleed' || kind === 'burn') {
+        if (kind === 'venom') {
+          // Never-expiring ramp: base per stack + floor(age/5s) (BALANCE §3).
+          if (s.stacks <= 0) continue;
+          const ramp =
+            Math.trunc(c.venomAge / (STATUS.venom.rampEverySec * TICKS_PER_SECOND)) *
+            STATUS.venom.rampPerStep;
+          const dmg = s.stacks * STATUS.venom.dmgPerSecPerStack + ramp;
+          this.damageThroughWard(c, dmg, t);
+          this.emit({ type: 'dot', t, to: c.idx, status: 'venom', dmg });
+          this.checkDeath(c, t);
+        } else if (kind === 'bleed' || kind === 'burn') {
+          if (s.stacks <= 0 || s.remaining <= 0) continue;
           const dmg = s.stacks * STATUS[kind].dmgPerSecPerStack;
           this.damageThroughWard(c, dmg, t);
           this.emit({ type: 'dot', t, to: c.idx, status: kind, dmg });
           this.checkDeath(c, t);
         } else if (kind === 'regen') {
+          if (s.stacks <= 0 || s.remaining <= 0) continue;
           const heal = s.stacks * STATUS.regen.healPerSecPerStack;
           const before = c.hp;
           c.hp = Math.min(c.maxHp, c.hp + heal);
           const gained = c.hp - before;
           if (gained > 0) this.emit({ type: 'dot', t, to: c.idx, status: 'regen', dmg: -gained });
         }
+        // chill/ward/shock/weaken/sunder/haste have no per-second tick.
         if (this.ended) return;
       }
       // Ward decay: 5% of remaining per second.
@@ -555,8 +632,10 @@ class Sim {
 
   private decayDurations(): void {
     for (const c of this.combatants) {
+      if (c.statuses.venom.stacks > 0) c.venomAge += 1; // Venom only grows
       for (const kind of STATUS_ORDER) {
-        if (kind === 'ward') continue;
+        // Ward decays by %, Venom never expires, Shock waits until consumed.
+        if (kind === 'ward' || kind === 'venom' || kind === 'shock') continue;
         const s = c.statuses[kind];
         if (s.remaining > 0) {
           s.remaining -= 1;
