@@ -1,4 +1,5 @@
 import { useStore } from './store.js';
+import { Codex } from './ui/Codex.js';
 import { Death } from './ui/Death.js';
 import { Fight } from './ui/Fight.js';
 import { Gate } from './ui/Gate.js';
@@ -28,6 +29,8 @@ export function App() {
     body = <Gate />;
   } else if (view === 'ladder') {
     body = <Ladder />;
+  } else if (view === 'codex') {
+    body = <Codex />;
   } else if (playback) {
     body = <Fight />;
   } else if (run && run.status === 'dead') {

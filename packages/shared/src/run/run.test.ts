@@ -11,6 +11,7 @@ import {
 import { VOW_IDS } from '../content/vows.js';
 import { runStartSchema } from '../protocol/schemas.js';
 import { buildCombatSpec, buildHeroSpec, tagCounts } from './build.js';
+import { buildCodex } from './codex.js';
 import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 import { climbHonorForFloor, climbHonorForFrontier, cumulativeClimbHonor, honorTier } from './honor.js';
 import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
@@ -227,6 +228,63 @@ describe('consumable auto-triggers', () => {
       condition: 'doomfall',
     });
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe('codex', () => {
+  it('records the relic and starting kit at run start (consumables excluded)', () => {
+    const s = startRun('vanguard', [], 1);
+    expect(s.codex.items['bulwark_sigil']).toBe(1); // relic
+    expect(s.codex.items['rusty_cleaver']).toBe(1); // start weapon
+    expect(s.codex.items['small_ale']).toBeUndefined(); // consumables aren't items
+  });
+
+  it('tallies enemy kills on a won fight', () => {
+    const start = startRun('vanguard', [], 555);
+    const idx = start.doors!.findIndex((d) => d.kind === 'battle');
+    const doored = applyCommand(start, { type: 'chooseDoor', doorIndex: idx >= 0 ? idx : 0 });
+    const pre = doored.ok ? doored.state : start;
+    const enemyIds = pre.pendingFight!.enemyIds;
+    const out = runPendingFight(pre);
+    if (out && out.state.status !== 'dead') {
+      for (const id of enemyIds) expect(out.state.codex.enemies[id]).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('fusing to a higher ★ records it and unlocks the deeper lore line', () => {
+    const s = structuredClone(startRun('vanguard', [], 1));
+    s.backpack.push({ uid: 'a', itemId: 'sawtooth_dirk', star: 2 });
+    s.backpack.push({ uid: 'b', itemId: 'sawtooth_dirk', star: 2 });
+    const res = applyCommand(s, { type: 'fuse', uid1: 'a', uid2: 'b' });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.codex.items['sawtooth_dirk']).toBe(3);
+    const entry = buildCodex(res.state).items.find((e) => e.id === 'sawtooth_dirk')!;
+    expect(entry.discovered).toBe(true);
+    expect(entry.lore[0]!.unlocked).toBe(true); // ★3 line
+    expect(entry.lore[1]!.unlocked).toBe(false); // ★5 line still locked
+  });
+
+  it('buildCodex hides undiscovered entries and counts discovery', () => {
+    const codex = buildCodex(startRun('vanguard', [], 1));
+    const rat = codex.enemies.find((e) => e.id === 'tunnel_rat')!;
+    expect(rat.discovered).toBe(false);
+    expect(rat.name).toBe('???');
+    const relic = codex.items.find((e) => e.id === 'bulwark_sigil')!;
+    expect(relic.discovered).toBe(true);
+    expect(relic.name).toBe('Bulwark Sigil');
+    expect(codex.discovered).toBeGreaterThan(0);
+    expect(codex.total).toBe(codex.items.length + codex.enemies.length);
+  });
+
+  it('enemy lore unlocks at 3 then 10 kills', () => {
+    const s = startRun('vanguard', [], 1);
+    s.codex.enemies['tunnel_rat'] = 3;
+    const at3 = buildCodex(s).enemies.find((e) => e.id === 'tunnel_rat')!;
+    expect(at3.lore[0]!.unlocked).toBe(true);
+    expect(at3.lore[1]!.unlocked).toBe(false);
+    s.codex.enemies['tunnel_rat'] = 10;
+    expect(buildCodex(s).enemies.find((e) => e.id === 'tunnel_rat')!.lore[1]!.unlocked).toBe(true);
   });
 });
 

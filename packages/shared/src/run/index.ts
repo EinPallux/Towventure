@@ -17,6 +17,14 @@ export { generateShop, itemPrice, requestableOwned } from './shop.js';
 export { rollLoot, rollGold, rollRarity, rollDrop, pickItemOfRarity } from './loot.js';
 export { equip, unequip, sell, fuse, sellValue, pushBackpack } from './inventory.js';
 export {
+  buildCodex,
+  recordCodexItem,
+  recordCodexKills,
+  type Codex,
+  type CodexEntry,
+  type CodexLoreLine,
+} from './codex.js';
+export {
   cumulativeClimbHonor,
   climbHonorForFloor,
   climbHonorForFrontier,

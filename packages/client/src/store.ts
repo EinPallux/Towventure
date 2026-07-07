@@ -25,7 +25,7 @@ interface Store {
   me: MeResponse | null;
   run: RunState | null;
   version: number;
-  view: 'gate' | 'ladder';
+  view: 'gate' | 'ladder' | 'codex';
   playback: FightPlayback | null;
   busy: boolean;
   error: string | null;
@@ -41,7 +41,7 @@ interface Store {
   fight: () => Promise<void>;
   endPlayback: () => void;
   dismissRun: () => void;
-  setView: (v: 'gate' | 'ladder') => void;
+  setView: (v: 'gate' | 'ladder' | 'codex') => void;
   clearError: () => void;
 }
 

@@ -11,6 +11,7 @@ import { MAX_VOWS } from '../content/vows.js';
 import { simulate } from '../sim/engine.js';
 import type { SimEvent, SimResult } from '../sim/types.js';
 import { buildCombatSpec, goldPerWin } from './build.js';
+import { recordCodexItem, recordCodexKills } from './codex.js';
 import { generateDoors, isShopFloor } from './doors.js';
 import { applyEvent } from './events.js';
 import { climbHonorForFrontier, honorTier } from './honor.js';
@@ -28,7 +29,10 @@ const STARTING_BACKPACK = 12;
  * Node-free build) and deterministic.
  */
 function cloneState(state: RunState): RunState {
-  return JSON.parse(JSON.stringify(state)) as RunState;
+  const draft = JSON.parse(JSON.stringify(state)) as RunState;
+  // Normalize runs persisted before a field existed (forward-compatible reducers).
+  if (!draft.codex) draft.codex = { items: {}, enemies: {} };
+  return draft;
 }
 
 function emptyEquipment(): EquipState {
@@ -77,9 +81,11 @@ export function startRun(classId: RunState['classId'], vows: string[], seed: num
     shopSlotsSinceEpic: 0,
     requestsThisRun: 0,
     deathInfo: null,
+    codex: { items: {}, enemies: {} },
   };
   // Relic (fixed) + start items equipped; start consumables into the backpack.
   state.equipment.relic = { uid: `i${state.nextUid++}`, itemId: cls.relicId, star: 1 };
+  recordCodexItem(state.codex, cls.relicId, 1); // the class relic is "discovered" at start
   for (const itemId of cls.startItemIds) {
     const inst = pushBackpack(state, itemId, 1);
     const err = equip(state, inst.uid);
@@ -304,6 +310,7 @@ export function resolveFight(state: RunState, result: SimResult): RunState {
   const fightCounter = draft.fightCounter;
 
   if (result.winner === 'hero') {
+    recordCodexKills(draft.codex, fight.enemyIds); // discovery: tally the fallen
     const rng = deriveRng(draft.seed, draft.floor, RNG_PURPOSE.loot, fightCounter);
     const loot = rollLoot(draft.floor, fight.kind, rng);
     const bonus = goldPerWin(draft);

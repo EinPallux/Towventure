@@ -72,6 +72,12 @@ export interface DeathInfo {
   endTick: number;
 }
 
+/** Codex discovery progress (CONTENT §7): items by highest ★ seen, enemies by kills. */
+export interface CodexProgress {
+  items: Record<string, number>;
+  enemies: Record<string, number>;
+}
+
 export type RunPhase = 'doors' | 'fight' | 'reward' | 'shop' | 'event' | 'ended';
 
 export type RunStatus = 'active' | 'dead' | 'abandoned';
@@ -110,6 +116,8 @@ export interface RunState {
   /** Requested-copy escalation counter. */
   requestsThisRun: number;
   deathInfo: DeathInfo | null;
+  /** Codex discovery accrued this run (CONTENT §7). */
+  codex: CodexProgress;
 }
 
 // ─── Commands (the one gameplay mutation surface; validated by protocol zod) ──

@@ -16,6 +16,7 @@ import {
   socketsFor,
 } from '../content/registry.js';
 import type { Rarity } from '../content/types.js';
+import { recordCodexItem } from './codex.js';
 import { itemPrice } from './shop.js';
 import type { EquipSlotId, InventoryItem, RunState } from './types.js';
 
@@ -77,6 +78,7 @@ export function pushBackpack(draft: RunState, itemId: string, star = 1): Invento
   const inst: InventoryItem = { uid: `i${draft.nextUid}`, itemId, star };
   draft.nextUid += 1;
   draft.backpack.push(inst);
+  recordCodexItem(draft.codex, itemId, star); // discovery: acquiring an item logs it
   return inst;
 }
 
