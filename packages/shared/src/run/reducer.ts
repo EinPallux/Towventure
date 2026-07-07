@@ -10,8 +10,9 @@ import { findConsumable, findEvent, getClass, getEnemy, isVow } from '../content
 import { MAX_VOWS } from '../content/vows.js';
 import { simulate } from '../sim/engine.js';
 import type { SimEvent, SimResult } from '../sim/types.js';
-import { buildCombatSpec, goldPerWin } from './build.js';
+import { buildCombatSpec, buildDuelSpec, goldPerWin, snapshotOf } from './build.js';
 import { recordCodexItem, recordCodexKills } from './codex.js';
+import { graveCopyOptions } from './echo.js';
 import { generateDoors, isShopFloor } from './doors.js';
 import { applyEvent } from './events.js';
 import { climbHonorForFrontier, honorTier } from './honor.js';
@@ -32,6 +33,7 @@ function cloneState(state: RunState): RunState {
   const draft = JSON.parse(JSON.stringify(state)) as RunState;
   // Normalize runs persisted before a field existed (forward-compatible reducers).
   if (!draft.codex) draft.codex = { items: {}, enemies: {} };
+  if (draft.pendingGraveCopy === undefined) draft.pendingGraveCopy = null;
   return draft;
 }
 
@@ -72,6 +74,7 @@ export function startRun(classId: RunState['classId'], vows: string[], seed: num
     pendingEvent: null,
     fightCounter: 0,
     pendingItem: null,
+    pendingGraveCopy: null,
     lastGold: 0,
     shop: null,
     floorsCleared: 0,
@@ -119,6 +122,13 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       if (door.kind === 'event') {
         draft.pendingEvent = door.eventId ?? null;
         draft.phase = 'event';
+        draft.doors = null;
+        return { ok: true, state: draft };
+      }
+      if (door.kind === 'echo') {
+        if (!door.echo) return reject('echo door has no echo');
+        draft.pendingFight = { kind: 'echo', enemyIds: [], echo: door.echo };
+        draft.phase = 'fight';
         draft.doors = null;
         return { ok: true, state: draft };
       }
@@ -203,9 +213,23 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       else advanceFloor(draft);
       return { ok: true, state: draft };
     }
+    case 'chooseGraveCopy': {
+      if (draft.phase !== 'reward' || !draft.pendingGraveCopy) return reject('no Grave-Copy to pick');
+      const itemId = draft.pendingGraveCopy[command.index];
+      if (!itemId) return reject('no such Grave-Copy option');
+      // The copy is a ★1 of the Echo's item — capacity permitting; it's optional loot.
+      if (draft.backpack.length >= draft.backpackSize) {
+        return reject('backpack is full — sell or fuse to make room, then claim the Grave-Copy');
+      }
+      pushBackpack(draft, itemId, 1);
+      draft.pendingGraveCopy = null;
+      return { ok: true, state: draft };
+    }
     case 'proceed': {
       if (draft.phase !== 'reward') return reject('nothing to proceed from');
       if (draft.pendingItem) return reject('resolve the loot drop first');
+      // Proceeding past an unclaimed Grave-Copy forfeits it (the "Leave them all" path).
+      draft.pendingGraveCopy = null;
       advanceFloor(draft);
       return { ok: true, state: draft };
     }
@@ -279,7 +303,12 @@ export interface PreparedFight {
 export function prepareFight(state: RunState): PreparedFight | null {
   if (state.phase !== 'fight' || !state.pendingFight) return null;
   const seed = deriveFightSeed(state.seed, state.floor, state.fightCounter);
-  return { spec: buildCombatSpec(state, state.pendingFight.enemyIds), seed };
+  const pf = state.pendingFight;
+  // An Echo fight duels a dead player's build through the same sim (GDD §8).
+  if (pf.kind === 'echo' && pf.echo) {
+    return { spec: buildDuelSpec(snapshotOf(state), pf.echo.build, pf.echo.bonusPct), seed };
+  }
+  return { spec: buildCombatSpec(state, pf.enemyIds), seed };
 }
 
 function analyzeFight(events: SimEvent[]): { heroDamage: number; killerEnemyIdx: number | null } {
@@ -314,33 +343,54 @@ export function resolveFight(state: RunState, result: SimResult): RunState {
     draft.backpack = draft.backpack.filter((i) => !fired.has(i.uid));
   }
   const fightCounter = draft.fightCounter;
+  const isEcho = fight.kind === 'echo';
 
   if (result.winner === 'hero') {
-    recordCodexKills(draft.codex, fight.enemyIds); // discovery: tally the fallen
-    const rng = deriveRng(draft.seed, draft.floor, RNG_PURPOSE.loot, fightCounter);
-    const loot = rollLoot(draft.floor, fight.kind, rng);
-    const bonus = goldPerWin(draft);
-    // Vow of Poverty: fights pay 40% less gold (the goldPerWin bonus is unaffected).
-    const fightGold = draft.vows.includes('vow_of_poverty')
-      ? Math.trunc((loot.gold * 60) / 100)
-      : loot.gold;
-    draft.gold += fightGold + bonus;
-    draft.lastGold = fightGold + bonus;
-    draft.pendingItem = loot.itemId ?? null;
     draft.fightsWon += 1;
     draft.pendingFight = null;
     draft.phase = 'reward';
+    if (isEcho && fight.echo) {
+      // An Echo kill pays a Grave-Copy (pick 1 of 3) instead of rolled loot; the
+      // Honor bounty + Marks are credited server-side against the echo row (GDD §8).
+      const opts = graveCopyOptions(fight.echo.build);
+      draft.pendingGraveCopy = opts.length > 0 ? opts : null;
+      draft.pendingItem = null;
+      draft.lastGold = 0;
+    } else {
+      recordCodexKills(draft.codex, fight.enemyIds); // discovery: tally the fallen
+      const rng = deriveRng(draft.seed, draft.floor, RNG_PURPOSE.loot, fightCounter);
+      const loot = rollLoot(draft.floor, fight.kind, rng);
+      const bonus = goldPerWin(draft);
+      // Vow of Poverty: fights pay 40% less gold (the goldPerWin bonus is unaffected).
+      const fightGold = draft.vows.includes('vow_of_poverty')
+        ? Math.trunc((loot.gold * 60) / 100)
+        : loot.gold;
+      draft.gold += fightGold + bonus;
+      draft.lastGold = fightGold + bonus;
+      draft.pendingItem = loot.itemId ?? null;
+    }
   } else {
-    const enemyId =
-      killerEnemyIdx !== null && killerEnemyIdx > 0
-        ? (fight.enemyIds[killerEnemyIdx - 1] ?? fight.enemyIds[0]!)
-        : killerEnemyIdx === -1
-          ? 'doomfall'
-          : fight.enemyIds[0]!;
     draft.status = 'dead';
     draft.phase = 'ended';
     draft.pendingFight = null;
-    draft.deathInfo = { floor: draft.floor, killerEnemyId: enemyId, endTick: result.endTick };
+    if (isEcho && fight.echo) {
+      // Losing to an Echo is a normal fight loss; the Echo's owner is credited a
+      // defense win server-side (GDD §8). Record the slayer's name for the ritual.
+      draft.deathInfo = {
+        floor: draft.floor,
+        killerEnemyId: 'echo',
+        endTick: result.endTick,
+        echoOwnerName: fight.echo.ownerName,
+      };
+    } else {
+      const enemyId =
+        killerEnemyIdx !== null && killerEnemyIdx > 0
+          ? (fight.enemyIds[killerEnemyIdx - 1] ?? fight.enemyIds[0]!)
+          : killerEnemyIdx === -1
+            ? 'doomfall'
+            : fight.enemyIds[0]!;
+      draft.deathInfo = { floor: draft.floor, killerEnemyId: enemyId, endTick: result.endTick };
+    }
   }
   draft.fightCounter += 1;
   return draft;
@@ -372,6 +422,10 @@ export function makeSummary(state: RunState): RunSummary {
 export function killerName(state: RunState): string | null {
   if (!state.deathInfo) return null;
   if (state.deathInfo.killerEnemyId === 'doomfall') return 'Doomfall';
+  if (state.deathInfo.killerEnemyId === 'echo') {
+    const name = state.deathInfo.echoOwnerName;
+    return name ? `${name}'s Echo` : 'an Echo';
+  }
   try {
     return getEnemy(state.deathInfo.killerEnemyId).name;
   } catch {

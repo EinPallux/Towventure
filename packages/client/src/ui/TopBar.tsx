@@ -20,6 +20,14 @@ export function TopBar() {
         <span className="muted" title="Valor Marks — spend at the Honor Merchant">
           ◈ {me.marks}
         </span>
+        {me.echo && !me.echo.expired && (
+          <span
+            className="muted"
+            title={`Your Echo stands on Floor ${me.echo.floor} · ${me.echo.defeats}/3 defeats`}
+          >
+            ❂ {me.echo.kills}
+          </span>
+        )}
         <span>{me.account.name}</span>
         {run && run.status === 'active' && view !== 'codex' && (
           <button className="small ghost" onClick={() => setView('codex')}>

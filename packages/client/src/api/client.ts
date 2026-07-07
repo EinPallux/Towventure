@@ -34,6 +34,12 @@ export interface Account {
   name: string;
   isGuest: boolean;
 }
+export interface OwnEcho {
+  floor: number;
+  kills: number;
+  defeats: number;
+  expired: boolean;
+}
 export interface MeResponse {
   account: Account;
   season: number;
@@ -42,7 +48,16 @@ export interface MeResponse {
   tier: string;
   /** 0-based Honor tier rank; gates class/Vow unlocks (GDD §7). */
   tierRank: number;
+  /** The account's own Echo standing in the tower, if any (GDD §8). */
+  echo: OwnEcho | null;
   activeRunFloor: number | null;
+}
+export interface InboxEntry {
+  id: string;
+  kind: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
 }
 export interface RunResponse {
   runId: string;
@@ -63,6 +78,8 @@ export interface FightResponse {
   state: RunState;
   stateVersion: number;
   summary: RunSummary | null;
+  /** Present when this fight killed an Echo — the Honor bounty + Marks paid (GDD §8). */
+  echoReward: { bounty: number; marks: number } | null;
 }
 export interface LadderRow {
   rank: number;
@@ -89,6 +106,7 @@ export const api = {
   logout: () => req<{ ok: true }>('POST', '/api/auth/logout'),
   me: () => req<MeResponse>('GET', '/api/me'),
   codex: () => req<{ codex: CodexProgress }>('GET', '/api/me/codex'),
+  inbox: () => req<{ inbox: InboxEntry[] }>('GET', '/api/me/inbox'),
 
   startRun: (classId: ClassChoice, vows: string[]) =>
     req<RunResponse>('POST', '/api/run/start', { classId, vows }),

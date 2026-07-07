@@ -41,4 +41,15 @@ export {
   honorTier,
   honorTierRank,
 } from './honor.js';
+export {
+  echoBounty,
+  echoMarks,
+  echoAiBonusPct,
+  echoIsSpent,
+  graveCopyOptions,
+  ECHO_MAX_DEFEATS,
+  ECHO_MAX_AGE_DAYS,
+  ECHO_DEFENSE_HONOR,
+  ECHO_DEFENSE_MARKS,
+} from './echo.js';
 export { deriveRng, deriveFightSeed, RNG_PURPOSE, type RngPurpose } from './rng.js';

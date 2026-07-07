@@ -4,10 +4,11 @@
  */
 
 import { honorTier, honorTierRank } from '@towventure/shared/run';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
-import { runs } from '../db/schema.js';
+import { inbox, runs } from '../db/schema.js';
 import { getCodex } from '../services/codex.js';
+import { getOwnEcho } from '../services/echoes.js';
 import { seasonHonor } from '../services/honor.js';
 import { seasonMarks } from '../services/marks.js';
 import { requireAccount, type AppContext } from './helpers.js';
@@ -20,6 +21,7 @@ export function meRoutes(ctx: AppContext) {
       const season = ctx.env.HONOR_SEASON;
       const honor = await seasonHonor(ctx.db, account.id, season);
       const marks = await seasonMarks(ctx.db, account.id, season);
+      const echo = await getOwnEcho(ctx.db, account.id);
       const active = await ctx.db
         .select({ floor: runs.floor })
         .from(runs)
@@ -32,8 +34,28 @@ export function meRoutes(ctx: AppContext) {
         marks,
         tier: honorTier(honor).name,
         tierRank: honorTierRank(honor),
+        echo,
         activeRunFloor: active[0]?.floor ?? null,
       });
+    });
+
+    // GET /api/me/inbox — the account's notifications, newest first (GDD §11).
+    fastify.get('/inbox', async (req, reply) => {
+      const account = requireAccount(req, reply);
+      if (!account) return;
+      const rows = await ctx.db
+        .select({
+          id: inbox.id,
+          kind: inbox.kind,
+          body: inbox.body,
+          read: inbox.read,
+          createdAt: inbox.createdAt,
+        })
+        .from(inbox)
+        .where(eq(inbox.accountId, account.id))
+        .orderBy(desc(inbox.createdAt))
+        .limit(50);
+      return reply.send({ inbox: rows });
     });
 
     // GET /api/me/codex — the account's lifetime discovery progress (CONTENT §7).

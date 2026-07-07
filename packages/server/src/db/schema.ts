@@ -5,7 +5,7 @@
  * and transactional. Echoes/Skirmishes/Gauntlet/friends tables land in Phase 3.
  */
 
-import type { RunState } from '@towventure/shared/run';
+import type { HeroBuild, RunState } from '@towventure/shared/run';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -168,6 +168,58 @@ export const codex = pgTable(
     progress: integer('progress').notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.accountId, t.kind, t.entryId] })],
+);
+
+/**
+ * Echoes — a dead player's build, placed on their death floor (GDD §8). One row per
+ * account (a new death replaces the old Echo); `build` is the HeroBuild snapshot the
+ * duel sim fights. `defeats`/`kills` drive the 3-defeat lifecycle and profile display.
+ */
+export const echoes = pgTable(
+  'echoes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    season: integer('season').notNull(),
+    ownerName: text('owner_name').notNull(),
+    class: text('class').notNull(),
+    floor: integer('floor').notNull(),
+    // The owner's season Honor at death — scores a hunter's punch-up bounty.
+    honor: integer('honor').notNull(),
+    build: jsonb('build').$type<HeroBuild>().notNull(),
+    defeats: integer('defeats').notNull().default(0),
+    kills: integer('kills').notNull().default(0),
+    expired: boolean('expired').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // One Echo per account — a new death upserts over the old one.
+    uniqueIndex('echoes_account_uq').on(t.accountId),
+    // Placement scan: live Echoes near a floor.
+    index('echoes_live_floor_idx').on(t.floor).where(sql`${t.expired} = false`),
+  ],
+);
+
+/**
+ * In-game inbox notifications (GDD §11) — Echo defense wins for now; Skirmish results
+ * and friend milestones join later. Live WS toasts read the unread tail of this table.
+ */
+export const inbox = pgTable(
+  'inbox',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    body: text('body').notNull(),
+    refId: uuid('ref_id'),
+    read: boolean('read').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('inbox_account_idx').on(t.accountId, t.read)],
 );
 
 /** Per-account, per-season climb frontier — the deepest floor banked this season. */

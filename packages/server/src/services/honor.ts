@@ -49,6 +49,23 @@ export async function awardClimbHonor(
   return delta;
 }
 
+/**
+ * Record a non-climb Honor movement inside the caller's transaction (Echo bounties,
+ * Echo defense trickle, Skirmish Elo — GDD §8/§9). Climb Honor keeps its own
+ * frontier-guarded path; this is the general ledger insert for the other sources.
+ */
+export async function awardHonor(
+  tx: Tx,
+  accountId: string,
+  season: number,
+  delta: number,
+  reason: string,
+  refId?: string | null,
+): Promise<void> {
+  if (delta === 0) return;
+  await tx.insert(honorLedger).values({ accountId, season, delta, reason, refId: refId ?? null });
+}
+
 /** Season Honor total for an account (SUM of ledger deltas). */
 export async function seasonHonor(db: Db, accountId: string, season: number): Promise<number> {
   const rows = await db

@@ -63,8 +63,10 @@ Heroes gain **+6 Max HP per floor cleared** (the only free scaling; everything e
 
 ## 6. Echo & Skirmish math
 
-- **Echo bounty (Honor)**: `B = 12 + 1.1×echoFloor + 25×max(0, (echoHonorTier − yourTier))`, ×0.5 if the Echo is ≥2 tiers below you. Valor Marks: `5 + echoFloor/4`. Grave-Copy: choose 1 of 3 items from the Echo's equip slots, granted ★1.
-- Echo AI stat bonus: +10% fresh, decaying −2%/day to 0. Echo lifecycle: 3 defeats or 14 days. One Echo/account.
+- **Echo bounty (Honor)**: `B = 12 + 1.1×echoFloor + 25×max(0, (echoHonorTier − yourTier))`, ×0.5 if the Echo is ≥2 tiers below you. Valor Marks: `5 + echoFloor/4`. Grave-Copy: choose 1 of 3 items from the Echo's equip slots (relic excluded — class-bound), granted ★1. All evaluated in integer math server-side (Honor/Marks are integers; the `1.1×`/`/4` factors truncate).
+- **Echo defense (the dead owner, per challenger their Echo defeats)**: +3 Honor, +6 Marks, one inbox notice. Deliberately a trickle — the bounty favours the hunter; the defender's reward is the *notification*, not the numbers.
+- **Echo placement**: a door generator may surface at most one Echo door per 5 floors (`ECHO_FLOOR_SPACING`), never before floor 3, never the sole path (it replaces one battle door only when another remains). Candidates within ±5 floors of the climber, freshest first; a house Echo (`The Sleepwalker`, duelist, floorsCleared 0) seeds floors 6–12 when no real corpse fits (onboarding, GDD §12).
+- Echo AI stat bonus: +10% fresh, decaying −2%/day to 0 (a fight-start damage buff on the Echo). Echo lifecycle: 3 defeats or 14 days. One Echo/account (a new death upserts over the old).
 - **Skirmish rating:** attacker-only Elo, K=24, floor 0: `ΔH = K × (S − E)`, `E = 1/(1+10^((H_def−H_att)/400))`. Defender on win: +8 Honor +10 Marks; on loss: nothing. Champion's Key on win vs `H_def ≥ H_att − 50`; 3 Keys open the Vault.
 - Tickets: 5/day (7 at tiers 4/6+), same defender ≤1/day, Honor from same defender ×1 → ×0.5 → ×0.25 → 0 within a rolling week.
 

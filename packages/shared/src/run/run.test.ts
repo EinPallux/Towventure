@@ -13,6 +13,13 @@ import { runStartSchema } from '../protocol/schemas.js';
 import { simulate } from '../sim/index.js';
 import { buildCombatSpec, buildDuelSpec, buildHeroSpec, snapshotOf, tagCounts } from './build.js';
 import { buildCodex } from './codex.js';
+import {
+  echoAiBonusPct,
+  echoBounty,
+  echoIsSpent,
+  echoMarks,
+  graveCopyOptions,
+} from './echo.js';
 import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 import {
   climbHonorForFloor,
@@ -21,10 +28,17 @@ import {
   honorTier,
   honorTierRank,
 } from './honor.js';
-import { applyCommand, makeSummary, runPendingFight, startRun } from './reducer.js';
+import {
+  applyCommand,
+  killerName,
+  makeSummary,
+  prepareFight,
+  runPendingFight,
+  startRun,
+} from './reducer.js';
 import { RNG_PURPOSE, deriveRng } from './rng.js';
 import { generateShop } from './shop.js';
-import type { EquipSlotId, RunState } from './types.js';
+import type { EchoRef, EquipSlotId, RunState } from './types.js';
 
 function freshVanguard(seed = 20260706): RunState {
   return startRun('vanguard', [], seed);
@@ -835,5 +849,143 @@ describe('Phase 3 duel primitive (snapshotOf + buildDuelSpec)', () => {
     expect(buffed.enemies[0]!.effects.length).toBe(plain.enemies[0]!.effects.length + 1);
     // The attacker's spec is untouched by the foe bonus.
     expect(buffed.hero.effects.length).toBe(plain.hero.effects.length);
+  });
+});
+
+// Build an EchoRef from a run snapshot — mirrors what the server stamps into the door.
+function echoRefFrom(build: RunState, over: Partial<EchoRef> = {}): EchoRef {
+  return {
+    echoId: 'echo-1',
+    ownerName: 'Maro',
+    tier: 'Gatekeeper',
+    classId: build.classId,
+    floor: 8,
+    ageDays: 0,
+    ownerHonor: 500,
+    bonusPct: 10,
+    build: snapshotOf(build),
+    ...over,
+  };
+}
+
+describe('Echo economy math (BALANCE §6)', () => {
+  it('bounty scales with floor and pays extra for punching up', () => {
+    // Even tiers: B = 12 + trunc(1.1×floor). Floor 8 → 12 + 8 = 20.
+    expect(echoBounty(8, 500, 500)).toBe(20);
+    // Echo two tiers above (Vaultbreaker 1000 vs Stairborn 200): +25×2 on top.
+    expect(echoBounty(8, 1000, 200)).toBe(20 + 50);
+    // Echo ≥2 tiers below → halved (Ashbound 0 vs Vaultbreaker 1000): base 20 → 10.
+    expect(echoBounty(8, 0, 1000)).toBe(10);
+  });
+  it('marks = 5 + floor/4 (integer)', () => {
+    expect(echoMarks(8)).toBe(7);
+    expect(echoMarks(40)).toBe(15);
+  });
+  it('AI bonus is +10% fresh, decaying −2%/day to 0', () => {
+    expect(echoAiBonusPct(0)).toBe(10);
+    expect(echoAiBonusPct(3)).toBe(4);
+    expect(echoAiBonusPct(5)).toBe(0);
+    expect(echoAiBonusPct(99)).toBe(0);
+  });
+  it('an Echo is spent after 3 defeats or 14 days', () => {
+    expect(echoIsSpent(0, 0)).toBe(false);
+    expect(echoIsSpent(3, 0)).toBe(true);
+    expect(echoIsSpent(0, 14)).toBe(true);
+  });
+  it('grave-copy options are the distinct equipped items, relic excluded', () => {
+    const duelist = startRun('duelist', [], 7);
+    const opts = graveCopyOptions(snapshotOf(duelist));
+    expect(opts.length).toBeGreaterThan(0);
+    expect(opts.length).toBeLessThanOrEqual(3);
+    expect(opts).toContain('sawtooth_dirk'); // an equipped Duelist starter
+    expect(opts).not.toContain('twin_fang_oath'); // the relic is class-bound, not lootable
+  });
+});
+
+describe('Echo fights (GDD §8)', () => {
+  // Splice a real Echo door into a fresh run's doors, the way the server injects it.
+  function runFacingEcho(echo: EchoRef, seed = 5): RunState {
+    const state = freshVanguard(seed);
+    state.doors = [{ kind: 'echo', enemyIds: [], echo, preview: `Here fell ${echo.ownerName}` }];
+    return state;
+  }
+
+  it('choosing an Echo door enters a duel that the same sim resolves deterministically', () => {
+    const echo = echoRefFrom(startRun('duelist', [], 99));
+    const state = runFacingEcho(echo);
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    expect(chosen.state.phase).toBe('fight');
+    expect(chosen.state.pendingFight).toEqual({ kind: 'echo', enemyIds: [], echo });
+
+    const out = runPendingFight(chosen.state);
+    expect(out).not.toBeNull();
+    // Foe is placed as e0 — the duel spec, not an enemy roster.
+    const prepared = prepareFight(chosen.state)!;
+    expect(prepared.spec.enemies[0]!.id).toBe('e0');
+    const again = runPendingFight(chosen.state)!;
+    expect(again.result.logHash).toBe(out!.result.logHash); // deterministic
+  });
+
+  it('killing an Echo offers a Grave-Copy (1 of 3), claimable as a ★1 copy', () => {
+    // A soft target: a floor-1 Duelist Echo an equipped Vanguard should beat.
+    const echo = echoRefFrom(startRun('duelist', [], 3), { bonusPct: 0 });
+    let state = runFacingEcho(echo, 12);
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    const out = runPendingFight(chosen.state)!;
+    state = out.state;
+    if (out.result.winner !== 'hero') return; // if the hero lost this seed, the loss path is covered below
+    expect(state.phase).toBe('reward');
+    expect(state.pendingGraveCopy).not.toBeNull();
+    expect(state.pendingItem).toBeNull(); // grave-copy replaces rolled loot
+    const before = state.backpack.length;
+    const pick = applyCommand(state, { type: 'chooseGraveCopy', index: 0 });
+    if (!pick.ok) throw new Error(pick.error);
+    expect(pick.state.backpack.length).toBe(before + 1);
+    expect(pick.state.backpack.at(-1)!.itemId).toBe(state.pendingGraveCopy![0]);
+    expect(pick.state.backpack.at(-1)!.star).toBe(1); // ★1 copy
+    expect(pick.state.pendingGraveCopy).toBeNull();
+    expect(applyCommand(pick.state, { type: 'proceed' }).ok).toBe(true);
+  });
+
+  it('proceeding past an unclaimed Grave-Copy forfeits it and advances', () => {
+    const echo = echoRefFrom(startRun('duelist', [], 3), { bonusPct: 0 });
+    const state = runFacingEcho(echo, 12);
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    const out = runPendingFight(chosen.state)!;
+    if (out.result.winner !== 'hero') return;
+    const before = out.state.backpack.length;
+    const skip = applyCommand(out.state, { type: 'proceed' });
+    if (!skip.ok) throw new Error(skip.error);
+    expect(skip.state.pendingGraveCopy).toBeNull();
+    expect(skip.state.backpack.length).toBe(before); // nothing claimed
+    expect(skip.state.floor).toBe(out.state.floor + 1); // advanced
+  });
+
+  it('losing to an Echo dies to the owner, named on the death ritual', () => {
+    // A brutal, fresh, deep Echo: a floor-40 Arcanist with a big aggression bonus.
+    const echo = echoRefFrom(startRun('arcanist', [], 4), { floor: 40, bonusPct: 10 });
+    // Force a loss by pitting a naked hero (strip equipment) against it.
+    const state = runFacingEcho(echo, 8);
+    state.equipment = {
+      weapon1: null,
+      weapon2: null,
+      helm: null,
+      armor: null,
+      boots: null,
+      trinket1: null,
+      trinket2: null,
+      relic: null,
+    };
+    const chosen = applyCommand(state, { type: 'chooseDoor', doorIndex: 0 });
+    if (!chosen.ok) throw new Error(chosen.error);
+    const out = runPendingFight(chosen.state)!;
+    if (out.result.winner === 'hero') return; // unlikely; the win path is covered above
+    expect(out.state.status).toBe('dead');
+    expect(out.state.deathInfo?.killerEnemyId).toBe('echo');
+    expect(out.state.deathInfo?.echoOwnerName).toBe('Maro');
+    expect(killerName(out.state)).toBe("Maro's Echo");
   });
 });

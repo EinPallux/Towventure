@@ -19,6 +19,7 @@ export interface FightPlayback {
   preState: RunState; // state before the fight — used to rebuild the sim spec
   postState: RunState; // state after resolution — committed when playback ends
   postVersion: number;
+  echoReward: { bounty: number; marks: number } | null; // set when this fight killed an Echo
 }
 
 interface Store {
@@ -28,6 +29,8 @@ interface Store {
   view: 'gate' | 'ladder' | 'codex';
   playback: FightPlayback | null;
   accountCodex: CodexProgress | null;
+  /** The bounty from the most recent Echo kill, shown on the Grave-Copy screen. */
+  lastEchoReward: { bounty: number; marks: number } | null;
   busy: boolean;
   error: string | null;
 
@@ -59,6 +62,7 @@ export const useStore = create<Store>((set, get) => ({
   view: 'gate',
   playback: null,
   accountCodex: null,
+  lastEchoReward: null,
   busy: false,
   error: null,
 
@@ -157,7 +161,7 @@ export const useStore = create<Store>((set, get) => ({
   fight: async () => {
     const { run, version } = get();
     if (!run) return;
-    set({ busy: true, error: null });
+    set({ busy: true, error: null, lastEchoReward: null });
     try {
       const res = await api.fight(version);
       // Keep `run` at the pre-fight state so the diorama can play back; commit after.
@@ -167,6 +171,7 @@ export const useStore = create<Store>((set, get) => ({
           preState: run,
           postState: res.state,
           postVersion: res.stateVersion,
+          echoReward: res.echoReward,
         },
       });
     } catch (err) {
@@ -179,8 +184,9 @@ export const useStore = create<Store>((set, get) => ({
   endPlayback: () => {
     const pb = get().playback;
     if (!pb) return;
-    set({ run: pb.postState, version: pb.postVersion, playback: null });
-    if (pb.postState.status === 'dead') void get().refreshMe();
+    set({ run: pb.postState, version: pb.postVersion, playback: null, lastEchoReward: pb.echoReward });
+    // Death banks climb Honor; an Echo kill pays a bounty + Marks — refresh either way.
+    if (pb.postState.status === 'dead' || pb.echoReward) void get().refreshMe();
   },
 
   dismissRun: () => set({ run: null, version: 0, playback: null, view: 'gate' }),

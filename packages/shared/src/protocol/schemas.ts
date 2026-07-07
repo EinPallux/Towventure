@@ -88,6 +88,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('reroll') }),
   z.object({ type: z.literal('leaveShop') }),
   z.object({ type: z.literal('resolveEvent'), optionIndex: z.number().int().min(0).max(7) }),
+  z.object({ type: z.literal('chooseGraveCopy'), index: z.number().int().min(0).max(2) }),
   z.object({ type: z.literal('proceed') }),
   z.object({ type: z.literal('abandonRun') }),
 ]);

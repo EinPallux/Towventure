@@ -24,6 +24,12 @@ import type { FastifyInstance } from 'fastify';
 import type { Db } from '../db/client.js';
 import { fights, runEvents, runs } from '../db/schema.js';
 import { bankRunCodex } from '../services/codex.js';
+import {
+  bankEcho,
+  pickEchoForFloor,
+  recordEchoDefense,
+  recordEchoKill,
+} from '../services/echoes.js';
 import { awardClimbHonor, seasonHonor } from '../services/honor.js';
 import { parseBody, requireAccount, type AppContext } from './helpers.js';
 
@@ -53,6 +59,39 @@ async function activeRun(db: Db, accountId: string): Promise<RunRow | null> {
     .where(and(eq(runs.accountId, accountId), eq(runs.status, 'active')))
     .limit(1);
   return rows[0] ?? null;
+}
+
+const ECHO_MIN_FLOOR = 3;
+const ECHO_FLOOR_SPACING = 5;
+
+/**
+ * After a floor advance lands on a doors phase, maybe replace one battle door with a
+ * real player's Echo (GDD §8): at most one per 5 floors, never the sole path. Mutates
+ * `state` in place (its doors + lastEchoFloor); the caller persists it. Non-deterministic
+ * (it reads live DB state), so this is server-only — the client just renders the result.
+ */
+async function maybeInjectEcho(
+  db: Db,
+  accountId: string,
+  state: RunState,
+  season: number,
+): Promise<void> {
+  if (state.phase !== 'doors' || !state.doors || state.doors.length < 2) return;
+  if (state.floor < ECHO_MIN_FLOOR) return;
+  if (state.lastEchoFloor != null && state.floor - state.lastEchoFloor < ECHO_FLOOR_SPACING) return;
+  if (state.doors.some((d) => d.kind === 'echo')) return;
+  const battleIdx = state.doors.findIndex((d) => d.kind === 'battle');
+  // Keep a non-Echo path: only replace a battle door if another door remains.
+  if (battleIdx < 0 || state.doors.length < 2) return;
+  const echo = await pickEchoForFloor(db, accountId, state.floor, season);
+  if (!echo) return;
+  state.doors[battleIdx] = {
+    kind: 'echo',
+    enemyIds: [],
+    echo,
+    preview: `Here fell ${echo.ownerName}, ${echo.tier}`,
+  };
+  state.lastEchoFloor = state.floor;
 }
 
 /** Compact fight summary shipped to the client (it re-sims from the seed to render). */
@@ -145,6 +184,11 @@ export function runRoutes(ctx: AppContext) {
       const vowCount = next.vows.length;
       const floorAdvanced = next.floor > run.floor;
 
+      // A floor advance that lands on a doors phase may surface an Echo door (GDD §8).
+      if (floorAdvanced && next.phase === 'doors') {
+        await maybeInjectEcho(ctx.db, account.id, next, season);
+      }
+
       try {
         await ctx.db.transaction(async (tx) => {
           // Optimistic lock at the row: only advance if the version is still what we
@@ -205,6 +249,15 @@ export function runRoutes(ctx: AppContext) {
       const next = resolveFight(run.state, result);
       const newVersion = run.stateVersion + 1;
       const kind = run.state.pendingFight?.kind ?? 'battle';
+      const echo = run.state.pendingFight?.echo ?? null;
+      const heroWon = result.winner === 'hero';
+      const died = next.status === 'dead';
+
+      // Echo bounty math + the dead player's new Echo both need this account's season
+      // Honor; fetch once before the transaction when an Echo or a death is in play.
+      const needHonor = echo != null || died;
+      const myHonor = needHonor ? await seasonHonor(ctx.db, account.id, season) : 0;
+      let echoReward: { bounty: number; marks: number } | null = null;
 
       try {
         await ctx.db.transaction(async (tx) => {
@@ -230,6 +283,15 @@ export function runRoutes(ctx: AppContext) {
           });
           // A run that just died banks its Codex discovery for good (CONTENT §7).
           if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
+          // Echo settlement (GDD §8): a win pays the hunter a bounty + Marks; a loss to
+          // an Echo credits its dead owner. Any death leaves behind this hero's Echo.
+          if (echo && heroWon) {
+            echoReward = await recordEchoKill(tx, echo, account.id, myHonor, season);
+          }
+          if (died) {
+            if (echo) await recordEchoDefense(tx, echo, account.name, season);
+            await bankEcho(tx, account.id, account.name, season, next, myHonor);
+          }
         });
       } catch (err) {
         if (err instanceof StaleRunError) {
@@ -249,6 +311,7 @@ export function runRoutes(ctx: AppContext) {
         state: next,
         stateVersion: newVersion,
         summary: dead ? makeSummary(next) : null,
+        echoReward,
       });
     });
   };

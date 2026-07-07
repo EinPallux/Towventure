@@ -44,22 +44,48 @@ export interface HeroBuild {
   vows: string[];
 }
 
-export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss' | 'event';
+export type DoorKind = 'battle' | 'elite' | 'shop' | 'boss' | 'event' | 'echo';
+
+/**
+ * A dead player's Echo, placed into a live run (GDD §8). Carries the full build
+ * snapshot so both server and client build the identical duel spec (the fight is
+ * `buildDuelSpec(snapshotOf(hero), echo.build, echo.bonusPct)`), plus the display
+ * metadata for the door/duel card. `echoId` is the server row this challenge scores.
+ */
+export interface EchoRef {
+  echoId: string;
+  ownerName: string;
+  tier: string;
+  classId: ClassId;
+  /** The floor the owner died on (the Echo's home floor). */
+  floor: number;
+  /** Whole days since the owner died — drives the staleness-decayed AI bonus. */
+  ageDays: number;
+  /** Owner's season Honor at death — scores the bounty's punch-up bonus. */
+  ownerHonor: number;
+  /** Fight-start damage buff modelling the Echo's aggression (BALANCE §6). */
+  bonusPct: number;
+  build: HeroBuild;
+}
 
 export interface DoorOffer {
   kind: DoorKind;
   enemyIds: string[];
   /** Event doors carry the event id (kind === 'event'). */
   eventId?: string;
+  /** Echo doors carry the dead player's build + display metadata (kind === 'echo'). */
+  echo?: EchoRef;
   /** Honest-but-partial preview string (GDD §3.2). */
   preview: string;
 }
 
-export type FightKind = 'battle' | 'elite' | 'boss';
+export type FightKind = 'battle' | 'elite' | 'boss' | 'echo';
 
 export interface PendingFight {
   kind: FightKind;
   enemyIds: string[];
+  /** Echo fights (kind === 'echo') duel this dead player's build instead of enemies. */
+  echo?: EchoRef;
 }
 
 export type ShopSlotKind = 'item' | 'material' | 'consumable' | 'requestedCopy';
@@ -82,6 +108,8 @@ export interface DeathInfo {
   floor: number;
   killerEnemyId: string;
   endTick: number;
+  /** When killed by an Echo (killerEnemyId === 'echo'), the dead player's name. */
+  echoOwnerName?: string;
 }
 
 /** Codex discovery progress (CONTENT §7): items by highest ★ seen, enemies by kills. */
@@ -115,6 +143,10 @@ export interface RunState {
   fightCounter: number;
   /** Item id of the drop awaiting a takeLoot decision (gold is auto-credited). */
   pendingItem: string | null;
+  /** Grave-Copy candidates (up to 3 itemIds) awaiting a chooseGraveCopy pick after an Echo kill (GDD §8). */
+  pendingGraveCopy: string[] | null;
+  /** Server-managed: floor of the last Echo door offered (anti-clustering; reducers ignore it). */
+  lastEchoFloor?: number;
   /** Gold credited by the most recent fight (for the reward screen). */
   lastGold: number;
   shop: ShopState | null;
@@ -147,6 +179,7 @@ export type Command =
   | { type: 'reroll' }
   | { type: 'leaveShop' }
   | { type: 'resolveEvent'; optionIndex: number }
+  | { type: 'chooseGraveCopy'; index: number }
   | { type: 'proceed' }
   | { type: 'abandonRun' };
 
