@@ -1214,6 +1214,17 @@ d('server API — the Heartbeat loop', () => {
     expect(await getOwnEcho(database.db, ownerId)).toBeNull();
   });
 
+  it('concurrent run starts: exactly one 201, the other a clean 409 not a 500 (audit #6)', async () => {
+    const uid = Date.now().toString(36);
+    const cookie = await adminReg(`hb_start_${uid}`);
+    const payload = { classId: 'vanguard', vows: [] };
+    const [a, b] = await Promise.all([
+      app.inject({ method: 'POST', url: '/api/run/start', headers: { cookie }, payload }),
+      app.inject({ method: 'POST', url: '/api/run/start', headers: { cookie }, payload }),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([201, 409]);
+  });
+
   it('Skirmish settle is concurrency-safe: parallel attacks cannot overrun the ticket cap (audit #2)', async () => {
     const uid = Date.now().toString(36);
     const attackerId = await makeAccount(`hb_skc_att_${uid}`);
@@ -1297,6 +1308,19 @@ d('server API — the Heartbeat loop', () => {
         headers: { cookie, 'x-forwarded-for': '9.9.9.9' },
       });
       expect(allowed.statusCode).toBe(200);
+      // /metrics is gated by the same allowlist (audit #7): 404 off-list, 200 on-list.
+      const mBlocked = await gatedApp.inject({
+        method: 'GET',
+        url: '/metrics',
+        headers: { 'x-forwarded-for': '1.2.3.4' },
+      });
+      expect(mBlocked.statusCode).toBe(404);
+      const mOk = await gatedApp.inject({
+        method: 'GET',
+        url: '/metrics',
+        headers: { 'x-forwarded-for': '9.9.9.9' },
+      });
+      expect(mOk.statusCode).toBe(200);
     } finally {
       await gatedApp.close();
     }

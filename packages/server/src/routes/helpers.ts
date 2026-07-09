@@ -41,12 +41,22 @@ export function requireAccount(request: FastifyRequest, reply: FastifyReply): Au
   return request.account;
 }
 
-/** True when the request IP is permitted for the admin surface (empty allowlist = any). */
-function adminIpAllowed(request: FastifyRequest, env: Env): boolean {
+/** True when the request IP is on the operator allowlist (empty allowlist = any IP). */
+export function ipAllowlisted(request: FastifyRequest, env: Env): boolean {
   const list = env.ADMIN_IP_ALLOWLIST.split(',')
     .map((s) => s.trim())
     .filter(Boolean);
   return list.length === 0 || list.includes(request.ip);
+}
+
+/** True for a Postgres unique-violation (23505) — a lost insert race → answer 409, not 500. */
+export function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code: string }).code === '23505'
+  );
 }
 
 /**
@@ -59,7 +69,7 @@ export function requireAdmin(
   env: Env,
 ): AuthedAccount | null {
   const account = request.account;
-  if (!account || account.banned || !account.isAdmin || !adminIpAllowed(request, env)) {
+  if (!account || account.banned || !account.isAdmin || !ipAllowlisted(request, env)) {
     reply.code(404).send({ error: 'not found' });
     return null;
   }

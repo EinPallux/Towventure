@@ -62,6 +62,11 @@ export function TopBar() {
             Back
           </button>
         )}
+        {me.account.isAdmin && view !== 'admin' && (
+          <button className="small ghost" title="Live-ops admin" onClick={() => setView('admin')}>
+            ⚔ Admin
+          </button>
+        )}
         <button className="small ghost" title="Settings" onClick={() => toggleSettings()}>
           ⚙
         </button>

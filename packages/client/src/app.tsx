@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from './store.js';
+import { Admin } from './ui/Admin.js';
+import { BroadcastBanner } from './ui/BroadcastBanner.js';
 import { Codex } from './ui/Codex.js';
 import { Death } from './ui/Death.js';
 import { Fight } from './ui/Fight.js';
@@ -75,6 +77,8 @@ export function App() {
     body = <Merchant />;
   } else if (view === 'social') {
     body = <Social />;
+  } else if (view === 'admin') {
+    body = <Admin />;
   } else if (playback) {
     body = <Fight />;
   } else if (run && run.status === 'dead') {
@@ -89,6 +93,7 @@ export function App() {
     <div className="app">
       <div className="overlay">
         {me && <TopBar />}
+        {me && <BroadcastBanner />}
         {body}
       </div>
       <ErrorToast />

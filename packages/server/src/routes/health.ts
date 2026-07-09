@@ -4,7 +4,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { type AppContext } from './helpers.js';
+import { ipAllowlisted, type AppContext } from './helpers.js';
 
 export function healthRoutes(ctx: AppContext) {
   return async (fastify: FastifyInstance): Promise<void> => {
@@ -17,7 +17,10 @@ export function healthRoutes(ctx: AppContext) {
       }
     });
 
-    fastify.get('/metrics', async (_req, reply) => {
+    // /metrics is operator-only: gated by the same IP allowlist as /admin (a Prometheus
+    // scraper has no session), 404 off-list so it isn't discoverable. Empty allowlist = dev.
+    fastify.get('/metrics', async (req, reply) => {
+      if (!ipAllowlisted(req, ctx.env)) return reply.code(404).send({ error: 'not found' });
       reply.header('content-type', 'text/plain; version=0.0.4');
       return reply.send('# Towventure metrics placeholder — prom-client lands in Phase 5\n');
     });

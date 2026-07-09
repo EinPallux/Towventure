@@ -32,7 +32,7 @@ interface Store {
   me: MeResponse | null;
   run: RunState | null;
   version: number;
-  view: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant' | 'social';
+  view: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant' | 'social' | 'admin';
   playback: FightPlayback | null;
   accountCodex: CodexProgress | null;
   /** The bounty from the most recent Echo kill, shown on the Grave-Copy screen. */
@@ -65,7 +65,7 @@ interface Store {
   fight: () => Promise<void>;
   endPlayback: () => void;
   dismissRun: () => void;
-  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant' | 'social') => void;
+  setView: (v: 'gate' | 'ladder' | 'codex' | 'skirmish' | 'merchant' | 'social' | 'admin') => void;
   fetchCodex: () => Promise<void>;
   fetchSkirmish: () => Promise<void>;
   attack: (defenderId: string) => Promise<void>;

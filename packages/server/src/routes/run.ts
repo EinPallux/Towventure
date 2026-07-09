@@ -36,7 +36,7 @@ import { awardClimbHonor, seasonHonor } from '../services/honor.js';
 import { consumeArmedBoon } from '../services/merchant.js';
 import { upsertDefense } from '../services/skirmish.js';
 import { emitFeed, pushFeedLive } from '../services/social.js';
-import { parseBody, requireAccount, type AppContext } from './helpers.js';
+import { isUniqueViolation, parseBody, requireAccount, type AppContext } from './helpers.js';
 
 /** Thrown inside a run transaction when the optimistic version guard loses a race. */
 class StaleRunError extends Error {}
@@ -145,29 +145,38 @@ export function runRoutes(ctx: AppContext) {
       const seed = randomInt(0, 0x100000000);
       const state = startRun(body.classId, body.vows, seed);
 
-      const created = await ctx.db.transaction(async (tx) => {
-        // Consume the armed War Chest boon (if any) before the run is persisted (GDD §10.2).
-        const boon = await consumeArmedBoon(tx, account.id);
-        if (boon) applyBoon(state, boon);
-        const [row] = await tx
-          .insert(runs)
-          .values({
-            accountId: account.id,
-            class: body.classId,
-            vows: body.vows,
-            seed,
-            state,
-            stateVersion: 0,
-            floor: state.floor,
-            status: 'active',
-          })
-          .returning({ id: runs.id });
-        await awardClimbHonor(tx, account.id, season, state.floor, body.vows.length, row!.id);
-        // Seed a Skirmish defense snapshot so the account is attackable (GDD §9);
-        // boss kills upgrade it to the stronger build.
-        await upsertDefense(tx, account.id, account.name, season, state, honor);
-        return row!;
-      });
+      let created;
+      try {
+        created = await ctx.db.transaction(async (tx) => {
+          // Consume the armed War Chest boon (if any) before the run is persisted (GDD §10.2).
+          const boon = await consumeArmedBoon(tx, account.id);
+          if (boon) applyBoon(state, boon);
+          const [row] = await tx
+            .insert(runs)
+            .values({
+              accountId: account.id,
+              class: body.classId,
+              vows: body.vows,
+              seed,
+              state,
+              stateVersion: 0,
+              floor: state.floor,
+              status: 'active',
+            })
+            .returning({ id: runs.id });
+          await awardClimbHonor(tx, account.id, season, state.floor, body.vows.length, row!.id);
+          // Seed a Skirmish defense snapshot so the account is attackable (GDD §9);
+          // boss kills upgrade it to the stronger build.
+          await upsertDefense(tx, account.id, account.name, season, state, honor);
+          return row!;
+        });
+      } catch (err) {
+        // Lost a race to a concurrent start — the one-active-run unique index fired.
+        if (isUniqueViolation(err)) {
+          return reply.code(409).send({ error: 'you already have an active run' });
+        }
+        throw err;
+      }
       return reply.code(201).send({ runId: created.id, state, stateVersion: 0 });
     });
 
@@ -180,83 +189,88 @@ export function runRoutes(ctx: AppContext) {
       return reply.send({ runId: run.id, state: run.state, stateVersion: run.stateVersion });
     });
 
-    // POST /api/run/command — the one gameplay mutation route.
-    fastify.post('/command', async (req, reply) => {
-      const account = requireAccount(req, reply);
-      if (!account) return;
-      const body = parseBody(commandRequestSchema, req, reply);
-      if (!body) return;
-      const run = await activeRun(ctx.db, account.id);
-      if (!run) return reply.code(404).send({ error: 'no active run' });
-      if (body.expectedStateVersion !== run.stateVersion) {
-        return reply
-          .code(409)
-          .send({ error: 'stale', state: run.state, stateVersion: run.stateVersion });
-      }
-      const result = applyCommand(run.state, body.command);
-      if (!result.ok) return reply.code(400).send({ error: result.error });
-
-      const next = result.state;
-      const newVersion = run.stateVersion + 1;
-      const vowCount = next.vows.length;
-      const floorAdvanced = next.floor > run.floor;
-
-      // A floor advance that lands on a doors phase may surface an Echo door (GDD §8).
-      if (floorAdvanced && next.phase === 'doors') {
-        await maybeInjectEcho(ctx.db, account.id, next, season);
-      }
-
-      // Feed milestones friends can see (GDD §10): every 10th floor, and forging a Zenith.
-      const feedEvents: { kind: string; body: string }[] = [];
-      if (floorAdvanced && next.floor % 10 === 0) {
-        feedEvents.push({ kind: 'floor', body: `reached Floor ${next.floor}` });
-      }
-      if (body.command.type === 'fuse' && zenithCount(next) > zenithCount(run.state)) {
-        feedEvents.push({ kind: 'zenith', body: 'forged a Zenith (★5)' });
-      }
-
-      try {
-        await ctx.db.transaction(async (tx) => {
-          // Optimistic lock at the row: only advance if the version is still what we
-          // read. A concurrent command loses this race → 0 rows → clean 409, never a
-          // partial write (the run_events PK also backstops double-apply).
-          const upd = await tx
-            .update(runs)
-            .set({
-              state: next,
-              stateVersion: newVersion,
-              floor: next.floor,
-              status: next.status,
-              endedAt: next.status === 'active' ? null : new Date(),
-            })
-            .where(and(eq(runs.id, run.id), eq(runs.stateVersion, run.stateVersion)))
-            .returning({ id: runs.id });
-          if (upd.length === 0) throw new StaleRunError();
-          await tx
-            .insert(runEvents)
-            .values({ runId: run.id, seq: newVersion, command: body.command });
-          if (floorAdvanced) {
-            await awardClimbHonor(tx, account.id, season, next.floor, vowCount, run.id);
-          }
-          // Abandoning (or otherwise ending) a run banks its Codex discovery.
-          if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
-          for (const ev of feedEvents) await emitFeed(tx, account.id, ev.kind, ev.body);
-        });
-      } catch (err) {
-        if (err instanceof StaleRunError) {
-          const fresh = await activeRun(ctx.db, account.id);
-          return reply.code(409).send({
-            error: 'stale',
-            state: fresh?.state ?? run.state,
-            stateVersion: fresh?.stateVersion ?? run.stateVersion,
-          });
+    // POST /api/run/command — the one gameplay mutation route. Its own generous-but-bounded
+    // rate class (OPERATIONS §5) so command bursts can't starve the shared global bucket.
+    fastify.post(
+      '/command',
+      { config: { rateLimit: { max: 240, timeWindow: '1 minute' } } },
+      async (req, reply) => {
+        const account = requireAccount(req, reply);
+        if (!account) return;
+        const body = parseBody(commandRequestSchema, req, reply);
+        if (!body) return;
+        const run = await activeRun(ctx.db, account.id);
+        if (!run) return reply.code(404).send({ error: 'no active run' });
+        if (body.expectedStateVersion !== run.stateVersion) {
+          return reply
+            .code(409)
+            .send({ error: 'stale', state: run.state, stateVersion: run.stateVersion });
         }
-        throw err;
-      }
-      // Post-commit: fan feed milestones out as live toasts to self + friends (GDD §10).
-      for (const ev of feedEvents) await pushFeedLive(ctx.db, account.id, ev.kind, ev.body);
-      return reply.send({ state: next, stateVersion: newVersion });
-    });
+        const result = applyCommand(run.state, body.command);
+        if (!result.ok) return reply.code(400).send({ error: result.error });
+
+        const next = result.state;
+        const newVersion = run.stateVersion + 1;
+        const vowCount = next.vows.length;
+        const floorAdvanced = next.floor > run.floor;
+
+        // A floor advance that lands on a doors phase may surface an Echo door (GDD §8).
+        if (floorAdvanced && next.phase === 'doors') {
+          await maybeInjectEcho(ctx.db, account.id, next, season);
+        }
+
+        // Feed milestones friends can see (GDD §10): every 10th floor, and forging a Zenith.
+        const feedEvents: { kind: string; body: string }[] = [];
+        if (floorAdvanced && next.floor % 10 === 0) {
+          feedEvents.push({ kind: 'floor', body: `reached Floor ${next.floor}` });
+        }
+        if (body.command.type === 'fuse' && zenithCount(next) > zenithCount(run.state)) {
+          feedEvents.push({ kind: 'zenith', body: 'forged a Zenith (★5)' });
+        }
+
+        try {
+          await ctx.db.transaction(async (tx) => {
+            // Optimistic lock at the row: only advance if the version is still what we
+            // read. A concurrent command loses this race → 0 rows → clean 409, never a
+            // partial write (the run_events PK also backstops double-apply).
+            const upd = await tx
+              .update(runs)
+              .set({
+                state: next,
+                stateVersion: newVersion,
+                floor: next.floor,
+                status: next.status,
+                endedAt: next.status === 'active' ? null : new Date(),
+              })
+              .where(and(eq(runs.id, run.id), eq(runs.stateVersion, run.stateVersion)))
+              .returning({ id: runs.id });
+            if (upd.length === 0) throw new StaleRunError();
+            await tx
+              .insert(runEvents)
+              .values({ runId: run.id, seq: newVersion, command: body.command });
+            if (floorAdvanced) {
+              await awardClimbHonor(tx, account.id, season, next.floor, vowCount, run.id);
+            }
+            // Abandoning (or otherwise ending) a run banks its Codex discovery.
+            if (next.status !== 'active') await bankRunCodex(tx, account.id, next.codex);
+            for (const ev of feedEvents) await emitFeed(tx, account.id, ev.kind, ev.body);
+          });
+        } catch (err) {
+          if (err instanceof StaleRunError) {
+            const fresh = await activeRun(ctx.db, account.id);
+            return reply.code(409).send({
+              error: 'stale',
+              state: fresh?.state ?? run.state,
+              stateVersion: fresh?.stateVersion ?? run.stateVersion,
+            });
+          }
+          throw err;
+        }
+        // Post-commit: fan feed milestones out as live toasts to self + friends (GDD §10).
+        for (const ev of feedEvents) await pushFeedLive(ctx.db, account.id, ev.kind, ev.body);
+        return reply.send({ state: next, stateVersion: newVersion });
+      },
+    );
 
     // POST /api/run/fight/start — draw + simulate the pending fight (server-authoritative).
     fastify.post('/fight/start', async (req, reply) => {

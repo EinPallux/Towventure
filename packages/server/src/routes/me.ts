@@ -30,7 +30,12 @@ export function meRoutes(ctx: AppContext) {
         .where(and(eq(runs.accountId, account.id), eq(runs.status, 'active')))
         .limit(1);
       return reply.send({
-        account: { id: account.id, name: account.name, isGuest: account.isGuest },
+        account: {
+          id: account.id,
+          name: account.name,
+          isGuest: account.isGuest,
+          isAdmin: account.isAdmin,
+        },
         season,
         honor,
         marks,

@@ -16,16 +16,7 @@ import {
   setSessionCookie,
 } from '../auth/session.js';
 import { accounts } from '../db/schema.js';
-import { parseBody, type AppContext } from './helpers.js';
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
+import { isUniqueViolation, parseBody, type AppContext } from './helpers.js';
 
 export function authRoutes(ctx: AppContext) {
   return async (fastify: FastifyInstance): Promise<void> => {

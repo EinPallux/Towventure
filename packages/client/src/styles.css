@@ -732,3 +732,15 @@ tr.self {
   color: var(--amber);
   font-size: 18px;
 }
+
+/* Live broadcast banner (OPERATIONS §6) — a slim operator notice above the view. */
+.broadcast-banner {
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(210, 160, 70, 0.14);
+  border: 1px solid rgba(210, 160, 70, 0.4);
+  color: #e8c98a;
+  font-size: 13px;
+  text-align: center;
+}

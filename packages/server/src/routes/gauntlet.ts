@@ -13,7 +13,7 @@ import type { FastifyInstance } from 'fastify';
 import { runs } from '../db/schema.js';
 import { awardClimbHonor } from '../services/honor.js';
 import { gauntletClass, gauntletDay, gauntletLadder, gauntletSeed } from '../services/gauntlet.js';
-import { requireAccount, type AppContext } from './helpers.js';
+import { isUniqueViolation, requireAccount, type AppContext } from './helpers.js';
 
 export function gauntletRoutes(ctx: AppContext) {
   const season = ctx.env.HONOR_SEASON;
@@ -74,24 +74,33 @@ export function gauntletRoutes(ctx: AppContext) {
       // No boons, no vows — every entrant gets the identical shared run (GDD §10).
       const state = startRun(classId, [], seed);
 
-      const created = await ctx.db.transaction(async (tx) => {
-        const [row] = await tx
-          .insert(runs)
-          .values({
-            accountId: account.id,
-            class: classId,
-            vows: [],
-            seed,
-            state,
-            stateVersion: 0,
-            floor: state.floor,
-            status: 'active',
-            gauntletDay: day,
-          })
-          .returning({ id: runs.id });
-        await awardClimbHonor(tx, account.id, season, state.floor, 0, row!.id);
-        return row!;
-      });
+      let created;
+      try {
+        created = await ctx.db.transaction(async (tx) => {
+          const [row] = await tx
+            .insert(runs)
+            .values({
+              accountId: account.id,
+              class: classId,
+              vows: [],
+              seed,
+              state,
+              stateVersion: 0,
+              floor: state.floor,
+              status: 'active',
+              gauntletDay: day,
+            })
+            .returning({ id: runs.id });
+          await awardClimbHonor(tx, account.id, season, state.floor, 0, row!.id);
+          return row!;
+        });
+      } catch (err) {
+        // Concurrent start (active run or a second Gauntlet today) — a unique index fired.
+        if (isUniqueViolation(err)) {
+          return reply.code(409).send({ error: 'you already have an active run' });
+        }
+        throw err;
+      }
       return reply.code(201).send({ runId: created.id, state, stateVersion: 0, day, classId });
     });
   };
