@@ -46,6 +46,9 @@ interface Store {
   unread: number;
   /** Ephemeral live-toast bodies pushed over SSE (GDD §10). */
   toasts: { id: number; body: string }[];
+  settings: Settings;
+  /** A transient Fusion/Zenith ceremony to render (ART_DIRECTION §5); cleared after it plays. */
+  ceremony: { star: number; itemId: string } | null;
   busy: boolean;
   error: string | null;
 
@@ -75,12 +78,60 @@ interface Store {
   connectStream: () => void;
   pushToast: (body: string) => void;
   dismissToast: (id: number) => void;
+  updateSettings: (patch: Partial<Settings>) => void;
+  dismissCeremony: () => void;
   clearError: () => void;
 }
 
 function messageOf(err: unknown): string {
   if (err && typeof err === 'object' && 'error' in err) return (err as ApiError).error;
   return err instanceof Error ? err.message : 'something went wrong';
+}
+
+/** Player settings (ART_DIRECTION §7/§9): audio volumes + accessibility. Persisted locally. */
+export interface Settings {
+  sfxVolume: number; // 0..1
+  musicVolume: number; // 0..1
+  reducedMotion: boolean;
+  colorblind: 'off' | 'deuteranopia' | 'protanopia' | 'tritanopia';
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  sfxVolume: 0.7,
+  musicVolume: 0.4,
+  reducedMotion: false,
+  colorblind: 'off',
+};
+
+const SETTINGS_KEY = 'tv_settings';
+
+function loadSettings(): Settings {
+  if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+/** Mirror motion/colorblind prefs onto <html> so the CSS layer can react. */
+function applySettingsToDom(s: Settings): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.dataset.reducedMotion = s.reducedMotion ? 'on' : 'off';
+  root.dataset.cb = s.colorblind;
+}
+
+/** The highest-★ item across a run's gear + backpack (for the Fusion Ceremony trigger). */
+function topStar(state: RunState): { star: number; itemId: string } {
+  let best = { star: 0, itemId: '' };
+  const consider = (it: { star: number; itemId: string } | null): void => {
+    if (it && it.star > best.star) best = { star: it.star, itemId: it.itemId };
+  };
+  for (const slot of Object.values(state.equipment)) consider(slot);
+  for (const it of state.backpack) consider(it);
+  return best;
 }
 
 // A single live-toast stream (SSE) per session; opened once the account is known.
@@ -103,6 +154,8 @@ export const useStore = create<Store>((set, get) => ({
   inboxItems: [],
   unread: 0,
   toasts: [],
+  settings: loadSettings(),
+  ceremony: null,
   busy: false,
   error: null,
 
@@ -195,11 +248,18 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   cmd: async (command) => {
-    const { version } = get();
+    const { version, run } = get();
     set({ busy: true, error: null });
     try {
       const res = await api.command(version, command);
       set({ run: res.state, version: res.stateVersion });
+      // A successful fuse that lifts an item's ★ ceiling triggers the Fusion Ceremony
+      // (a bigger set piece at ★5 — the Zenith forge). ART_DIRECTION §5.
+      if (command.type === 'fuse' && run) {
+        const before = topStar(run);
+        const after = topStar(res.state);
+        if (after.star > before.star) set({ ceremony: after });
+      }
     } catch (err) {
       const e = err as ApiError;
       if (e.status === 409 && e.body && typeof e.body === 'object' && 'state' in e.body) {
@@ -337,6 +397,19 @@ export const useStore = create<Store>((set, get) => ({
     setTimeout(() => get().dismissToast(id), 6000);
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
+  updateSettings: (patch) => {
+    const settings = { ...get().settings, ...patch };
+    set({ settings });
+    applySettingsToDom(settings);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      } catch {
+        /* storage full / disabled — settings stay in-memory */
+      }
+    }
+  },
+  dismissCeremony: () => set({ ceremony: null }),
   fetchMerchant: async () => {
     try {
       set({ merchant: await api.merchant() });
@@ -358,3 +431,6 @@ export const useStore = create<Store>((set, get) => ({
   },
   clearError: () => set({ error: null }),
 }));
+
+// Apply persisted accessibility prefs to <html> on load, before the first paint.
+applySettingsToDom(useStore.getState().settings);

@@ -436,19 +436,23 @@ input {
   text-shadow: 0 2px 6px #000;
 }
 .dmgnum.crit {
-  font-size: 26px;
+  font-size: 30px;
   color: #ffd27a;
+  letter-spacing: -0.02em;
+  -webkit-text-stroke: 1px #7a3a10;
+  animation: crit-pop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
 }
 .dmgnum.hit {
-  font-size: 17px;
+  font-size: 18px;
   color: #f6ede0;
 }
 .dmgnum.dot {
   font-size: 15px;
+  font-style: italic;
   color: #ff9a6a;
 }
 .dmgnum.heal {
-  font-size: 16px;
+  font-size: 17px;
   color: var(--good);
 }
 @keyframes drift {
@@ -458,6 +462,86 @@ input {
   }
   to {
     transform: translateY(-40px);
+    opacity: 0;
+  }
+}
+@keyframes crit-pop {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(-8px) scale(1.25);
+  }
+  100% {
+    transform: translateY(-46px) scale(1);
+    opacity: 0;
+  }
+}
+/* A brief colour pulse at the screen edge when a status lands (status VFX vocabulary). */
+.status-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: status-pulse 0.5s ease-out forwards;
+}
+@keyframes status-pulse {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* The Fusion Ceremony overlay (ART_DIRECTION §5) — a bright forge flash; ★5 is grandest. */
+.ceremony {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 210, 122, 0.28), rgba(13, 11, 17, 0) 60%);
+  animation: ceremony-fade 1.5s ease-out forwards;
+}
+.ceremony .rune {
+  font-size: 64px;
+  color: #ffd27a;
+  text-shadow: 0 0 40px #ffb84a, 0 4px 12px #000;
+  animation: ceremony-rune 1.5s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+.ceremony.zenith {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 120, 51, 0.4), rgba(13, 11, 17, 0) 65%);
+  animation-duration: 2.4s;
+}
+.ceremony.zenith .rune {
+  font-size: 96px;
+  animation-duration: 2.4s;
+}
+@keyframes ceremony-fade {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ceremony-rune {
+  0% {
+    transform: scale(0.2) rotate(-20deg);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.15) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
     opacity: 0;
   }
 }
@@ -566,4 +650,23 @@ tr.self {
 .gold {
   color: var(--amber);
   font-weight: 700;
+}
+
+/* ── Accessibility: reduced motion (ART_DIRECTION §9). The JS loop also gates camera
+   shake / hit-stop / killcam on the same setting; this covers the CSS-driven motion. ── */
+:root[data-reduced-motion='on'] *,
+:root[data-reduced-motion='on'] *::before,
+:root[data-reduced-motion='on'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ceremony,
+  .ceremony .rune,
+  .status-flash,
+  .dmgnum {
+    animation-duration: 0.001ms;
+  }
 }

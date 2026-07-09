@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useStore } from './store.js';
 import { Codex } from './ui/Codex.js';
 import { Death } from './ui/Death.js';
@@ -32,6 +33,24 @@ function LiveToasts() {
           ❂ {t.body}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** The Fusion Ceremony — a forge flash on any ★-up, grandest at ★5 (the Zenith forge). */
+function Ceremony() {
+  const ceremony = useStore((s) => s.ceremony);
+  const dismiss = useStore((s) => s.dismissCeremony);
+  const zenith = (ceremony?.star ?? 0) >= 5;
+  useEffect(() => {
+    if (!ceremony) return;
+    const id = window.setTimeout(dismiss, zenith ? 2400 : 1500);
+    return () => window.clearTimeout(id);
+  }, [ceremony, zenith, dismiss]);
+  if (!ceremony) return null;
+  return (
+    <div className={`ceremony ${zenith ? 'zenith' : ''}`} aria-hidden>
+      <div className="rune">{zenith ? '✷' : '✦'}</div>
     </div>
   );
 }
@@ -73,6 +92,7 @@ export function App() {
       </div>
       <ErrorToast />
       <LiveToasts />
+      <Ceremony />
     </div>
   );
 }
