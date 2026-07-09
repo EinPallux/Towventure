@@ -7,6 +7,7 @@ import { Gate } from './ui/Gate.js';
 import { Ladder } from './ui/Ladder.js';
 import { Merchant } from './ui/Merchant.js';
 import { RunScreen } from './ui/RunScreen.js';
+import { Settings } from './ui/Settings.js';
 import { Skirmish } from './ui/Skirmish.js';
 import { Social } from './ui/Social.js';
 import { TopBar } from './ui/TopBar.js';
@@ -93,6 +94,7 @@ export function App() {
       <ErrorToast />
       <LiveToasts />
       <Ceremony />
+      <Settings />
     </div>
   );
 }

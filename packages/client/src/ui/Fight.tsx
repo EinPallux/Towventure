@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { biomeForFloor, getEnemy } from '@towventure/shared/content';
 import { prepareFight } from '@towventure/shared/run';
@@ -21,6 +21,21 @@ const STATUS_COLOR: Record<string, string> = {
   weaken: '#9a8cff',
   sunder: '#d0a24c',
   haste: '#66e0c0',
+};
+
+/** A colourblind-safe status palette (ART_DIRECTION §9): a hue spread that avoids the
+ * red-green and blue-yellow confusions, so the ten statuses stay distinguishable. */
+const STATUS_COLOR_CB: Record<string, string> = {
+  bleed: '#e0662a', // orange
+  burn: '#ffb14e', // amber
+  chill: '#56b4e9', // sky blue
+  regen: '#0072b2', // deep blue
+  ward: '#e6e6e6', // near-white
+  venom: '#009e73', // teal-green (distinct from blues)
+  shock: '#f0e442', // yellow
+  weaken: '#cc79a7', // pink
+  sunder: '#8c6d1f', // brown
+  haste: '#23b5b5', // cyan
 };
 
 interface Hp {
@@ -80,6 +95,23 @@ export function Fight() {
   const spec = useMemo(() => (playback ? (prepareFight(playback.preState)?.spec ?? null) : null), [playback]);
   const isEcho = playback?.preState.pendingFight?.kind === 'echo';
 
+  // Keybinds (ART_DIRECTION §9 / GDD §12): 1×/2× speed and Skip from the keyboard.
+  useEffect(() => {
+    if (!playback) return;
+    const onKey = (e: KeyboardEvent) => {
+      const pb = pbRef.current;
+      if (!pb) return;
+      if (e.key === '1') pb.speed = 1;
+      else if (e.key === '2') pb.speed = 2;
+      else if (e.key === ' ' || e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        pb.skip();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [playback]);
+
   const setup = useCallback(
     (scene: THREE.Scene, camera: THREE.PerspectiveCamera) => {
       if (!spec || !playback) return {};
@@ -87,6 +119,7 @@ export function Fight() {
       const biomeId = biomeForFloor(playback.preState.floor).id;
       const pal = paletteForBiome(biomeId);
       const reduced = settings.reducedMotion;
+      const statusPalette = settings.colorblind === 'off' ? STATUS_COLOR : STATUS_COLOR_CB;
       scene.fog = new THREE.Fog(0x0d0b11, 10, 26);
       addLanternLighting(scene, pal.accent);
       scene.add(buildFloor(pal.base));
@@ -171,7 +204,7 @@ export function Fight() {
         },
         onStatus: (idx, status) => {
           // A brief edge-pulse in the status's colour — legible without mesh surgery.
-          setStatusFlash({ color: STATUS_COLOR[status] ?? '#cbd5e1', key: flashId.current++ });
+          setStatusFlash({ color: statusPalette[status] ?? '#cbd5e1', key: flashId.current++ });
           void idx;
         },
         onDeath: (idx) => {
@@ -197,6 +230,7 @@ export function Fight() {
           audio.end(winner === 'hero');
         },
       });
+      pb.speed = settings.fightSpeed;
       pbRef.current = pb;
 
       let t = 0;

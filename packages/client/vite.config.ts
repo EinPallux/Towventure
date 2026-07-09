@@ -11,5 +11,15 @@ export default defineConfig({
       '/ws': { target: 'ws://localhost:8080', ws: true },
     },
   },
-  build: { target: 'es2022', sourcemap: true },
+  build: {
+    target: 'es2022',
+    sourcemap: true,
+    // Split Three.js into its own long-cached chunk — it dominates the bundle and rarely
+    // changes, so the app chunk stays small and cache-fresh across deploys (perf pass §4).
+    rollupOptions: {
+      output: {
+        manualChunks: { three: ['three'] },
+      },
+    },
+  },
 });

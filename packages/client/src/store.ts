@@ -47,6 +47,7 @@ interface Store {
   /** Ephemeral live-toast bodies pushed over SSE (GDD §10). */
   toasts: { id: number; body: string }[];
   settings: Settings;
+  settingsOpen: boolean;
   /** A transient Fusion/Zenith ceremony to render (ART_DIRECTION §5); cleared after it plays. */
   ceremony: { star: number; itemId: string } | null;
   busy: boolean;
@@ -79,6 +80,7 @@ interface Store {
   pushToast: (body: string) => void;
   dismissToast: (id: number) => void;
   updateSettings: (patch: Partial<Settings>) => void;
+  toggleSettings: (open?: boolean) => void;
   dismissCeremony: () => void;
   clearError: () => void;
 }
@@ -94,6 +96,8 @@ export interface Settings {
   musicVolume: number; // 0..1
   reducedMotion: boolean;
   colorblind: 'off' | 'deuteranopia' | 'protanopia' | 'tritanopia';
+  /** Default fight playback speed (1× or 2×). */
+  fightSpeed: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -101,6 +105,7 @@ const DEFAULT_SETTINGS: Settings = {
   musicVolume: 0.4,
   reducedMotion: false,
   colorblind: 'off',
+  fightSpeed: 1,
 };
 
 const SETTINGS_KEY = 'tv_settings';
@@ -155,6 +160,7 @@ export const useStore = create<Store>((set, get) => ({
   unread: 0,
   toasts: [],
   settings: loadSettings(),
+  settingsOpen: false,
   ceremony: null,
   busy: false,
   error: null,
@@ -409,6 +415,7 @@ export const useStore = create<Store>((set, get) => ({
       }
     }
   },
+  toggleSettings: (open) => set({ settingsOpen: open ?? !get().settingsOpen }),
   dismissCeremony: () => set({ ceremony: null }),
   fetchMerchant: async () => {
     try {

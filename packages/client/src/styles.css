@@ -670,3 +670,42 @@ tr.self {
     animation-duration: 0.001ms;
   }
 }
+
+/* Settings modal */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 5, 9, 0.6);
+  backdrop-filter: blur(3px);
+}
+.modal-scrim select {
+  background: #141019;
+  color: var(--text);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+
+/* ── Colourblind-safe palettes (ART_DIRECTION §9). Remap the semantic + rarity vars so
+   the red-green and blue-yellow confusions carry distinct hues. Status VFX in the fight
+   swap via a JS palette keyed on the same setting. ── */
+:root[data-cb='deuteranopia'],
+:root[data-cb='protanopia'] {
+  --good: #3aa0ff; /* green → blue */
+  --uncommon: #3aa0ff;
+  --danger: #e0662a; /* red → orange, distinct from the new blue */
+  --rare: #7fb2ff;
+  --epic: #c77dff;
+  --mythic: #e8a13a;
+}
+:root[data-cb='tritanopia'] {
+  --rare: #23b5b5; /* blue → teal */
+  --amber: #ff9a3a;
+  --mythic: #ff7ac0; /* yellow → pink */
+  --good: #4fbf73;
+  --danger: #e5484d;
+}
