@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buildDuelSpec } from '@towventure/shared/run';
+import { downloadCard } from '../engine/shareCard.js';
 import { buildFloor, buildHero, buildLantern } from '../engine/meshes.js';
 import { paletteForBiome } from '../engine/palettes.js';
 import { Playback } from '../engine/playback.js';
@@ -133,9 +134,28 @@ function DuelReplay({ res }: { res: SkirmishResult }) {
                   ◈{res.outcome.defenderReward.marks}
                 </div>
               )}
-              <button className="primary" onClick={clear}>
-                Back to the Board
-              </button>
+              <div className="row" style={{ gap: 8 }}>
+                <button className="primary" onClick={clear}>
+                  Back to the Board
+                </button>
+                <button
+                  className="ghost"
+                  title="Download a PNG to share"
+                  onClick={() =>
+                    downloadCard({
+                      kind: 'duel',
+                      attacker: res.attacker.name,
+                      defender: res.defender.name,
+                      won,
+                      honorDelta: delta,
+                      keyAwarded: res.outcome.keyAwarded,
+                      accent: '#e6b64a',
+                    })
+                  }
+                >
+                  ⤓ Duel card
+                </button>
+              </div>
             </div>
           ) : (
             <>

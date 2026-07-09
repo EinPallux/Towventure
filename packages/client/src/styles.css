@@ -709,3 +709,20 @@ tr.self {
   --good: #4fbf73;
   --danger: #e5484d;
 }
+
+/* Onboarding coach-mark (GDD §12) — a one-time, dismissible first-run hint banner. */
+.coachmark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--amber-dim);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+  font-size: 14px;
+}
+.coachmark .glyph {
+  color: var(--amber);
+  font-size: 18px;
+}

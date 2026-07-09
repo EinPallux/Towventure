@@ -2,6 +2,7 @@ import { findEvent } from '@towventure/shared/content';
 import { activeTorments, tormentLevel } from '@towventure/shared/run';
 import { useStore } from '../store.js';
 import { HeroPanel } from './HeroPanel.js';
+import { Onboarding } from './Onboarding.js';
 import { describeItem } from './itemText.js';
 
 /** Past floor 100, the Torment banner names the escalation the tower has stacked on. */
@@ -261,6 +262,7 @@ export function RunScreen() {
   const phase = useStore((s) => s.run?.phase);
   return (
     <div className="col grow" style={{ overflow: 'auto' }}>
+      <Onboarding />
       <TormentBanner />
       {phase === 'doors' && <Doors />}
       {phase === 'reward' && <Reward />}

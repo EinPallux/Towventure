@@ -1,8 +1,14 @@
+import { biomeForFloor, getClass } from '@towventure/shared/content';
 import { killerName, makeSummary } from '@towventure/shared/run';
+import { downloadCard } from '../engine/shareCard.js';
+import { paletteForBiome } from '../engine/palettes.js';
 import { useStore } from '../store.js';
+
+const hexOf = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
 
 export function Death() {
   const run = useStore((s) => s.run)!;
+  const me = useStore((s) => s.me);
   const busy = useStore((s) => s.busy);
   const startRun = useStore((s) => s.startRun);
   const dismissRun = useStore((s) => s.dismissRun);
@@ -11,6 +17,25 @@ export function Death() {
   const s = makeSummary(run);
   const killer = killerName(run) ?? 'the Tower';
   const echoFloor = run.deathInfo?.floor ?? run.floor;
+
+  const shareCard = (): void => {
+    downloadCard(
+      {
+        kind: 'death',
+        name: me?.account.name ?? 'A climber',
+        className: getClass(run.classId).name,
+        floor: echoFloor,
+        bestFloor: s.bestFloor,
+        fightsWon: s.fightsWon,
+        damageDealt: s.damageDealt,
+        honor: s.climbHonor,
+        tier: s.tier,
+        killer,
+        accent: hexOf(paletteForBiome(biomeForFloor(echoFloor).id).accent),
+      },
+      `towventure-floor-${echoFloor}.png`,
+    );
+  };
 
   return (
     <div className="death center card">
@@ -42,6 +67,9 @@ export function Death() {
       <div className="row" style={{ justifyContent: 'center' }}>
         <button className="primary" disabled={busy} onClick={() => void startRun()}>
           Take the Vow again
+        </button>
+        <button className="ghost" onClick={shareCard} title="Download a PNG to share">
+          ⤓ Share card
         </button>
         <button className="ghost" onClick={() => setView('ladder')}>
           The Ladder
