@@ -134,6 +134,10 @@ export interface EnemyDef {
   selfHealPctPerSec?: number;
   /** …halved once this many total status stacks sit on it (the density check). */
   healHalvedAtStacks?: number;
+  /** A status that never lands on it (Ember Courtier ← Burn, Court §4). */
+  immuneToStatus?: StatusKind;
+  /** Its attack lands as N rapid sub-hits (damage split) — anti-Ward (Pressure Wraith, Vault §4). */
+  hitsPerSwing?: number;
   /** The build axis this enemy checks (flavor/legibility). */
   check: string;
   flavor: string;

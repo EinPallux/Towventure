@@ -293,6 +293,9 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
       dmg = Math.trunc((dmg * 15) / 10);
     }
     const effects: EffectBinding[] = (def.effects ?? []).map((e) => compileEffect(def.name, e, 1));
+    // Multi-hit enemies split their damage into N rapid sub-hits (anti-Ward, Vault §4).
+    const hitsPerSwing = def.hitsPerSwing && def.hitsPerSwing > 1 ? def.hitsPerSwing : undefined;
+    const perHit = hitsPerSwing ? Math.max(1, Math.trunc(dmg / hitsPerSwing)) : dmg;
     const spec: CombatantSpec = {
       id: `e${i}`,
       name: def.name,
@@ -308,16 +311,18 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
         {
           name: `${def.name} attack`,
           cooldownTicks: cooldownTicks(def.cooldownSeconds),
-          damage: dmg,
+          damage: perHit,
+          ...(hitsPerSwing ? { hitsPerSwing } : {}),
         },
       ],
       effects,
     };
-    // Optional anti-autopilot mechanics (biomes 2–5, CONTENT §4).
+    // Optional anti-autopilot mechanics (biomes 2–10, CONTENT §4).
     if (def.critImmune) spec.critImmune = true;
     if (def.healsFromStatus) spec.healsFromStatus = def.healsFromStatus;
     if (def.selfHealPctPerSec !== undefined) spec.selfHealPctPerSec = def.selfHealPctPerSec;
     if (def.healHalvedAtStacks !== undefined) spec.healHalvedAtStacks = def.healHalvedAtStacks;
+    if (def.immuneToStatus) spec.immuneToStatus = def.immuneToStatus;
     return spec;
   });
 }

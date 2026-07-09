@@ -24,6 +24,11 @@ import type { Command, CommandResult, EquipState, RunState, RunSummary } from '.
 
 const STARTING_BACKPACK = 12;
 
+/** Bosses whose defeat always yields a specific Mythic (CONTENT §4.1). */
+const GUARANTEED_BOSS_DROP: Record<string, string> = {
+  the_sleepless_warden: 'the_sleepless_crown',
+};
+
 /**
  * Deep-clone run state. `RunState` is plain JSON (null, not undefined, for empty
  * slots), so a round-trip is portable (no `structuredClone` lib dependency in the
@@ -367,7 +372,11 @@ export function resolveFight(state: RunState, result: SimResult): RunState {
         : loot.gold;
       draft.gold += fightGold + bonus;
       draft.lastGold = fightGold + bonus;
-      draft.pendingItem = loot.itemId ?? null;
+      // Guaranteed boss drops override the rolled item (the RNG is still drawn so gold +
+      // downstream draws stay deterministic). The Sleepless Warden always yields its Crown
+      // (CONTENT §4.1; the per-account first-clear anti-farm is a server refinement).
+      const guaranteed = GUARANTEED_BOSS_DROP[fight.enemyIds[0] ?? ''];
+      draft.pendingItem = guaranteed ?? loot.itemId ?? null;
     }
   } else {
     draft.status = 'dead';

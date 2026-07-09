@@ -353,6 +353,9 @@ class Sim {
     applier?: Combatant,
   ): void {
     if (stacks <= 0 || !c.alive) return;
+    // Status immunity: the affliction simply never lands (Ember Courtier ← Burn). Guarded
+    // on an optional field + draws no RNG, so specs without it are golden-identical.
+    if (c.spec.immuneToStatus === kind) return;
     if (kind === 'ward') {
       // "ward" as a status op adds Ward magnitude equal to stacks.
       this.addWard(c, stacks, t);

@@ -327,4 +327,347 @@ export const ENEMIES: EnemyDef[] = [
     check: 'status density — heals 3%/s, halved at 10+ statuses on him',
     flavor: 'He smiles the whole climb wide. Every tooth was someone.',
   },
+
+  // ── The Menagerie (floors 51–60) — evasion, threshold-burst, and the collector ──
+  {
+    id: 'gloom_panther',
+    name: 'Gloom Panther',
+    role: 'regular',
+    baseHp: 44,
+    baseDamage: 10,
+    cooldownSeconds: 1.2,
+    dodgePct: 30,
+    check: 'evasion — high Dodge; bring Shock or sure-hits',
+    flavor: 'You will see it once. That once will be enough for it.',
+  },
+  {
+    id: 'hollow_bear',
+    name: 'Hollow Bear',
+    role: 'regular',
+    baseHp: 56,
+    baseDamage: 9,
+    cooldownSeconds: 1.8,
+    // Enrages once wounded — burst it past the threshold or eat the rage.
+    effects: [
+      { trigger: { kind: 'OnHpBelow', pct: 50 }, ops: [{ op: 'buffDamagePct', pct: 45 }] },
+    ],
+    check: 'burst past the threshold — it enrages below 50% HP',
+    flavor: 'They took the inside of it for a coat. It kept the wanting.',
+  },
+  {
+    id: 'vitrine_adder',
+    name: 'Vitrine Adder',
+    role: 'regular',
+    baseHp: 40,
+    baseDamage: 9,
+    cooldownSeconds: 1.3,
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }] },
+    ],
+    check: 'Venom pressure — glass between you and its patience, and it broke',
+    flavor: 'Labelled, dated, and never once asked whether it agreed.',
+  },
+  {
+    id: 'collectors_favorite',
+    name: "The Collector's Favorite",
+    role: 'elite',
+    baseHp: 74,
+    baseDamage: 13,
+    cooldownSeconds: 1.4,
+    armor: 4,
+    dodgePct: 8,
+    check: 'a bit of everything — it wears a stolen build (Codex-item loadout deferred)',
+    flavor: 'Someone loved it best. Now it is behind glass, loving no one.',
+  },
+  {
+    id: 'the_collector',
+    name: 'The Collector',
+    role: 'boss',
+    baseHp: 98,
+    baseDamage: 17,
+    cooldownSeconds: 1.8,
+    armor: 6,
+    // Opens with 3 Codex items equipped and, on defeat, offers one back — both need the
+    // Codex-item pool wired into combat; deferred. A tanky, well-rounded stat check meanwhile.
+    check: 'well-rounded wall — 3 stolen builds + the loot-offer are deferred',
+    flavor: 'It does not fight to win. It fights to add you to the shelf.',
+  },
+
+  // ── The Vault (floors 61–70) — Chill drown, anti-Ward pressure, the armored deadbolt ──
+  {
+    id: 'drowned_bailiff',
+    name: 'Drowned Bailiff',
+    role: 'regular',
+    baseHp: 48,
+    baseDamage: 9,
+    cooldownSeconds: 1.5,
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+    ],
+    check: 'Chill drown — it stacks you slow, toward Doomfall',
+    flavor: 'Still holding the writ. Still expecting you to sign.',
+  },
+  {
+    id: 'pressure_wraith',
+    name: 'Pressure Wraith',
+    role: 'regular',
+    baseHp: 42,
+    baseDamage: 12,
+    cooldownSeconds: 1.6,
+    // One blow lands as five rapid sub-hits — Ward and one-shot buffers leak against it.
+    hitsPerSwing: 5,
+    check: 'anti-Ward — its hit is five fast ticks, not one',
+    flavor: 'The depth remembers every climber it pressed flat.',
+  },
+  {
+    id: 'deadbolt_sentinel',
+    name: 'Deadbolt Sentinel',
+    role: 'regular',
+    baseHp: 54,
+    baseDamage: 8,
+    cooldownSeconds: 1.9,
+    armor: 12,
+    check: 'armor — a slab of a lock; Sunder or big hits',
+    flavor: 'It guards a door that was never built. It does not know.',
+  },
+  {
+    id: 'the_escrow',
+    name: 'The Escrow',
+    role: 'elite',
+    baseHp: 80,
+    baseDamage: 12,
+    cooldownSeconds: 1.6,
+    armor: 5,
+    // Banks 30% of damage dealt to it and returns it as one hit at 50% — a Ward/Armor
+    // timing check that needs a damage-banking mechanic; deferred. A sturdy elite for now.
+    check: 'Ward/Armor timing — the banked-return burst is deferred',
+    flavor: 'It holds what you give it. It always intends to return it.',
+  },
+  {
+    id: 'bailiff_of_the_deep',
+    name: 'Bailiff of the Deep',
+    role: 'boss',
+    baseHp: 102,
+    baseDamage: 18,
+    cooldownSeconds: 1.8,
+    armor: 5,
+    // The room floods: +1 Chill to you every 4s. The doc's crit-cleanse valve needs a
+    // trigger that only the run layer can read; deferred. The flood itself is honest.
+    effects: [
+      { trigger: { kind: 'Every', seconds: 4 }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+    ],
+    check: 'the room floods — Chill every 4s (crit-cleanse valve deferred)',
+    flavor: 'It reads the depth its charges drowned in, aloud, forever.',
+  },
+
+  // ── The Gallery of Mirrors (floors 71–80) — mirror matches; the build report card ──
+  {
+    id: 'mirrorkin',
+    name: 'Mirrorkin',
+    role: 'regular',
+    baseHp: 50,
+    baseDamage: 11,
+    cooldownSeconds: 1.4,
+    dodgePct: 6,
+    // "It is you at 85%." A true mirror needs the hero's live build as the enemy
+    // (a run/Echo concern); deferred. A balanced humanoid stat check stands in.
+    check: 'mirror — a balanced fighter (true build-copy deferred)',
+    flavor: 'It fights the way you do. It has your bad habit, too.',
+  },
+  {
+    id: 'frame_ghoul',
+    name: 'Frame Ghoul',
+    role: 'regular',
+    baseHp: 46,
+    baseDamage: 10,
+    cooldownSeconds: 1.5,
+    // Reflects the first status you apply each 5s — a status-reflect the sim can't do yet;
+    // deferred. It hardens a little when hurt instead, standing in for the recoil.
+    effects: [
+      { trigger: { kind: 'OnHurt' }, ops: [{ op: 'gainWard', amount: 3 }], chancePct: 30 },
+    ],
+    check: 'status-reflect (deferred) — it recoils Ward when struck',
+    flavor: 'It lives in the gilt edge, wearing the last face that passed.',
+  },
+  {
+    id: 'salon_shade',
+    name: 'Salon Shade',
+    role: 'regular',
+    baseHp: 44,
+    baseDamage: 9,
+    cooldownSeconds: 1.4,
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }] },
+    ],
+    check: 'Weaken pressure — a portrait that critiques your form',
+    flavor: 'It remembers being admired. It resents being merely seen.',
+  },
+  {
+    id: 'the_understudy',
+    name: 'The Understudy',
+    role: 'elite',
+    baseHp: 82,
+    baseDamage: 14,
+    cooldownSeconds: 1.4,
+    armor: 3,
+    dodgePct: 6,
+    // Your PREVIOUS run's final build at 90% — memento mori. Needs last-run persistence
+    // wired into combat; deferred. A strong humanoid elite stands in.
+    check: 'memento mori — your last build at 90% is deferred',
+    flavor: 'It learned your part by watching you die of it.',
+  },
+  {
+    id: 'the_curator',
+    name: 'The Curator',
+    role: 'boss',
+    baseHp: 116,
+    baseDamage: 18,
+    cooldownSeconds: 1.7,
+    armor: 5,
+    dodgePct: 5,
+    // The mirror match: your exact build at 100% +15% Max HP. A true self-fight is a
+    // run/Echo concern; deferred. Its baseHp already carries the +15% as a stat check.
+    check: 'the build report card — the true mirror match is deferred',
+    flavor: 'It curates one exhibit. The exhibit is the shape of your mistakes.',
+  },
+
+  // ── The Court (floors 81–90) — Burn-immune elegance, cadence duels, ceremony speed ──
+  {
+    id: 'ember_courtier',
+    name: 'Ember Courtier',
+    role: 'regular',
+    baseHp: 52,
+    baseDamage: 11,
+    cooldownSeconds: 1.4,
+    immuneToStatus: 'burn',
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }] },
+    ],
+    check: 'anti-Ember — Burn will not touch it; it Weakens you elegantly',
+    flavor: 'It holds a candle it does not fear. It fears being unlit.',
+  },
+  {
+    id: 'duel_bond_twins',
+    name: 'Duel-Bond Twins',
+    role: 'regular',
+    baseHp: 58,
+    baseDamage: 12,
+    cooldownSeconds: 1.5,
+    armor: 3,
+    // They share HP and alternate a guard (the struck one takes 50% less) — a two-body
+    // linkage the sim models as one enemy today; the cadence-guard is deferred.
+    check: 'cadence — the shared-HP alternating guard is deferred',
+    flavor: 'One bleeds when the other is cut. Neither will say which is which.',
+  },
+  {
+    id: 'court_duelist',
+    name: 'Court Duelist',
+    role: 'regular',
+    baseHp: 46,
+    baseDamage: 10,
+    cooldownSeconds: 1.1,
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }] },
+    ],
+    check: 'tempo + Bleed — fast, and it opens you politely',
+    flavor: 'Every scar it gives you comes with a small, correct bow.',
+  },
+  {
+    id: 'master_of_ceremonies',
+    name: 'The Master of Ceremonies',
+    role: 'elite',
+    baseHp: 78,
+    baseDamage: 13,
+    cooldownSeconds: 1.05,
+    // "The fight runs at 1.25× for both sides" needs a global sim-speed knob; deferred.
+    // A very fast elite stands in for the quickened tempo.
+    check: 'tempo — it fights fast (the 1.25× global speed is deferred)',
+    flavor: 'It calls each of your blows before you throw it. It is never late.',
+  },
+  {
+    id: 'princess_of_cinders',
+    name: 'Princess of Cinders',
+    role: 'boss',
+    baseHp: 108,
+    baseDamage: 19,
+    cooldownSeconds: 1.7,
+    // Phase one: pure Burn aggression. At 50% she snuffs all Burn (yours too) and turns
+    // to Frost — a phase flip the sim can't do yet; deferred. The Burn phase is live.
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }] },
+    ],
+    check: 'dual-axis — Burn now; the 50% snuff-to-Frost phase is deferred',
+    flavor: 'She was crowned in a fire she started to stay warm.',
+  },
+
+  // ── The Crown (floors 91–100) — burst windows, the growing dream, the Warden ──
+  {
+    id: 'somnambulist',
+    name: 'Somnambulist',
+    role: 'regular',
+    baseHp: 50,
+    baseDamage: 13,
+    cooldownSeconds: 1.3,
+    // Sleeps 3s (invulnerable) after every 6s awake — a periodic-invuln window the sim
+    // lacks; deferred. It hits hard while awake meanwhile.
+    check: 'burst windows — the sleep-invuln cycle is deferred',
+    flavor: 'It walks the Crown at night, asleep, and will not be woken kindly.',
+  },
+  {
+    id: 'dream_larva',
+    name: 'Dream Larva',
+    role: 'regular',
+    baseHp: 40,
+    baseDamage: 7,
+    cooldownSeconds: 1.4,
+    // Grows through the fight — a race check. HP growth is deferred; its damage climbs.
+    effects: [
+      { trigger: { kind: 'Every', seconds: 2 }, ops: [{ op: 'buffDamagePct', pct: 5 }] },
+    ],
+    check: 'race — its damage grows every 2s (HP growth deferred)',
+    flavor: 'It dreams of what it will become. The dream is getting closer.',
+  },
+  {
+    id: 'crown_sleeper',
+    name: 'Crown Sleeper',
+    role: 'regular',
+    baseHp: 52,
+    baseDamage: 10,
+    cooldownSeconds: 1.5,
+    effects: [
+      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+    ],
+    check: 'Chill — the dream is cold, and it is spreading',
+    flavor: 'It slept through its own coronation. It sleeps through yours.',
+  },
+  {
+    id: 'the_apology',
+    name: 'The Apology',
+    role: 'elite',
+    baseHp: 86,
+    baseDamage: 15,
+    cooldownSeconds: 1.5,
+    armor: 4,
+    // Copies your Relic — a run-level loadout theft; deferred. A hard elite stands in.
+    check: 'the Relic-copy is deferred — a hard, honest elite for now',
+    flavor: 'It is sorry. It has always been sorry. It will be sorry over you.',
+  },
+  {
+    id: 'the_sleepless_warden',
+    name: 'The Sleepless Warden',
+    role: 'boss',
+    baseHp: 130,
+    baseDamage: 21,
+    cooldownSeconds: 1.7,
+    armor: 8,
+    // The floor-100 wall: three phases replaying Toll + rewrite + flood, and permanent
+    // Doomfall from 25% — multi-phase scripting the sim can't do yet; deferred. It fights
+    // as the hardest single boss in the tower, with the Toll stun and a rising pressure.
+    effects: [
+      { trigger: { kind: 'Every', seconds: 6 }, ops: [{ op: 'stun', ticks: 5, to: 'target' }] },
+      { trigger: { kind: 'Every', seconds: 8 }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 2, to: 'target' }] },
+    ],
+    check: 'the last wall — Toll + flood now; three-phase Doomfall script deferred',
+    flavor: 'It has not slept since the first climber. It will not sleep after you.',
+  },
 ];

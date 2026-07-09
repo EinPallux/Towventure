@@ -11,8 +11,16 @@ import {
 import { VOW_IDS } from '../content/vows.js';
 import { runStartSchema } from '../protocol/schemas.js';
 import { simulate } from '../sim/index.js';
+import { biomeForFloor, getEnemy } from '../content/registry.js';
 import { applyBoon } from './boons.js';
-import { buildCombatSpec, buildDuelSpec, buildHeroSpec, snapshotOf, tagCounts } from './build.js';
+import {
+  buildCombatSpec,
+  buildDuelSpec,
+  buildEnemySpecs,
+  buildHeroSpec,
+  snapshotOf,
+  tagCounts,
+} from './build.js';
 import { buildCodex } from './codex.js';
 import {
   echoAiBonusPct,
@@ -34,6 +42,7 @@ import {
   killerName,
   makeSummary,
   prepareFight,
+  resolveFight,
   runPendingFight,
   startRun,
 } from './reducer.js';
@@ -1015,5 +1024,63 @@ describe('Echo fights (GDD §8)', () => {
     expect(out.state.deathInfo?.killerEnemyId).toBe('echo');
     expect(out.state.deathInfo?.echoOwnerName).toBe('Maro');
     expect(killerName(out.state)).toBe("Maro's Echo");
+  });
+});
+
+describe('biomes 6–10 — the tower endgame (CONTENT §4, ROADMAP Phase 4)', () => {
+  it('floors 51–100 map to the Menagerie → Crown, ending on the Sleepless Warden', () => {
+    expect(biomeForFloor(55).id).toBe('menagerie');
+    expect(biomeForFloor(65).id).toBe('vault');
+    expect(biomeForFloor(75).id).toBe('gallery');
+    expect(biomeForFloor(85).id).toBe('court');
+    expect(biomeForFloor(95).id).toBe('crown');
+    expect(biomeForFloor(100).bossId).toBe('the_sleepless_warden');
+    // Past floor 100 the Crown loops (Torments layer on top — Phase 4 B).
+    expect(biomeForFloor(140).id).toBe('crown');
+  });
+
+  it('every new enemy resolves and compiles into a scaled spec at depth', () => {
+    const ids = [
+      'gloom_panther', 'hollow_bear', 'vitrine_adder', 'collectors_favorite', 'the_collector',
+      'drowned_bailiff', 'pressure_wraith', 'deadbolt_sentinel', 'the_escrow', 'bailiff_of_the_deep',
+      'mirrorkin', 'frame_ghoul', 'salon_shade', 'the_understudy', 'the_curator',
+      'ember_courtier', 'duel_bond_twins', 'court_duelist', 'master_of_ceremonies', 'princess_of_cinders',
+      'somnambulist', 'dream_larva', 'crown_sleeper', 'the_apology', 'the_sleepless_warden',
+    ];
+    for (const id of ids) expect(() => getEnemy(id)).not.toThrow();
+    // The floor-100 boss scales to a genuine wall and keeps its Toll + flood effects.
+    const [warden] = buildEnemySpecs(['the_sleepless_warden'], 100);
+    expect(warden!.maxHp).toBeGreaterThan(50000);
+    expect(warden!.effects.length).toBe(2);
+  });
+
+  it('the new gated enemy mechanics reach the spec (immuneToStatus, hitsPerSwing)', () => {
+    const [courtier] = buildEnemySpecs(['ember_courtier'], 85);
+    expect(courtier!.immuneToStatus).toBe('burn');
+    const [wraith] = buildEnemySpecs(['pressure_wraith'], 65);
+    expect(wraith!.weapons[0]!.hitsPerSwing).toBe(5);
+    // A non-multi-hit enemy leaves the field unset (golden-neutral).
+    expect(buildEnemySpecs(['gloom_panther'], 55)[0]!.weapons[0]!.hitsPerSwing).toBeUndefined();
+  });
+
+  it('defeating the Sleepless Warden guarantees the Sleepless Crown drop (CONTENT §4.1)', () => {
+    // A run poised on the floor-100 boss; feed resolveFight a scripted hero win.
+    const state = startRun('vanguard', [], 3);
+    state.floor = 100;
+    state.phase = 'fight';
+    state.pendingFight = { kind: 'boss', enemyIds: ['the_sleepless_warden'] };
+    const win = {
+      winner: 'hero' as const,
+      endTick: 200,
+      heroHpRemaining: 40,
+      heroMaxHp: 100,
+      enemyHpRemaining: [0],
+      logHash: 0,
+      events: [],
+      firedOneShots: [],
+    };
+    const next = resolveFight(state, win);
+    expect(next.phase).toBe('reward');
+    expect(next.pendingItem).toBe('the_sleepless_crown'); // guaranteed, not rolled
   });
 });

@@ -173,5 +173,15 @@
     "hash": 530951159,
     "endTick": 130,
     "winner": "hero"
+  },
+  "immune-to-burn": {
+    "hash": 1659102292,
+    "endTick": 120,
+    "winner": "enemies"
+  },
+  "enemy-multi-hit-vs-ward": {
+    "hash": 2807771748,
+    "endTick": 160,
+    "winner": "enemies"
   }
 }
