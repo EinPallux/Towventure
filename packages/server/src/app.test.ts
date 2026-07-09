@@ -171,7 +171,10 @@ d('server API — the Heartbeat loop', () => {
           method: 'POST',
           url: '/api/run/command',
           headers: { cookie },
-          payload: { expectedStateVersion: version, command: { type: 'resolveEvent', optionIndex: 1 } },
+          payload: {
+            expectedStateVersion: version,
+            command: { type: 'resolveEvent', optionIndex: 1 },
+          },
         });
         expect(r.statusCode).toBe(200);
         state = r.json().state;
@@ -371,7 +374,9 @@ d('server API — the Heartbeat loop', () => {
     const bId = await makeAccount(`hb_echoB_${Date.now().toString(36)}`);
 
     // A dies on floor 8 with 250 season Honor → banks an Echo.
-    await database.db.transaction((tx) => bankEcho(tx, aId, 'Aowner', season, deadRunOn('duelist', 8), 250));
+    await database.db.transaction((tx) =>
+      bankEcho(tx, aId, 'Aowner', season, deadRunOn('duelist', 8), 250),
+    );
     const own = await getOwnEcho(database.db, aId);
     expect(own).toEqual({ floor: 8, kills: 0, defeats: 0, expired: false });
 
@@ -457,7 +462,10 @@ d('server API — the Heartbeat loop', () => {
           method: 'POST',
           url: '/api/run/command',
           headers: { cookie },
-          payload: { expectedStateVersion: version, command: { type: 'chooseDoor', doorIndex: idx } },
+          payload: {
+            expectedStateVersion: version,
+            command: { type: 'chooseDoor', doorIndex: idx },
+          },
         });
         expect(r.statusCode).toBe(200);
         state = r.json().state;
@@ -517,7 +525,10 @@ d('server API — the Heartbeat loop', () => {
           method: 'POST',
           url: '/api/run/command',
           headers: { cookie },
-          payload: { expectedStateVersion: version, command: { type: 'resolveEvent', optionIndex: 1 } },
+          payload: {
+            expectedStateVersion: version,
+            command: { type: 'resolveEvent', optionIndex: 1 },
+          },
         });
         state = r.json().state;
         version = r.json().stateVersion;
@@ -528,10 +539,7 @@ d('server API — the Heartbeat loop', () => {
   });
 
   // A strong build (deep, so high HP) or a weak one (floor 1) — to rig duel outcomes.
-  function buildFor(
-    classId: 'vanguard' | 'duelist' | 'arcanist',
-    floorsCleared: number,
-  ): RunState {
+  function buildFor(classId: 'vanguard' | 'duelist' | 'arcanist', floorsCleared: number): RunState {
     const run = startRun(classId, [], 77);
     run.floorsCleared = floorsCleared;
     run.floor = floorsCleared + 1;
@@ -659,7 +667,10 @@ d('server API — the Heartbeat loop', () => {
   async function makeSession(name: string): Promise<{ id: string; cookie: string }> {
     const id = await makeAccount(name);
     const sid = await createSession(database.db, id);
-    return { id, cookie: `${SESSION_COOKIE}=${(app as unknown as { signCookie(v: string): string }).signCookie(sid)}` };
+    return {
+      id,
+      cookie: `${SESSION_COOKIE}=${(app as unknown as { signCookie(v: string): string }).signCookie(sid)}`,
+    };
   }
 
   it('Honor Merchant: buy a cosmetic + arm a boon with Marks; the boon fires at run start (GDD §10.2)', async () => {
@@ -669,7 +680,11 @@ d('server API — the Heartbeat loop', () => {
       .insert(marksLedger)
       .values({ accountId: me.id, season, delta: 200, reason: 'test', refId: null });
 
-    const shop = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    const shop = await app.inject({
+      method: 'GET',
+      url: '/api/merchant',
+      headers: { cookie: me.cookie },
+    });
     expect(shop.statusCode).toBe(200);
     expect(shop.json().marks).toBe(200);
     expect(shop.json().items.length).toBeGreaterThan(0);
@@ -713,7 +728,11 @@ d('server API — the Heartbeat loop', () => {
     });
     expect(start.statusCode).toBe(201);
     expect((start.json().state as RunState).gold).toBe(50);
-    const shop2 = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    const shop2 = await app.inject({
+      method: 'GET',
+      url: '/api/merchant',
+      headers: { cookie: me.cookie },
+    });
     expect(shop2.json().armedBoon).toBeNull(); // consumed
   });
 
@@ -732,7 +751,11 @@ d('server API — the Heartbeat loop', () => {
         seed: i + 1,
       });
     }
-    const shop = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    const shop = await app.inject({
+      method: 'GET',
+      url: '/api/merchant',
+      headers: { cookie: me.cookie },
+    });
     expect(shop.json().keys).toBe(3);
 
     const buy = await app.inject({
@@ -759,7 +782,11 @@ d('server API — the Heartbeat loop', () => {
     const a = await makeSession(`hb_gaunt_a_${Date.now().toString(36)}`);
     const b = await makeSession(`hb_gaunt_b_${Date.now().toString(36)}`);
 
-    const infoA = await app.inject({ method: 'GET', url: '/api/gauntlet', headers: { cookie: a.cookie } });
+    const infoA = await app.inject({
+      method: 'GET',
+      url: '/api/gauntlet',
+      headers: { cookie: a.cookie },
+    });
     expect(infoA.statusCode).toBe(200);
     const { seed, classId, day } = infoA.json();
     expect(typeof seed).toBe('number');
@@ -797,7 +824,11 @@ d('server API — the Heartbeat loop', () => {
     expect(dupA.statusCode).toBe(409);
 
     // The Gauntlet ladder now lists both entrants (best floor = 1 so far).
-    const info2 = await app.inject({ method: 'GET', url: '/api/gauntlet', headers: { cookie: a.cookie } });
+    const info2 = await app.inject({
+      method: 'GET',
+      url: '/api/gauntlet',
+      headers: { cookie: a.cookie },
+    });
     expect(info2.json().entered).toBe(true);
     expect(info2.json().board.total).toBeGreaterThanOrEqual(2);
     expect(info2.json().day).toBe(day);
@@ -847,7 +878,11 @@ d('server API — the Heartbeat loop', () => {
     expect(reqRes.json().status).toBe('pending');
 
     // B sees an incoming request and accepts it.
-    const bFriends = await app.inject({ method: 'GET', url: '/api/friends', headers: { cookie: b.cookie } });
+    const bFriends = await app.inject({
+      method: 'GET',
+      url: '/api/friends',
+      headers: { cookie: b.cookie },
+    });
     expect(bFriends.json().incoming.some((r: { id: string }) => r.id === a.id)).toBe(true);
     const acc = await app.inject({
       method: 'POST',
@@ -858,30 +893,63 @@ d('server API — the Heartbeat loop', () => {
     expect(acc.statusCode).toBe(200);
 
     // Now each lists the other as a friend.
-    const aFriends = await app.inject({ method: 'GET', url: '/api/friends', headers: { cookie: a.cookie } });
+    const aFriends = await app.inject({
+      method: 'GET',
+      url: '/api/friends',
+      headers: { cookie: a.cookie },
+    });
     expect(aFriends.json().friends.some((f: { name: string }) => f.name === bName)).toBe(true);
 
     // B hits a milestone → A's feed shows it (friends' union).
     await emitFeed(database.db, b.id, 'floor', 'reached Floor 30');
-    const aFeed = await app.inject({ method: 'GET', url: '/api/feed', headers: { cookie: a.cookie } });
-    expect(aFeed.json().feed.some((f: { name: string; body: string }) => f.name === bName && f.body.includes('Floor 30'))).toBe(true);
+    const aFeed = await app.inject({
+      method: 'GET',
+      url: '/api/feed',
+      headers: { cookie: a.cookie },
+    });
+    expect(
+      aFeed
+        .json()
+        .feed.some(
+          (f: { name: string; body: string }) => f.name === bName && f.body.includes('Floor 30'),
+        ),
+    ).toBe(true);
 
     // Public profile resolves by name.
-    const prof = await app.inject({ method: 'GET', url: `/api/profile/${bName}`, headers: { cookie: a.cookie } });
+    const prof = await app.inject({
+      method: 'GET',
+      url: `/api/profile/${bName}`,
+      headers: { cookie: a.cookie },
+    });
     expect(prof.statusCode).toBe(200);
     expect(prof.json().name).toBe(bName);
   });
 
   it('Inbox: unread count + mark-read (GDD §11)', async () => {
     const me = await makeSession(`hb_inbox_${Date.now().toString(36)}`);
-    await database.db
-      .insert(inbox)
-      .values({ accountId: me.id, kind: 'echo_defense', body: 'Your Echo slew someone.', refId: null });
-    const before = await app.inject({ method: 'GET', url: '/api/me/inbox', headers: { cookie: me.cookie } });
+    await database.db.insert(inbox).values({
+      accountId: me.id,
+      kind: 'echo_defense',
+      body: 'Your Echo slew someone.',
+      refId: null,
+    });
+    const before = await app.inject({
+      method: 'GET',
+      url: '/api/me/inbox',
+      headers: { cookie: me.cookie },
+    });
     expect(before.json().unread).toBe(1);
-    const read = await app.inject({ method: 'POST', url: '/api/me/inbox/read', headers: { cookie: me.cookie } });
+    const read = await app.inject({
+      method: 'POST',
+      url: '/api/me/inbox/read',
+      headers: { cookie: me.cookie },
+    });
     expect(read.statusCode).toBe(200);
-    const after = await app.inject({ method: 'GET', url: '/api/me/inbox', headers: { cookie: me.cookie } });
+    const after = await app.inject({
+      method: 'GET',
+      url: '/api/me/inbox',
+      headers: { cookie: me.cookie },
+    });
     expect(after.json().unread).toBe(0);
   });
 
@@ -923,7 +991,13 @@ d('server API — the Heartbeat loop', () => {
     const aPlace = await database.db
       .select()
       .from(honorLedger)
-      .where(and(eq(honorLedger.accountId, a), eq(honorLedger.season, to), eq(honorLedger.reason, 'placement')));
+      .where(
+        and(
+          eq(honorLedger.accountId, a),
+          eq(honorLedger.season, to),
+          eq(honorLedger.reason, 'placement'),
+        ),
+      );
     expect(aPlace[0]!.delta).toBe(placementHonor(5000));
 
     // Lifetime Honor counts the earned 5000, not the placement carry-over.
@@ -939,7 +1013,11 @@ d('server API — the Heartbeat loop', () => {
     await database.db
       .insert(honorLedger)
       .values({ accountId: me.id, season, delta: 900, reason: 'climb', refId: null });
-    const r = await app.inject({ method: 'GET', url: '/api/season', headers: { cookie: me.cookie } });
+    const r = await app.inject({
+      method: 'GET',
+      url: '/api/season',
+      headers: { cookie: me.cookie },
+    });
     expect(r.statusCode).toBe(200);
     expect(r.json().season.number).toBe(season);
     expect(typeof r.json().season.endsAt).toBe('string');

@@ -114,7 +114,9 @@ function loadSettings(): Settings {
   if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) } : DEFAULT_SETTINGS;
+    return raw
+      ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) }
+      : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -305,7 +307,12 @@ export const useStore = create<Store>((set, get) => ({
   endPlayback: () => {
     const pb = get().playback;
     if (!pb) return;
-    set({ run: pb.postState, version: pb.postVersion, playback: null, lastEchoReward: pb.echoReward });
+    set({
+      run: pb.postState,
+      version: pb.postVersion,
+      playback: null,
+      lastEchoReward: pb.echoReward,
+    });
     // Death banks climb Honor; an Echo kill pays a bounty + Marks — refresh either way.
     if (pb.postState.status === 'dead' || pb.echoReward) void get().refreshMe();
   },
@@ -344,8 +351,17 @@ export const useStore = create<Store>((set, get) => ({
   clearSkirmishResult: () => set({ skirmishResult: null }),
   fetchSocial: async () => {
     try {
-      const [friends, feedRes, inboxRes] = await Promise.all([api.friends(), api.feed(), api.inbox()]);
-      set({ friends, feedItems: feedRes.feed, inboxItems: inboxRes.inbox, unread: inboxRes.unread });
+      const [friends, feedRes, inboxRes] = await Promise.all([
+        api.friends(),
+        api.feed(),
+        api.inbox(),
+      ]);
+      set({
+        friends,
+        feedItems: feedRes.feed,
+        inboxItems: inboxRes.inbox,
+        unread: inboxRes.unread,
+      });
     } catch (err) {
       set({ error: messageOf(err) });
     }

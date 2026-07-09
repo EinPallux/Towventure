@@ -145,7 +145,13 @@ export function generateShop(
   const satchels = ITEMS.filter((i) => i.kind === 'satchel');
   if (satchels.length > 0 && rng.chance(16)) {
     const sat = rng.pick(satchels);
-    slots.push({ kind: 'item', refId: sat.id, star: 1, price: itemPrice(sat.rarity, floor), sold: false });
+    slots.push({
+      kind: 'item',
+      refId: sat.id,
+      star: 1,
+      price: itemPrice(sat.rarity, floor),
+      sold: false,
+    });
   }
 
   return {

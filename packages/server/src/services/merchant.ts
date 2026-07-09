@@ -71,11 +71,7 @@ async function spendKeys(tx: Tx, accountId: string, season: number, n: number): 
   return (rows as unknown as unknown[]).length === n;
 }
 
-export type BuyError =
-  | 'no_such_item'
-  | 'already_owned'
-  | 'not_enough_marks'
-  | 'not_enough_keys';
+export type BuyError = 'no_such_item' | 'already_owned' | 'not_enough_marks' | 'not_enough_keys';
 
 export interface BuyResult {
   item: MerchantItem;
@@ -104,10 +100,12 @@ export async function buyMerchantItem(
       let spentMarks = 0;
       let spentKeys = 0;
       if (item.vault) {
-        if (!(await spendKeys(tx, accountId, season, KEYS_FOR_VAULT))) throw new Error('not_enough_keys');
+        if (!(await spendKeys(tx, accountId, season, KEYS_FOR_VAULT)))
+          throw new Error('not_enough_keys');
         spentKeys = KEYS_FOR_VAULT;
       } else {
-        if ((await marksBalanceTx(tx, accountId, season)) < item.price) throw new Error('not_enough_marks');
+        if ((await marksBalanceTx(tx, accountId, season)) < item.price)
+          throw new Error('not_enough_marks');
         await tx
           .insert(marksLedger)
           .values({ accountId, season, delta: -item.price, reason: `buy:${item.id}`, refId: null });

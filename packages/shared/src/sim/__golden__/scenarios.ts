@@ -615,7 +615,11 @@ export const SCENARIOS: Scenario[] = [
         dodgePct: 40,
         weapons: [{ name: 'Kris', cooldownTicks: 12, damage: 12 }],
         effects: [
-          { source: 'Shadow (4)', trigger: { kind: 'OnDodge' }, ops: [{ op: 'buffNextHitPct', pct: 40 }] },
+          {
+            source: 'Shadow (4)',
+            trigger: { kind: 'OnDodge' },
+            ops: [{ op: 'buffNextHitPct', pct: 40 }],
+          },
         ],
       }),
       [
@@ -838,7 +842,12 @@ export const SCENARIOS: Scenario[] = [
     name: 'enemy-multi-hit-vs-ward',
     seed: 616,
     spec: fight(
-      c({ id: 'hero', name: 'Warded Hero', startWardPct: 25, weapons: [{ name: 'Blade', cooldownTicks: 14, damage: 10 }] }),
+      c({
+        id: 'hero',
+        name: 'Warded Hero',
+        startWardPct: 25,
+        weapons: [{ name: 'Blade', cooldownTicks: 14, damage: 10 }],
+      }),
       [
         c({
           id: 'e0',

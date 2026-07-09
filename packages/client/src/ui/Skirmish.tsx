@@ -115,7 +115,9 @@ function DuelReplay({ res }: { res: SkirmishResult }) {
                 </span>
               </div>
               <div className={`bar ${b.side === 'enemy' ? 'enemy' : ''}`}>
-                <span style={{ width: `${b.maxHp > 0 ? Math.max(0, (b.hp / b.maxHp) * 100) : 0}%` }} />
+                <span
+                  style={{ width: `${b.maxHp > 0 ? Math.max(0, (b.hp / b.maxHp) * 100) : 0}%` }}
+                />
               </div>
             </div>
           ))}
@@ -130,8 +132,8 @@ function DuelReplay({ res }: { res: SkirmishResult }) {
               </div>
               {res.outcome.defenderReward && (
                 <div className="muted">
-                  {res.defender.name} defended — they earn +{res.outcome.defenderReward.honor} Honor,
-                  ◈{res.outcome.defenderReward.marks}
+                  {res.defender.name} defended — they earn +{res.outcome.defenderReward.honor}{' '}
+                  Honor, ◈{res.outcome.defenderReward.marks}
                 </div>
               )}
               <div className="row" style={{ gap: 8 }}>

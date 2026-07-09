@@ -45,7 +45,11 @@ export function Settings() {
 
   return (
     <div className="modal-scrim" onClick={() => toggle(false)}>
-      <div className="card col" style={{ gap: 14, width: 'min(440px, 92vw)' }} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="card col"
+        style={{ gap: 14, width: 'min(440px, 92vw)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="row spread">
           <div className="title">Settings</div>
           <button className="small ghost" onClick={() => toggle(false)}>
@@ -54,15 +58,29 @@ export function Settings() {
         </div>
 
         <div className="col" style={{ gap: 10 }}>
-          <div className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div
+            className="muted"
+            style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}
+          >
             Audio
           </div>
-          <Slider label="Sound effects" value={settings.sfxVolume} onChange={(v) => update({ sfxVolume: v })} />
-          <Slider label="Music" value={settings.musicVolume} onChange={(v) => update({ musicVolume: v })} />
+          <Slider
+            label="Sound effects"
+            value={settings.sfxVolume}
+            onChange={(v) => update({ sfxVolume: v })}
+          />
+          <Slider
+            label="Music"
+            value={settings.musicVolume}
+            onChange={(v) => update({ musicVolume: v })}
+          />
         </div>
 
         <div className="col" style={{ gap: 10 }}>
-          <div className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div
+            className="muted"
+            style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}
+          >
             Accessibility
           </div>
           <label className="row spread">
@@ -89,7 +107,10 @@ export function Settings() {
         </div>
 
         <div className="col" style={{ gap: 10 }}>
-          <div className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          <div
+            className="muted"
+            style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em' }}
+          >
             Combat
           </div>
           <label className="row spread">

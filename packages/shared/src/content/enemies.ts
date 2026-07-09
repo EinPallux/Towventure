@@ -80,7 +80,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 6,
     cooldownSeconds: 1.7,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Venom pressure — cleanse or out-sustain the ramp',
     flavor: 'It grew around a climber who stopped to rest. Do not rest.',
@@ -103,7 +106,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 6,
     cooldownSeconds: 1.6,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Bleed pressure — the Garden opens what it touches',
     flavor: 'Every thorn remembers a different name for you.',
@@ -169,7 +175,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 6,
     cooldownSeconds: 1.4,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Weaken pressure — its notes sap your blows',
     flavor: 'A cramped hand in the margin, correcting your every swing.',
@@ -223,9 +232,7 @@ export const ENEMIES: EnemyDef[] = [
     cooldownSeconds: 1.7,
     armor: 6,
     // Hardens as the fight drags — out-damage it before it turtles.
-    effects: [
-      { trigger: { kind: 'Every', seconds: 3 }, ops: [{ op: 'gainArmor', amount: 1 }] },
-    ],
+    effects: [{ trigger: { kind: 'Every', seconds: 3 }, ops: [{ op: 'gainArmor', amount: 1 }] }],
     check: 'armor race — punishes the slow, turtling mirror',
     flavor: 'It swore the same vow you did. It kept the letter, not the point.',
   },
@@ -237,7 +244,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 8,
     cooldownSeconds: 1.4,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'burn', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'burn', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Burn pressure — and mind what else in here feeds on it',
     flavor: 'A cinder that learned to hold a grudge and a grin.',
@@ -296,7 +306,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 8,
     cooldownSeconds: 1.5,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Chill pressure — its hymn drags you toward Doomfall',
     flavor: 'The choir sings the cold in. You are the warm part.',
@@ -348,9 +361,7 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 9,
     cooldownSeconds: 1.8,
     // Enrages once wounded — burst it past the threshold or eat the rage.
-    effects: [
-      { trigger: { kind: 'OnHpBelow', pct: 50 }, ops: [{ op: 'buffDamagePct', pct: 45 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnHpBelow', pct: 50 }, ops: [{ op: 'buffDamagePct', pct: 45 }] }],
     check: 'burst past the threshold — it enrages below 50% HP',
     flavor: 'They took the inside of it for a coat. It kept the wanting.',
   },
@@ -362,7 +373,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 9,
     cooldownSeconds: 1.3,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Venom pressure — glass between you and its patience, and it broke',
     flavor: 'Labelled, dated, and never once asked whether it agreed.',
@@ -402,7 +416,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 9,
     cooldownSeconds: 1.5,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Chill drown — it stacks you slow, toward Doomfall',
     flavor: 'Still holding the writ. Still expecting you to sign.',
@@ -454,7 +471,10 @@ export const ENEMIES: EnemyDef[] = [
     // The room floods: +1 Chill to you every 4s. The doc's crit-cleanse valve needs a
     // trigger that only the run layer can read; deferred. The flood itself is honest.
     effects: [
-      { trigger: { kind: 'Every', seconds: 4 }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'Every', seconds: 4 },
+        ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'the room floods — Chill every 4s (crit-cleanse valve deferred)',
     flavor: 'It reads the depth its charges drowned in, aloud, forever.',
@@ -483,9 +503,7 @@ export const ENEMIES: EnemyDef[] = [
     cooldownSeconds: 1.5,
     // Reflects the first status you apply each 5s — a status-reflect the sim can't do yet;
     // deferred. It hardens a little when hurt instead, standing in for the recoil.
-    effects: [
-      { trigger: { kind: 'OnHurt' }, ops: [{ op: 'gainWard', amount: 3 }], chancePct: 30 },
-    ],
+    effects: [{ trigger: { kind: 'OnHurt' }, ops: [{ op: 'gainWard', amount: 3 }], chancePct: 30 }],
     check: 'status-reflect (deferred) — it recoils Ward when struck',
     flavor: 'It lives in the gilt edge, wearing the last face that passed.',
   },
@@ -497,7 +515,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 9,
     cooldownSeconds: 1.4,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Weaken pressure — a portrait that critiques your form',
     flavor: 'It remembers being admired. It resents being merely seen.',
@@ -541,7 +562,10 @@ export const ENEMIES: EnemyDef[] = [
     cooldownSeconds: 1.4,
     immuneToStatus: 'burn',
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'weaken', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'anti-Ember — Burn will not touch it; it Weakens you elegantly',
     flavor: 'It holds a candle it does not fear. It fears being unlit.',
@@ -567,7 +591,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 10,
     cooldownSeconds: 1.1,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'bleed', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'tempo + Bleed — fast, and it opens you politely',
     flavor: 'Every scar it gives you comes with a small, correct bow.',
@@ -594,7 +621,10 @@ export const ENEMIES: EnemyDef[] = [
     // Phase one: pure Burn aggression. At 50% she snuffs all Burn (yours too) and turns
     // to Frost — a phase flip the sim can't do yet; deferred. The Burn phase is live.
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }],
+      },
     ],
     check: 'dual-axis — Burn now; the 50% snuff-to-Frost phase is deferred',
     flavor: 'She was crowned in a fire she started to stay warm.',
@@ -621,9 +651,7 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 7,
     cooldownSeconds: 1.4,
     // Grows through the fight — a race check. HP growth is deferred; its damage climbs.
-    effects: [
-      { trigger: { kind: 'Every', seconds: 2 }, ops: [{ op: 'buffDamagePct', pct: 5 }] },
-    ],
+    effects: [{ trigger: { kind: 'Every', seconds: 2 }, ops: [{ op: 'buffDamagePct', pct: 5 }] }],
     check: 'race — its damage grows every 2s (HP growth deferred)',
     flavor: 'It dreams of what it will become. The dream is getting closer.',
   },
@@ -635,7 +663,10 @@ export const ENEMIES: EnemyDef[] = [
     baseDamage: 10,
     cooldownSeconds: 1.5,
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'chill', stacks: 1, to: 'target' }],
+      },
     ],
     check: 'Chill — the dream is cold, and it is spreading',
     flavor: 'It slept through its own coronation. It sleeps through yours.',
@@ -665,7 +696,10 @@ export const ENEMIES: EnemyDef[] = [
     // as the hardest single boss in the tower, with the Toll stun and a rising pressure.
     effects: [
       { trigger: { kind: 'Every', seconds: 6 }, ops: [{ op: 'stun', ticks: 5, to: 'target' }] },
-      { trigger: { kind: 'Every', seconds: 8 }, ops: [{ op: 'applyStatus', status: 'chill', stacks: 2, to: 'target' }] },
+      {
+        trigger: { kind: 'Every', seconds: 8 },
+        ops: [{ op: 'applyStatus', status: 'chill', stacks: 2, to: 'target' }],
+      },
     ],
     check: 'the last wall — Toll + flood now; three-phase Doomfall script deferred',
     flavor: 'It has not slept since the first climber. It will not sleep after you.',

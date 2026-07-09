@@ -4,7 +4,11 @@
  * union of your and your friends' milestones.
  */
 
-import { friendAcceptSchema, friendRequestSchema, profileParamsSchema } from '@towventure/shared/protocol';
+import {
+  friendAcceptSchema,
+  friendRequestSchema,
+  profileParamsSchema,
+} from '@towventure/shared/protocol';
 import type { FastifyInstance } from 'fastify';
 import {
   acceptFriend,

@@ -344,7 +344,8 @@ export function runRoutes(ctx: AppContext) {
       }
 
       // Post-commit live toast: the Echo's owner learns their corpse just won (GDD §10).
-      if (defenseToast) publish(defenseToast.ownerId, { kind: 'echo_kill', body: defenseToast.body });
+      if (defenseToast)
+        publish(defenseToast.ownerId, { kind: 'echo_kill', body: defenseToast.body });
 
       const dead = next.status === 'dead';
       return reply.send({

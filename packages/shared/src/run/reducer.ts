@@ -16,7 +16,16 @@ import { graveCopyOptions } from './echo.js';
 import { generateDoors, isShopFloor } from './doors.js';
 import { applyEvent } from './events.js';
 import { climbHonorForFrontier, honorTier } from './honor.js';
-import { applySatchel, equip, fuse, infuse, isSatchel, pushBackpack, sell, unequip } from './inventory.js';
+import {
+  applySatchel,
+  equip,
+  fuse,
+  infuse,
+  isSatchel,
+  pushBackpack,
+  sell,
+  unequip,
+} from './inventory.js';
 import { rollLoot } from './loot.js';
 import { RNG_PURPOSE, deriveFightSeed, deriveRng } from './rng.js';
 import { generateShop } from './shop.js';
@@ -219,7 +228,8 @@ export function applyCommand(state: RunState, command: Command): CommandResult {
       return { ok: true, state: draft };
     }
     case 'chooseGraveCopy': {
-      if (draft.phase !== 'reward' || !draft.pendingGraveCopy) return reject('no Grave-Copy to pick');
+      if (draft.phase !== 'reward' || !draft.pendingGraveCopy)
+        return reject('no Grave-Copy to pick');
       const itemId = draft.pendingGraveCopy[command.index];
       if (!itemId) return reject('no such Grave-Copy option');
       // The copy is a ★1 of the Echo's item — capacity permitting; it's optional loot.

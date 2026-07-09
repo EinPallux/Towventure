@@ -92,7 +92,10 @@ export function Fight() {
 
   // prepareFight handles both normal fights and Echo duels — the same builder the
   // server used, so the client re-sims to the identical hash (ARCHITECTURE §3).
-  const spec = useMemo(() => (playback ? (prepareFight(playback.preState)?.spec ?? null) : null), [playback]);
+  const spec = useMemo(
+    () => (playback ? (prepareFight(playback.preState)?.spec ?? null) : null),
+    [playback],
+  );
   const isEcho = playback?.preState.pendingFight?.kind === 'echo';
 
   // Keybinds (ART_DIRECTION §9 / GDD §12): 1×/2× speed and Skip from the keyboard.

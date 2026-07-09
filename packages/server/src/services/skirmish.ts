@@ -204,9 +204,15 @@ async function pickRival(
     .from(defenses);
   let rows;
   if (band === 'below') {
-    rows = await q.where(and(base, lt(defenses.honor, myHonor))).orderBy(desc(defenses.honor)).limit(1);
+    rows = await q
+      .where(and(base, lt(defenses.honor, myHonor)))
+      .orderBy(desc(defenses.honor))
+      .limit(1);
   } else if (band === 'above') {
-    rows = await q.where(and(base, gt(defenses.honor, myHonor))).orderBy(defenses.honor).limit(1);
+    rows = await q
+      .where(and(base, gt(defenses.honor, myHonor)))
+      .orderBy(defenses.honor)
+      .limit(1);
   } else {
     // Even: closest by |Δhonor|.
     rows = await q
@@ -256,11 +262,7 @@ export async function ticketState(
   return { used, cap, remaining: Math.max(0, cap - used) };
 }
 
-export type SkirmishError =
-  | 'no_defense'
-  | 'no_such_defender'
-  | 'out_of_tickets'
-  | 'already_today';
+export type SkirmishError = 'no_defense' | 'no_such_defender' | 'out_of_tickets' | 'already_today';
 
 export interface SkirmishOutcome {
   attackerWon: boolean;

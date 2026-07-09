@@ -503,13 +503,19 @@ input {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 50%, rgba(255, 210, 122, 0.28), rgba(13, 11, 17, 0) 60%);
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 210, 122, 0.28),
+    rgba(13, 11, 17, 0) 60%
+  );
   animation: ceremony-fade 1.5s ease-out forwards;
 }
 .ceremony .rune {
   font-size: 64px;
   color: #ffd27a;
-  text-shadow: 0 0 40px #ffb84a, 0 4px 12px #000;
+  text-shadow:
+    0 0 40px #ffb84a,
+    0 4px 12px #000;
   animation: ceremony-rune 1.5s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
 }
 .ceremony.zenith {

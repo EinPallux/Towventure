@@ -49,7 +49,11 @@ export async function listFriends(
   const ids = await friendIds(db, accountId);
   const friends: FriendSummary[] = [];
   for (const id of ids) {
-    const [acc] = await db.select({ name: accounts.name }).from(accounts).where(eq(accounts.id, id)).limit(1);
+    const [acc] = await db
+      .select({ name: accounts.name })
+      .from(accounts)
+      .where(eq(accounts.id, id))
+      .limit(1);
     if (!acc) continue;
     const honor = await seasonHonor(db, id, season);
     friends.push({ id, name: acc.name, tier: honorTier(honor).name, honor });
@@ -90,7 +94,10 @@ export async function requestFriend(
     .where(and(eq(friendships.requesterId, target.id), eq(friendships.addresseeId, requesterId)))
     .limit(1);
   if (reverse[0]) {
-    await db.update(friendships).set({ status: 'accepted' }).where(eq(friendships.id, reverse[0].id));
+    await db
+      .update(friendships)
+      .set({ status: 'accepted' })
+      .where(eq(friendships.id, reverse[0].id));
     return { ok: true, status: 'accepted' };
   }
   // Already have an edge we created? No-op.
@@ -106,7 +113,11 @@ export async function requestFriend(
 }
 
 /** Accept a pending request from `requesterId`. */
-export async function acceptFriend(db: Db, accepterId: string, requesterId: string): Promise<boolean> {
+export async function acceptFriend(
+  db: Db,
+  accepterId: string,
+  requesterId: string,
+): Promise<boolean> {
   const res = await db
     .update(friendships)
     .set({ status: 'accepted' })
@@ -122,12 +133,22 @@ export async function acceptFriend(db: Db, accepterId: string, requesterId: stri
 }
 
 /** Insert a feed row (in the caller's tx or standalone). Live fan-out is separate. */
-export async function emitFeed(exec: Exec, accountId: string, kind: string, body: string): Promise<void> {
+export async function emitFeed(
+  exec: Exec,
+  accountId: string,
+  kind: string,
+  body: string,
+): Promise<void> {
   await exec.insert(feed).values({ accountId, kind, body });
 }
 
 /** Fan a feed event out as a live toast to the emitter's friends + self (post-commit). */
-export async function pushFeedLive(db: Db, accountId: string, kind: string, body: string): Promise<void> {
+export async function pushFeedLive(
+  db: Db,
+  accountId: string,
+  kind: string,
+  body: string,
+): Promise<void> {
   publish(accountId, { kind, body });
   for (const fid of await friendIds(db, accountId)) publish(fid, { kind, body });
 }

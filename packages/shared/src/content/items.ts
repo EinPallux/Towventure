@@ -214,7 +214,10 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It bites once. The rest is patience.',
     zenithName: "Widow's Sermon",
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+      },
       // [Awakened] when Venom is applied, 10% to stack +1 extra (the one-level
       // OnStatusApplied guard stops it cascading). CONTENT §3.1.
       {
@@ -261,7 +264,11 @@ export const ITEMS: ItemDef[] = [
     // a per-second self damage-buff. [Zenith] delay-then-400% needs a scheduled
     // first-swing mechanic — deferred.
     effects: [
-      { trigger: { kind: 'Every', seconds: 1 }, ops: [{ op: 'buffDamagePct', pct: 2 }], scales: false },
+      {
+        trigger: { kind: 'Every', seconds: 1 },
+        ops: [{ op: 'buffDamagePct', pct: 2 }],
+        scales: false,
+      },
       // [Awakened] OnDoomfall → +40% damage immediately (CONTENT §3.1).
       {
         trigger: { kind: 'OnDoomfall' },
@@ -385,7 +392,10 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It only ever needs to land once.',
     zenithName: 'Patient Coil',
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: 1, to: 'target' }],
+      },
     ],
   },
   {
@@ -485,7 +495,10 @@ export const ITEMS: ItemDef[] = [
     flavor: 'Armor is a suggestion it declines.',
     zenithName: 'The Iron Argument',
     effects: [
-      { trigger: { kind: 'OnHit' }, ops: [{ op: 'applyStatus', status: 'sunder', stacks: 1, to: 'target' }] },
+      {
+        trigger: { kind: 'OnHit' },
+        ops: [{ op: 'applyStatus', status: 'sunder', stacks: 1, to: 'target' }],
+      },
     ],
   },
   {
@@ -499,9 +512,7 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It keeps the harvest, not the harvester.',
     zenithName: 'The Last Field',
     mods: [{ stat: 'lifestealPct', value: 6 }],
-    effects: [
-      { trigger: { kind: 'OnEnemyDeath' }, ops: [{ op: 'buffDamagePct', pct: 12 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnEnemyDeath' }, ops: [{ op: 'buffDamagePct', pct: 12 }] }],
   },
   {
     id: 'avalanche_hammer',
@@ -715,9 +726,7 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It watched the Tower go up. It has notes.',
     zenithName: 'The Long Watch',
     mods: [{ stat: 'maxHp', value: 20 }],
-    effects: [
-      { trigger: { kind: 'OnFightStart' }, ops: [{ op: 'gainWardPctMax', pct: 12 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnFightStart' }, ops: [{ op: 'gainWardPctMax', pct: 12 }] }],
   },
   {
     id: 'brimmed_traveler_hat',
@@ -1106,9 +1115,7 @@ export const ITEMS: ItemDef[] = [
     flavor: 'Every step is the last one, until it is not.',
     zenithName: 'The Kept Footing',
     mods: [{ stat: 'dodgePct', value: 9, scales: false }],
-    effects: [
-      { trigger: { kind: 'OnHpBelow', pct: 40 }, ops: [{ op: 'buffSpeedPct', pct: 25 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnHpBelow', pct: 40 }, ops: [{ op: 'buffSpeedPct', pct: 25 }] }],
   },
 
   // ── Trinkets ─────────────────────────────────────────────────────────────
@@ -1273,7 +1280,10 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It has a thought roughly every eight seconds.',
     zenithName: 'The Idle Charge',
     effects: [
-      { trigger: { kind: 'Every', seconds: 8 }, ops: [{ op: 'damageWeaponPct', pct: 60, to: 'target' }] },
+      {
+        trigger: { kind: 'Every', seconds: 8 },
+        ops: [{ op: 'damageWeaponPct', pct: 60, to: 'target' }],
+      },
     ],
   },
   {
@@ -1286,9 +1296,7 @@ export const ITEMS: ItemDef[] = [
     zenithName: 'Debts Collected',
     // CONTENT §3.3: "+1% weapon damage per kill this run (cap +25%)" needs run-scoped
     // permanent stacking (deferred); shipped fight-scoped: each kill hardens your blows.
-    effects: [
-      { trigger: { kind: 'OnEnemyDeath' }, ops: [{ op: 'buffDamagePct', pct: 6 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnEnemyDeath' }, ops: [{ op: 'buffDamagePct', pct: 6 }] }],
   },
   {
     id: 'adrenaline_locket',
@@ -1299,7 +1307,10 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It opens on its own when things go badly.',
     zenithName: 'The Second Wind',
     effects: [
-      { trigger: { kind: 'OnHpBelow', pct: 50 }, ops: [{ op: 'applyStatus', status: 'haste', stacks: 4, to: 'self' }] },
+      {
+        trigger: { kind: 'OnHpBelow', pct: 50 },
+        ops: [{ op: 'applyStatus', status: 'haste', stacks: 4, to: 'self' }],
+      },
     ],
   },
   {
@@ -1311,7 +1322,10 @@ export const ITEMS: ItemDef[] = [
     flavor: 'It only truly wakes on a good hit.',
     zenithName: 'The Struck Match',
     effects: [
-      { trigger: { kind: 'OnCrit' }, ops: [{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }] },
+      {
+        trigger: { kind: 'OnCrit' },
+        ops: [{ op: 'applyStatus', status: 'burn', stacks: 2, to: 'target' }],
+      },
     ],
   },
   {
@@ -1401,7 +1415,10 @@ export const ITEMS: ItemDef[] = [
     zenithName: 'The Paid Account',
     mods: [{ stat: 'lifestealPct', value: 5 }],
     effects: [
-      { trigger: { kind: 'OnCrit' }, ops: [{ op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' }] },
+      {
+        trigger: { kind: 'OnCrit' },
+        ops: [{ op: 'applyStatus', status: 'bleed', stacks: 2, to: 'target' }],
+      },
     ],
   },
   {
@@ -1424,9 +1441,7 @@ export const ITEMS: ItemDef[] = [
     tags: ['bulwark'],
     flavor: 'It hums when it turns a blow, which is often.',
     zenithName: 'The Standing Ward',
-    effects: [
-      { trigger: { kind: 'OnBlock' }, ops: [{ op: 'gainWard', amount: 4 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnBlock' }, ops: [{ op: 'gainWard', amount: 4 }] }],
   },
   {
     id: 'venomancers_locket',
@@ -1582,9 +1597,7 @@ export const ITEMS: ItemDef[] = [
     zenithName: 'The Last Purchase',
     goldPerWin: 5,
     mods: [{ stat: 'lifestealPct', value: 5 }],
-    effects: [
-      { trigger: { kind: 'OnEnemyDeath' }, ops: [{ op: 'healPctMax', pct: 5 }] },
-    ],
+    effects: [{ trigger: { kind: 'OnEnemyDeath' }, ops: [{ op: 'healPctMax', pct: 5 }] }],
   },
 
   // ── Relic (Vanguard; never drops) ────────────────────────────────────────

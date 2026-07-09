@@ -29,12 +29,37 @@ export interface TormentCard {
  * with their door/shop hooks a follow-up — they still carry the numeric bump.
  */
 export const TORMENT_DECK: TormentCard[] = [
-  { id: 'quickening', name: 'The Quickening', atLevel: 1, blurb: 'The tower hurries. Enemies attack faster.' },
-  { id: 'weeping_air', name: 'The Weeping Air', atLevel: 2, blurb: 'The air itself is venomed — enemies open with it.' },
+  {
+    id: 'quickening',
+    name: 'The Quickening',
+    atLevel: 1,
+    blurb: 'The tower hurries. Enemies attack faster.',
+  },
+  {
+    id: 'weeping_air',
+    name: 'The Weeping Air',
+    atLevel: 2,
+    blurb: 'The air itself is venomed — enemies open with it.',
+  },
   { id: 'doomrush', name: 'Doomrush', atLevel: 3, blurb: 'The end comes early — Doomfall at 35s.' },
-  { id: 'ill_company', name: 'Ill Company', atLevel: 4, blurb: 'Elites no longer climb alone. (door hook: follow-up)' },
-  { id: 'relentless', name: 'The Relentless Hour', atLevel: 5, blurb: 'Faster still, and the venom doubles.' },
-  { id: 'toll_rises', name: 'The Toll Rises', atLevel: 6, blurb: 'Every merchant charges the deep price. (shop hook: follow-up)' },
+  {
+    id: 'ill_company',
+    name: 'Ill Company',
+    atLevel: 4,
+    blurb: 'Elites no longer climb alone. (door hook: follow-up)',
+  },
+  {
+    id: 'relentless',
+    name: 'The Relentless Hour',
+    atLevel: 5,
+    blurb: 'Faster still, and the venom doubles.',
+  },
+  {
+    id: 'toll_rises',
+    name: 'The Toll Rises',
+    atLevel: 6,
+    blurb: 'Every merchant charges the deep price. (shop hook: follow-up)',
+  },
 ];
 
 /** The Torment level at a floor: 0 up to floor 100, then +1 every 10 floors. */

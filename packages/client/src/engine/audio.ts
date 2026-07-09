@@ -11,7 +11,9 @@ type Ctx = AudioContext;
 
 function makeContext(): Ctx | null {
   if (typeof window === 'undefined') return null;
-  const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const AC =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AC) return null;
   try {
     return new AC();
@@ -75,7 +77,13 @@ export class AudioEngine {
   }
 
   /** A tone with an exponential decay envelope. */
-  private tone(freq: number, dur: number, type: OscillatorType, gain: number, glideTo?: number): void {
+  private tone(
+    freq: number,
+    dur: number,
+    type: OscillatorType,
+    gain: number,
+    glideTo?: number,
+  ): void {
     if (!this.ctx || !this.master || this.sfxVolume <= 0) return;
     const t = this.now();
     const osc = this.ctx.createOscillator();
@@ -145,7 +153,10 @@ export class AudioEngine {
     const scale = win ? [0, 4, 7, 12] : [0, -1, -3, -5];
     scale.forEach((semi, i) => {
       const f = this.root * 4 * Math.pow(2, semi / 12);
-      setTimeout(() => this.tone(f, 0.4, win ? 'triangle' : 'sine', 0.22, win ? undefined : f * 0.6), i * 110);
+      setTimeout(
+        () => this.tone(f, 0.4, win ? 'triangle' : 'sine', 0.22, win ? undefined : f * 0.6),
+        i * 110,
+      );
     });
   }
 

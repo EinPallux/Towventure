@@ -23,13 +23,7 @@ import {
   tagCounts,
 } from './build.js';
 import { buildCodex } from './codex.js';
-import {
-  echoAiBonusPct,
-  echoBounty,
-  echoIsSpent,
-  echoMarks,
-  graveCopyOptions,
-} from './echo.js';
+import { echoAiBonusPct, echoBounty, echoIsSpent, echoMarks, graveCopyOptions } from './echo.js';
 import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 import {
   climbHonorForFloor,
@@ -138,7 +132,10 @@ describe('startRun', () => {
   it("activates the Kindlewhip's ★5 Solarlash (10+ Burn detonation) only at ★5", () => {
     const base = startRun('arcanist', [], 5);
     const hasSolarlash = (star: number): boolean => {
-      const s = { ...base, equipment: { ...base.equipment, weapon1: { uid: 'kw', itemId: 'kindlewhip', star } } };
+      const s = {
+        ...base,
+        equipment: { ...base.equipment, weapon1: { uid: 'kw', itemId: 'kindlewhip', star } },
+      };
       return buildHeroSpec(s).effects.some(
         (e) => e.trigger.kind === 'OnStatusApplied' && e.trigger.minStacks === 10,
       );
@@ -436,7 +433,10 @@ describe('events', () => {
         if (!out) break;
         s = out.state;
       } else if (s.phase === 'reward') {
-        const r = applyCommand(s, s.pendingItem ? { type: 'takeLoot', take: false } : { type: 'proceed' });
+        const r = applyCommand(
+          s,
+          s.pendingItem ? { type: 'takeLoot', take: false } : { type: 'proceed' },
+        );
         if (!r.ok) break;
         s = r.state;
       } else if (s.phase === 'shop') {
@@ -516,10 +516,12 @@ describe('events', () => {
     const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 1 });
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.state.floor).toBe(before + 1);
-    expect(applyCommand(eventState('shrine_of_mended_blade'), {
-      type: 'resolveEvent',
-      optionIndex: 9,
-    }).ok).toBe(false);
+    expect(
+      applyCommand(eventState('shrine_of_mended_blade'), {
+        type: 'resolveEvent',
+        optionIndex: 9,
+      }).ok,
+    ).toBe(false);
   });
 });
 
@@ -532,7 +534,10 @@ describe('item catalogue', () => {
       const key: EquipSlotId =
         slot === 'weapon' ? 'weapon1' : slot === 'trinket' ? 'trinket1' : slot;
       for (const star of [1, 5]) {
-        const s = { ...base, equipment: { ...base.equipment, [key]: { uid: 't', itemId: def.id, star } } };
+        const s = {
+          ...base,
+          equipment: { ...base.equipment, [key]: { uid: 't', itemId: def.id, star } },
+        };
         expect(() => buildHeroSpec(s)).not.toThrow();
       }
     }
@@ -587,7 +592,10 @@ describe('infusion sockets', () => {
 
   it('compiles a socketed material into the hero (Leadweave = +8 Armor, −3% Speed)', () => {
     const s = freshVanguard();
-    const bare = { ...s, equipment: { ...s.equipment, weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1 } } };
+    const bare = {
+      ...s,
+      equipment: { ...s.equipment, weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1 } },
+    };
     const socketed = {
       ...s,
       equipment: {
@@ -628,7 +636,10 @@ describe('infusion sockets', () => {
     expect(applyCommand(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc' }).ok).toBe(false);
     // …but overwriting socket 0 works and destroys the old infusion.
     const over = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc', socketIndex: 0 });
-    expect(over.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual(['glimmergrit', 'hollowfang']);
+    expect(over.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual([
+      'glimmergrit',
+      'hollowfang',
+    ]);
   });
 
   it('keeps the better socket set when two copies fuse', () => {
@@ -1042,11 +1053,31 @@ describe('biomes 6–10 — the tower endgame (CONTENT §4, ROADMAP Phase 4)', (
 
   it('every new enemy resolves and compiles into a scaled spec at depth', () => {
     const ids = [
-      'gloom_panther', 'hollow_bear', 'vitrine_adder', 'collectors_favorite', 'the_collector',
-      'drowned_bailiff', 'pressure_wraith', 'deadbolt_sentinel', 'the_escrow', 'bailiff_of_the_deep',
-      'mirrorkin', 'frame_ghoul', 'salon_shade', 'the_understudy', 'the_curator',
-      'ember_courtier', 'duel_bond_twins', 'court_duelist', 'master_of_ceremonies', 'princess_of_cinders',
-      'somnambulist', 'dream_larva', 'crown_sleeper', 'the_apology', 'the_sleepless_warden',
+      'gloom_panther',
+      'hollow_bear',
+      'vitrine_adder',
+      'collectors_favorite',
+      'the_collector',
+      'drowned_bailiff',
+      'pressure_wraith',
+      'deadbolt_sentinel',
+      'the_escrow',
+      'bailiff_of_the_deep',
+      'mirrorkin',
+      'frame_ghoul',
+      'salon_shade',
+      'the_understudy',
+      'the_curator',
+      'ember_courtier',
+      'duel_bond_twins',
+      'court_duelist',
+      'master_of_ceremonies',
+      'princess_of_cinders',
+      'somnambulist',
+      'dream_larva',
+      'crown_sleeper',
+      'the_apology',
+      'the_sleepless_warden',
     ];
     for (const id of ids) expect(() => getEnemy(id)).not.toThrow();
     // The floor-100 boss scales to a genuine wall and keeps its Toll + flood effects.

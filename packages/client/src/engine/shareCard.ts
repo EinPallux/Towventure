@@ -34,7 +34,14 @@ export interface DuelCard {
 
 export type ShareCard = DeathCard | DuelCard;
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+): void {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -61,7 +68,13 @@ function base(ctx: CanvasRenderingContext2D, accent: string): void {
   ctx.fillText('TOWVENTURE', 40, 56);
 }
 
-function stat(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, value: string): void {
+function stat(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  label: string,
+  value: string,
+): void {
   ctx.fillStyle = '#9a9186';
   ctx.font = '600 13px ui-sans-serif, system-ui, sans-serif';
   ctx.fillText(label.toUpperCase(), x, y);

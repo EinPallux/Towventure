@@ -3,7 +3,13 @@
  * Cookies carry the session, so every call is `credentials: 'include'`.
  */
 
-import type { CodexProgress, Command, HeroBuild, RunState, RunSummary } from '@towventure/shared/run';
+import type {
+  CodexProgress,
+  Command,
+  HeroBuild,
+  RunState,
+  RunSummary,
+} from '@towventure/shared/run';
 
 export type ClassChoice = 'vanguard' | 'duelist' | 'arcanist';
 

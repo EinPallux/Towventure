@@ -21,7 +21,13 @@
  * Usage: pnpm harness [--runs 500] [--seed 1] [--cap 200] [--policy <name>] [--gate]
  */
 
-import { equipSlotForKind, findEvent, getItem, type ClassId, type Tag } from '@towventure/shared/content';
+import {
+  equipSlotForKind,
+  findEvent,
+  getItem,
+  type ClassId,
+  type Tag,
+} from '@towventure/shared/content';
 import {
   applyCommand,
   runPendingFight,
@@ -34,7 +40,16 @@ import { Rng, mixSeed } from '@towventure/shared/sim';
 const CLASSES: ClassId[] = ['vanguard', 'duelist', 'arcanist'];
 
 /** Deterministic tag iteration order (for tie-broken tag commitment). */
-const TAG_ORDER: Tag[] = ['blade', 'bulwark', 'arcane', 'ember', 'venom', 'frost', 'shadow', 'wild'];
+const TAG_ORDER: Tag[] = [
+  'blade',
+  'bulwark',
+  'arcane',
+  'ember',
+  'venom',
+  'frost',
+  'shadow',
+  'wild',
+];
 
 interface Args {
   runs: number;
@@ -130,7 +145,9 @@ function firstEquipable(state: RunState, preferred?: Tag | null): Command | null
     }
   });
   const pick =
-    preferred != null ? (cands.find((it) => itemTags(it.itemId).includes(preferred)) ?? cands[0]) : cands[0];
+    preferred != null
+      ? (cands.find((it) => itemTags(it.itemId).includes(preferred)) ?? cands[0])
+      : cands[0];
   return pick ? { type: 'equip', uid: pick.uid } : null;
 }
 
@@ -211,7 +228,9 @@ function makeTagPolicy(): PolicyFn {
         if (state.pendingGraveCopy) {
           const opts = state.pendingGraveCopy;
           const on = opts.findIndex((id) => committed !== null && itemTags(id).includes(committed));
-          return opts.length ? { type: 'chooseGraveCopy', index: on >= 0 ? on : 0 } : { type: 'proceed' };
+          return opts.length
+            ? { type: 'chooseGraveCopy', index: on >= 0 ? on : 0 }
+            : { type: 'proceed' };
         }
         if (state.pendingItem) {
           const tags = itemTags(state.pendingItem);
@@ -424,7 +443,9 @@ function policyTable(byPolicyClass: Map<string, Map<string, Outcome[]>>): void {
   console.log('\n── Median death floor · policy × class ──');
   console.log(`  ${'policy'.padEnd(16)}${CLASSES.map((c) => c.padStart(10)).join('')}`);
   for (const [pol, pc] of byPolicyClass) {
-    const cells = CLASSES.map((c) => String(median((pc.get(c) ?? []).map((o) => o.deathFloor))).padStart(10));
+    const cells = CLASSES.map((c) =>
+      String(median((pc.get(c) ?? []).map((o) => o.deathFloor))).padStart(10),
+    );
     console.log(`  ${pol.padEnd(16)}${cells.join('')}`);
   }
 }
@@ -477,7 +498,11 @@ function reportGates(byClass: Map<string, Outcome[]>): boolean {
   // Gate 3 — Doomfall causes 5–12% of deaths (soft: it must matter, not dominate).
   const doomfall = all.filter((o) => o.doomfall).length;
   const dfShare = (doomfall / all.length) * 100;
-  line(dfShare >= 5 && dfShare <= 12, false, `Doomfall death share ${dfShare.toFixed(1)}% ∈ [5, 12]`);
+  line(
+    dfShare >= 5 && dfShare <= 12,
+    false,
+    `Doomfall death share ${dfShare.toFixed(1)}% ∈ [5, 12]`,
+  );
 
   console.log(`\n${allHardPassed ? '✓ hard gates passed' : '✗ hard gates FAILED'}`);
   return allHardPassed;
@@ -488,7 +513,9 @@ function reportGates(byClass: Map<string, Outcome[]>): boolean {
 const args = parseArgs(process.argv.slice(2));
 const selected = args.policy ? POLICIES.filter((p) => p.name === args.policy) : POLICIES;
 if (selected.length === 0) {
-  console.error(`Unknown --policy "${args.policy}". Known: ${POLICIES.map((p) => p.name).join(', ')}`);
+  console.error(
+    `Unknown --policy "${args.policy}". Known: ${POLICIES.map((p) => p.name).join(', ')}`,
+  );
   process.exit(2);
 }
 

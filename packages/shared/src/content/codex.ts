@@ -114,7 +114,7 @@ export const CODEX_ENEMY_LORE: Record<string, [string, string]> = {
   ],
   collectors_favorite: [
     'Someone loved it best. That is why it is behind the thickest glass.',
-    "It wears a stolen build the way a taxidermy wears a life — almost.",
+    'It wears a stolen build the way a taxidermy wears a life — almost.',
   ],
   the_collector: [
     'It does not fight to win. It fights to make room on the shelf.',

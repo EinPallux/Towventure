@@ -12,12 +12,7 @@ import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { runs } from '../db/schema.js';
 import { awardClimbHonor } from '../services/honor.js';
-import {
-  gauntletClass,
-  gauntletDay,
-  gauntletLadder,
-  gauntletSeed,
-} from '../services/gauntlet.js';
+import { gauntletClass, gauntletDay, gauntletLadder, gauntletSeed } from '../services/gauntlet.js';
 import { requireAccount, type AppContext } from './helpers.js';
 
 export function gauntletRoutes(ctx: AppContext) {
@@ -61,7 +56,9 @@ export function gauntletRoutes(ctx: AppContext) {
         .where(and(eq(runs.accountId, account.id), eq(runs.status, 'active')))
         .limit(1);
       if (active.length > 0) {
-        return reply.code(409).send({ error: 'finish your active run before entering the Gauntlet' });
+        return reply
+          .code(409)
+          .send({ error: 'finish your active run before entering the Gauntlet' });
       }
       const already = await ctx.db
         .select({ id: runs.id })

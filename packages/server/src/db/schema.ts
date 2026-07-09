@@ -202,7 +202,9 @@ export const echoes = pgTable(
     // One Echo per account — a new death upserts over the old one.
     uniqueIndex('echoes_account_uq').on(t.accountId),
     // Placement scan: live Echoes near a floor.
-    index('echoes_live_floor_idx').on(t.floor).where(sql`${t.expired} = false`),
+    index('echoes_live_floor_idx')
+      .on(t.floor)
+      .where(sql`${t.expired} = false`),
   ],
 );
 

@@ -85,12 +85,7 @@ export interface ItemDef {
  * When an auto-trigger consumable fires (CONTENT §3.4, "player sets condition").
  * Maps to a sim trigger (or a fight-eligibility gate for `vsElite`) in run/build.
  */
-export type ConsumableCondition =
-  | 'fightStart'
-  | 'hpBelow70'
-  | 'hpBelow40'
-  | 'doomfall'
-  | 'vsElite';
+export type ConsumableCondition = 'fightStart' | 'hpBelow70' | 'hpBelow40' | 'doomfall' | 'vsElite';
 
 export interface ConsumableDef {
   id: string;

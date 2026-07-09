@@ -43,9 +43,7 @@ export function skirmishRoutes(ctx: AppContext) {
         tickets,
         keys,
         keysForVault: KEYS_FOR_VAULT,
-        defense: mine
-          ? { class: mine.class, floor: mine.floor, honor: mine.honor }
-          : null,
+        defense: mine ? { class: mine.class, floor: mine.floor, honor: mine.honor } : null,
       });
     });
 

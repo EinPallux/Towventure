@@ -36,7 +36,8 @@ const SLOT_ORDER: (keyof EquipState)[] = [
 export function echoBounty(echoFloor: number, echoHonor: number, yourHonor: number): number {
   const echoTier = honorTierRank(echoHonor);
   const yourTier = honorTierRank(yourHonor);
-  let b = 12 + Math.trunc((11 * Math.max(0, echoFloor)) / 10) + 25 * Math.max(0, echoTier - yourTier);
+  let b =
+    12 + Math.trunc((11 * Math.max(0, echoFloor)) / 10) + 25 * Math.max(0, echoTier - yourTier);
   if (echoTier <= yourTier - 2) b = Math.trunc(b / 2);
   return b;
 }

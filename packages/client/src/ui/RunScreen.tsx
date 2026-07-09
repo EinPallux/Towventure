@@ -57,7 +57,8 @@ function Doors() {
           </div>
           {door.kind === 'echo' && door.echo && (
             <div className="muted" style={{ fontSize: 12, fontStyle: 'italic' }}>
-              {door.echo.classId} · fell {door.echo.ageDays === 0 ? 'today' : `${door.echo.ageDays}d ago`}
+              {door.echo.classId} · fell{' '}
+              {door.echo.ageDays === 0 ? 'today' : `${door.echo.ageDays}d ago`}
               {door.echo.bonusPct > 0 ? ` · +${door.echo.bonusPct}% fury` : ''}
             </div>
           )}
@@ -80,7 +81,9 @@ function GraveCopy() {
       <div className="row spread">
         <div className="title">❂ Grave-Copy</div>
         <div className="muted">
-          {reward ? `the Echo falls · +${reward.bounty} Honor · ◈${reward.marks}` : 'the Echo falls'}
+          {reward
+            ? `the Echo falls · +${reward.bounty} Honor · ◈${reward.marks}`
+            : 'the Echo falls'}
         </div>
       </div>
       <div className="muted" style={{ fontStyle: 'italic' }}>

@@ -393,11 +393,7 @@ export function consumableBindings(state: RunState, enemyIds: string[]): EffectB
  * driven by the same sim. `foeBonusPct` is the Echo's staleness-scaled aggression
  * bonus (BALANCE §6), applied as a fight-start damage buff on the foe.
  */
-export function buildDuelSpec(
-  attacker: HeroBuild,
-  foe: HeroBuild,
-  foeBonusPct = 0,
-): CombatSpec {
+export function buildDuelSpec(attacker: HeroBuild, foe: HeroBuild, foeBonusPct = 0): CombatSpec {
   const hero = buildHeroSpec(attacker);
   const foeSpec = buildHeroSpec(foe);
   foeSpec.id = 'e0';
@@ -405,7 +401,11 @@ export function buildDuelSpec(
   if (foeBonusPct > 0) {
     foeSpec.effects = [
       ...foeSpec.effects,
-      { source: 'Echo', trigger: { kind: 'OnFightStart' }, ops: [{ op: 'buffDamagePct', pct: foeBonusPct }] },
+      {
+        source: 'Echo',
+        trigger: { kind: 'OnFightStart' },
+        ops: [{ op: 'buffDamagePct', pct: foeBonusPct }],
+      },
     ];
   }
   return { hero, enemies: [foeSpec], doomfallStartTicks: DOOMFALL_START_TICKS };

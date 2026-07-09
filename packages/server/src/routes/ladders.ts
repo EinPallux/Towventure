@@ -45,7 +45,13 @@ export function ladderRoutes(ctx: AppContext) {
 
     fastify.get('/weekly', async (req, reply) =>
       reply.send(
-        await weeklyLadder(ctx.db, season, page(req), req.account?.id ?? null, startOfUtcWeek(Date.now())),
+        await weeklyLadder(
+          ctx.db,
+          season,
+          page(req),
+          req.account?.id ?? null,
+          startOfUtcWeek(Date.now()),
+        ),
       ),
     );
   };
