@@ -28,11 +28,40 @@ export function parseBody<T extends z.ZodTypeAny>(
   return result.data;
 }
 
-/** Require an authenticated account; replies 401 and returns null if absent. */
+/** Require an authenticated, non-banned account; replies 401/403 and returns null otherwise. */
 export function requireAccount(request: FastifyRequest, reply: FastifyReply): AuthedAccount | null {
   if (!request.account) {
     reply.code(401).send({ error: 'not signed in' });
     return null;
   }
+  if (request.account.banned) {
+    reply.code(403).send({ error: 'account suspended' });
+    return null;
+  }
   return request.account;
+}
+
+/** True when the request IP is permitted for the admin surface (empty allowlist = any). */
+function adminIpAllowed(request: FastifyRequest, env: Env): boolean {
+  const list = env.ADMIN_IP_ALLOWLIST.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return list.length === 0 || list.includes(request.ip);
+}
+
+/**
+ * Require an admin (accounts.flags.admin) from an allowlisted IP (OPERATIONS §6). Replies
+ * 404 — not 403 — for anyone who isn't both, so the admin surface is invisible to probes.
+ */
+export function requireAdmin(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  env: Env,
+): AuthedAccount | null {
+  const account = request.account;
+  if (!account || account.banned || !account.isAdmin || !adminIpAllowed(request, env)) {
+    reply.code(404).send({ error: 'not found' });
+    return null;
+  }
+  return account;
 }

@@ -53,6 +53,7 @@ d('server API — the Heartbeat loop', () => {
   beforeAll(async () => {
     const env = loadEnv({
       ...process.env,
+      NODE_ENV: 'test',
       SESSION_SECRET: 'test-secret-at-least-16-chars-long-000',
     });
     season = env.HONOR_SEASON;
@@ -1029,5 +1030,214 @@ d('server API — the Heartbeat loop', () => {
   it('rejects unauthenticated run access with 401', async () => {
     const r = await app.inject({ method: 'GET', url: '/api/run' });
     expect(r.statusCode).toBe(401);
+  });
+
+  // ── Live-ops admin (OPERATIONS §6) ──────────────────────────────────────────
+  const adminReg = async (name: string): Promise<string> => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'password123' },
+    });
+    return cookieFrom(r);
+  };
+  const grantAdmin = async (name: string): Promise<void> => {
+    await database.sql`UPDATE accounts SET flags = '{"admin":true}'::jsonb WHERE lower(name) = ${name.toLowerCase()}`;
+  };
+
+  it('admin surface is invisible (404) to non-admins and open to admins', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_admin_${uid}`);
+    const userCookie = await adminReg(`hb_user_${uid}`);
+    const denied = await app.inject({
+      method: 'GET',
+      url: `/api/admin/account/hb_user_${uid}`,
+      headers: { cookie: userCookie },
+    });
+    expect(denied.statusCode).toBe(404); // hidden, not 403
+    await grantAdmin(`hb_admin_${uid}`);
+    const ok = await app.inject({
+      method: 'GET',
+      url: `/api/admin/account/hb_user_${uid}`,
+      headers: { cookie: adminCookie },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().account.name).toBe(`hb_user_${uid}`);
+    expect(ok.json()).toHaveProperty('honor');
+    expect(ok.json()).toHaveProperty('recentRuns');
+  });
+
+  it('ban: instant logout (401), re-login blocked (403), unban restores (200)', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_ban_admin_${uid}`);
+    await grantAdmin(`hb_ban_admin_${uid}`);
+    const victim = `hb_victim_${uid}`;
+    const victimCookie = await adminReg(victim);
+    const me1 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: victimCookie },
+    });
+    expect(me1.statusCode).toBe(200);
+
+    const banned = await app.inject({
+      method: 'POST',
+      url: '/api/admin/ban',
+      headers: { cookie: adminCookie },
+      payload: { name: victim, reason: 'cheating' },
+    });
+    expect(banned.statusCode).toBe(200);
+    // old session destroyed → 401
+    const me2 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: victimCookie },
+    });
+    expect(me2.statusCode).toBe(401);
+    // re-login succeeds but every action is 403 while banned
+    const relog = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: victim, password: 'password123' },
+    });
+    const me3 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: cookieFrom(relog) },
+    });
+    expect(me3.statusCode).toBe(403);
+    // double-ban → 409
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/admin/ban',
+      headers: { cookie: adminCookie },
+      payload: { name: victim, reason: 'again' },
+    });
+    expect(again.statusCode).toBe(409);
+    // unban restores access
+    const unban = await app.inject({
+      method: 'POST',
+      url: '/api/admin/unban',
+      headers: { cookie: adminCookie },
+      payload: { name: victim },
+    });
+    expect(unban.statusCode).toBe(200);
+    const relog2 = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: victim, password: 'password123' },
+    });
+    const me4 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: cookieFrom(relog2) },
+    });
+    expect(me4.statusCode).toBe(200);
+  });
+
+  it('broadcast: admin sets it, the public endpoint serves it, clear takes it down', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_bc_admin_${uid}`);
+    await grantAdmin(`hb_bc_admin_${uid}`);
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/broadcast',
+      headers: { cookie: adminCookie },
+      payload: { message: 'Season ends in 24h' },
+    });
+    const pub = await app.inject({ method: 'GET', url: '/api/broadcast' });
+    expect(pub.statusCode).toBe(200);
+    expect(pub.json().broadcast.message).toBe('Season ends in 24h');
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/broadcast/clear',
+      headers: { cookie: adminCookie },
+    });
+    const gone = await app.inject({ method: 'GET', url: '/api/broadcast' });
+    expect(gone.json().broadcast).toBeNull();
+  });
+
+  it('content kill-switch: rejects unknown items, records real ones', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_cf_admin_${uid}`);
+    await grantAdmin(`hb_cf_admin_${uid}`);
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/admin/content-flags',
+      headers: { cookie: adminCookie },
+      payload: { itemId: 'not_a_real_item', disabled: true },
+    });
+    expect(bad.statusCode).toBe(400);
+    const good = await app.inject({
+      method: 'POST',
+      url: '/api/admin/content-flags',
+      headers: { cookie: adminCookie },
+      payload: { itemId: 'rusty_cleaver', disabled: true, reason: 'bugged' },
+    });
+    expect(good.statusCode).toBe(200);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/admin/content-flags',
+      headers: { cookie: adminCookie },
+    });
+    expect(list.json().flags.some((f: { itemId: string }) => f.itemId === 'rusty_cleaver')).toBe(
+      true,
+    );
+  });
+
+  it('echo takedown removes the account Echo', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_et_admin_${uid}`);
+    await grantAdmin(`hb_et_admin_${uid}`);
+    const ownerName = `hb_echo_owner_${uid}`;
+    const ownerId = await makeAccount(ownerName);
+    await database.db.transaction((tx) =>
+      bankEcho(tx, ownerId, ownerName, season, deadRunOn('vanguard', 5), 100),
+    );
+    expect(await getOwnEcho(database.db, ownerId)).not.toBeNull();
+    const td = await app.inject({
+      method: 'POST',
+      url: '/api/admin/echo-takedown',
+      headers: { cookie: adminCookie },
+      payload: { name: ownerName },
+    });
+    expect(td.statusCode).toBe(200);
+    expect(td.json().removed).toBe(1);
+    expect(await getOwnEcho(database.db, ownerId)).toBeNull();
+  });
+
+  it('admin IP allowlist blocks a non-allowlisted IP even for an admin', async () => {
+    const uid = Date.now().toString(36);
+    const env = loadEnv({
+      ...process.env,
+      NODE_ENV: 'test',
+      SESSION_SECRET: 'test-secret-at-least-16-chars-long-000',
+      ADMIN_IP_ALLOWLIST: '9.9.9.9',
+    });
+    const gatedApp = await buildApp(database, env);
+    await gatedApp.ready();
+    try {
+      const reg = await gatedApp.inject({
+        method: 'POST',
+        url: '/api/auth/register',
+        payload: { name: `hb_ip_${uid}`, password: 'password123' },
+      });
+      const cookie = cookieFrom(reg);
+      await grantAdmin(`hb_ip_${uid}`);
+      const blocked = await gatedApp.inject({
+        method: 'GET',
+        url: `/api/admin/account/hb_ip_${uid}`,
+        headers: { cookie, 'x-forwarded-for': '1.2.3.4' },
+      });
+      expect(blocked.statusCode).toBe(404);
+      const allowed = await gatedApp.inject({
+        method: 'GET',
+        url: `/api/admin/account/hb_ip_${uid}`,
+        headers: { cookie, 'x-forwarded-for': '9.9.9.9' },
+      });
+      expect(allowed.statusCode).toBe(200);
+    } finally {
+      await gatedApp.close();
+    }
   });
 });

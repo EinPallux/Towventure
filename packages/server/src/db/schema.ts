@@ -359,3 +359,60 @@ export const climbFrontier = pgTable(
   },
   (t) => [primaryKey({ columns: [t.accountId, t.season] })],
 );
+
+/**
+ * Live-ops admin (OPERATIONS §6). Moderation + broadcast + content kill-switch state,
+ * with an audit trail. Admin *identity* is accounts.flags->>'admin' (+ ADMIN_IP_ALLOWLIST);
+ * these tables record what that identity did.
+ */
+export const bans = pgTable(
+  'bans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    bannedBy: uuid('banned_by').references(() => accounts.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    liftedAt: timestamp('lifted_at', { withTimezone: true }),
+    liftedBy: uuid('lifted_by').references(() => accounts.id, { onDelete: 'set null' }),
+  },
+  (t) => [index('bans_account_idx').on(t.accountId)],
+);
+
+export const broadcasts = pgTable(
+  'broadcasts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    message: text('message').notNull(),
+    active: boolean('active').notNull().default(true),
+    createdBy: uuid('created_by').references(() => accounts.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+  },
+  (t) => [index('broadcasts_active_idx').on(t.active, t.createdAt)],
+);
+
+export const contentFlags = pgTable('content_flags', {
+  itemId: text('item_id').primaryKey(),
+  disabled: boolean('disabled').notNull().default(true),
+  reason: text('reason'),
+  updatedBy: uuid('updated_by').references(() => accounts.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const adminActions = pgTable(
+  'admin_actions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    adminId: uuid('admin_id').references(() => accounts.id, { onDelete: 'set null' }),
+    action: text('action').notNull(),
+    target: text('target'),
+    detail: jsonb('detail')
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('admin_actions_created_idx').on(t.createdAt)],
+);
