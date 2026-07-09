@@ -91,12 +91,12 @@ Systems complete this phase: 10 statuses + full trigger/effect vocabulary; fusio
 - Settings & accessibility: reduced motion, colorblind-safe status palette, volume mixers, keybinds; performance pass (60fps mid-fight on iGPU; bundle ≤900KB gz).
 - Share cards final (death + duel), Codex complete with all lore.
 
-**Exit criteria:**
-- [ ] Floors 1–100 fully authored + Torments beyond; Sleepless Warden first-clear grants The Sleepless Crown.
-- [ ] The §9 ART acceptance bar passes with a cold audience (stranger test on 3 people).
-- [ ] Every item demonstrably has: unique model, signature VFX, signature sound, Zenith transform (spot-audited 20 random items).
-- [ ] New-account telemetry: median time-to-first-death ≤ 25 min, and ≥80% of testers reach it without asking a question.
-- [ ] 60fps fight playback on the reference iGPU laptop; Lighthouse perf ≥ 85 on The Gate.
+**Exit criteria:** *(implementation complete + verified via typecheck/lint/tests/goldens and a live browser pass; the cold-audience/telemetry/hardware checks are human-in-the-loop for a live deploy.)*
+- [x] Floors 1–100 fully authored + Torments beyond; the Sleepless Warden's first clear grants The Sleepless Crown (25 new enemies across 5 biomes, the `run/torments.ts` deck, a guaranteed Crown drop — all tested, goldens stable).
+- [~] The §9 ART acceptance bar: the full procedural juice pass is **live** (biome-correct fights, Web-Audio SFX + generative music, hit-stop / camera-shake / killcam, status-VFX vocabulary, crit typography, the Fusion Ceremony) and browser-verified rendering a fight with zero JS errors. The **cold-audience stranger test** is a human check for a live build.
+- [~] Signature model/VFX/**sound**/Zenith per item: statuses and the ceremony have a live VFX/audio vocabulary, and every item already has its Zenith line + procedural mesh; the **per-item** signature VFX + SFX recipes are the remaining data-authoring follow-up (noted in ART_DIRECTION §7).
+- [~] Onboarding is live (first-run coach-marks + the floor-8 house Echo + shared-seed determinism); the **≤25-min-to-first-death telemetry** and the ≥80%-without-a-question measure need a live audience + telemetry.
+- [~] Performance: the bundle is split (app **91 KB gz** + Three **117 KB gz**, well under the ≤900 KB budget) and reduced-motion gates both CSS + the render loop; the **60fps-on-iGPU** and **Lighthouse ≥85** measurements need the reference hardware.
 
 ---
 
