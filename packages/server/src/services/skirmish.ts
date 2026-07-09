@@ -9,7 +9,7 @@
 import { snapshotOf, type HeroBuild, type RunState } from '@towventure/shared/run';
 import { and, desc, eq, gt, gte, lt, ne, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { defenses, skirmishes } from '../db/schema.js';
+import { accounts, defenses, skirmishes } from '../db/schema.js';
 import { awardHonor, type Tx } from './honor.js';
 import { awardMarks } from './marks.js';
 
@@ -116,9 +116,9 @@ export async function keyCount(db: Db, accountId: string, season: number): Promi
   return rows[0]?.keys ?? 0;
 }
 
-async function ticketsUsedToday(db: Db, accountId: string, nowMs: number): Promise<number> {
+async function ticketsUsedToday(exec: Exec, accountId: string, nowMs: number): Promise<number> {
   const dayStart = new Date(startOfUtcDay(nowMs));
-  const rows = await db
+  const rows = await exec
     .select({ n: sql<number>`count(*)::int` })
     .from(skirmishes)
     .where(and(eq(skirmishes.attackerId, accountId), gte(skirmishes.at, dayStart)));
@@ -126,13 +126,13 @@ async function ticketsUsedToday(db: Db, accountId: string, nowMs: number): Promi
 }
 
 async function attackedTodayVs(
-  db: Db,
+  exec: Exec,
   attackerId: string,
   defenderId: string,
   nowMs: number,
 ): Promise<boolean> {
   const dayStart = new Date(startOfUtcDay(nowMs));
-  const rows = await db
+  const rows = await exec
     .select({ n: sql<number>`count(*)::int` })
     .from(skirmishes)
     .where(
@@ -146,13 +146,13 @@ async function attackedTodayVs(
 }
 
 async function priorWinsVsThisWeek(
-  db: Db,
+  exec: Exec,
   attackerId: string,
   defenderId: string,
   nowMs: number,
 ): Promise<number> {
   const weekAgo = new Date(nowMs - 7 * DAY_MS);
-  const rows = await db
+  const rows = await exec
     .select({ n: sql<number>`count(*)::int` })
     .from(skirmishes)
     .where(
@@ -264,6 +264,14 @@ export async function ticketState(
 
 export type SkirmishError = 'no_defense' | 'no_such_defender' | 'out_of_tickets' | 'already_today';
 
+/** Thrown when the in-transaction guard re-check fails (a concurrent attack won the race). */
+export class SkirmishGuardError extends Error {
+  constructor(public readonly code: 'out_of_tickets' | 'already_today') {
+    super(code);
+    this.name = 'SkirmishGuardError';
+  }
+}
+
 export interface SkirmishOutcome {
   attackerWon: boolean;
   honorDelta: number; // applied to the attacker (clamped so season Honor ≥ 0)
@@ -272,9 +280,12 @@ export interface SkirmishOutcome {
 }
 
 /**
- * Settle a validated Skirmish inside the caller's transaction (GDD §9). Records the
- * ledger + attack row and returns the outcome. Validation (tickets, once/day, defenses)
- * happens in the route before this is called; `precheck` gathers the counts it needs.
+ * Settle a Skirmish inside the caller's transaction (GDD §9). The route's pre-checks are
+ * advisory only — this re-validates the ticket cap, the once-per-day-per-defender guard,
+ * and the anti-farm decay INSIDE the transaction, after locking the attacker's account
+ * row. Without that, two concurrent `/attack`s both read a stale count before either
+ * inserts its row, overrunning the daily cap, re-hitting a defender, and skipping decay
+ * (minting extra Champion's Keys). Throws SkirmishGuardError if a guard now fails.
  */
 export async function settleSkirmish(
   tx: Tx,
@@ -285,11 +296,23 @@ export async function settleSkirmish(
     attackerWon: boolean;
     hAtt: number;
     hDef: number;
-    priorWins: number;
+    tierRank: number;
     seed: number;
+    nowMs: number;
   },
 ): Promise<SkirmishOutcome> {
-  const { season, attackerId, defenderId, attackerWon, hAtt, hDef, priorWins, seed } = params;
+  const { season, attackerId, defenderId, attackerWon, hAtt, hDef, tierRank, seed, nowMs } = params;
+
+  // Serialize this attacker's concurrent attacks on the account row, then re-check.
+  await tx.execute(sql`SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${attackerId} FOR UPDATE`);
+  if ((await ticketsUsedToday(tx, attackerId, nowMs)) >= ticketCap(tierRank)) {
+    throw new SkirmishGuardError('out_of_tickets');
+  }
+  if (await attackedTodayVs(tx, attackerId, defenderId, nowMs)) {
+    throw new SkirmishGuardError('already_today');
+  }
+  const priorWins = await priorWinsVsThisWeek(tx, attackerId, defenderId, nowMs);
+
   let delta = eloDelta(hAtt, hDef, attackerWon);
   if (attackerWon && delta > 0) delta = Math.trunc((delta * decayPct(priorWins)) / 100);
   // Season Honor is a SUM of ledger deltas — never let a loss push it below 0 (floor 0).

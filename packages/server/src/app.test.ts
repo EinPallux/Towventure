@@ -31,7 +31,13 @@ import {
   recordEchoDefense,
   recordEchoKill,
 } from './services/echoes.js';
-import { decayPct, eloDelta, ticketCap, upsertDefense } from './services/skirmish.js';
+import {
+  decayPct,
+  eloDelta,
+  settleSkirmish,
+  ticketCap,
+  upsertDefense,
+} from './services/skirmish.js';
 import { buyMerchantItem } from './services/merchant.js';
 import { seasonMarks } from './services/marks.js';
 import { publish, subscribe, subscriberCount } from './services/bus.js';
@@ -1206,6 +1212,40 @@ d('server API — the Heartbeat loop', () => {
     expect(td.statusCode).toBe(200);
     expect(td.json().removed).toBe(1);
     expect(await getOwnEcho(database.db, ownerId)).toBeNull();
+  });
+
+  it('Skirmish settle is concurrency-safe: parallel attacks cannot overrun the ticket cap (audit #2)', async () => {
+    const uid = Date.now().toString(36);
+    const attackerId = await makeAccount(`hb_skc_att_${uid}`);
+    const cap = ticketCap(0); // 5 at tier rank 0
+    // cap + 3 distinct defenders, so more attacks are fired than the daily cap allows.
+    const defenders = await Promise.all(
+      Array.from({ length: cap + 3 }, (_, i) => makeAccount(`hb_skc_def_${uid}_${i}`)),
+    );
+    const nowMs = Date.now();
+    const attacks = defenders.map((defenderId) =>
+      database.db.transaction((tx) =>
+        settleSkirmish(tx, {
+          season,
+          attackerId,
+          defenderId,
+          attackerWon: true,
+          hAtt: 100,
+          hDef: 100,
+          tierRank: 0,
+          seed: 1,
+          nowMs,
+        }),
+      ),
+    );
+    const results = await Promise.allSettled(attacks);
+    // Exactly the ticket cap lands — the rest lose the race and are rejected.
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(cap);
+    const rows = await database.db
+      .select({ id: skirmishes.id })
+      .from(skirmishes)
+      .where(eq(skirmishes.attackerId, attackerId));
+    expect(rows).toHaveLength(cap); // no extra attack rows (no extra Keys minted)
   });
 
   it('Merchant buy is concurrency-safe: two parallel buys cannot overspend Marks (audit #1)', async () => {
