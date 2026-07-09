@@ -54,3 +54,12 @@ export {
 } from './echo.js';
 export { deriveRng, deriveFightSeed, RNG_PURPOSE, type RngPurpose } from './rng.js';
 export { applyBoon } from './boons.js';
+export {
+  tormentLevel,
+  activeTorments,
+  tormentHpPct,
+  tormentDmgPct,
+  TORMENT_DECK,
+  TORMENT_FLOOR,
+  type TormentCard,
+} from './torments.js';

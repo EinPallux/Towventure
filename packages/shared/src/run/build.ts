@@ -19,11 +19,14 @@ import {
 } from '../content/registry.js';
 import { TAG_SYNERGIES } from '../content/synergies.js';
 import type { ConsumableCondition, ItemDef, ItemEffect, StatMod, Tag } from '../content/types.js';
+import { DOOMFALL_START_TICKS, HP_PER_FLOOR } from '../sim/constants.js';
 import {
-  DOOMFALL_START_TICKS,
-  DOOMFALL_START_TICKS_HASTE,
-  HP_PER_FLOOR,
-} from '../sim/constants.js';
+  tormentDmgPct,
+  tormentDoomfallStartTicks,
+  tormentEnemySpeedPct,
+  tormentHpPct,
+  tormentOpeningVenom,
+} from './torments.js';
 import type {
   CombatSpec,
   CombatantSpec,
@@ -281,6 +284,12 @@ function scaleFloor(base: number, floor: number, up: boolean): number {
 
 /** Compile a list of enemy ids at a floor into scaled `CombatantSpec`s (BALANCE §6). */
 export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpec[] {
+  // Torments (floors 100+): a flat numeric bump + mechanical cards. Zero effect below
+  // floor 100, so nothing in the golden path shifts (BALANCE §6, GDD §11).
+  const tHp = tormentHpPct(floor);
+  const tDmg = tormentDmgPct(floor);
+  const tSpeed = tormentEnemySpeedPct(floor);
+  const tVenom = tormentOpeningVenom(floor);
   return enemyIds.map((id, i) => {
     const def = getEnemy(id);
     let hp = scaleFloor(def.baseHp, floor, true);
@@ -292,7 +301,17 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
       hp = Math.trunc((hp * 45) / 10);
       dmg = Math.trunc((dmg * 15) / 10);
     }
+    if (tHp !== 100) hp = Math.trunc((hp * tHp) / 100);
+    if (tDmg !== 100) dmg = Math.trunc((dmg * tDmg) / 100);
     const effects: EffectBinding[] = (def.effects ?? []).map((e) => compileEffect(def.name, e, 1));
+    // The Weeping Air: every enemy opens the fight venoming the hero.
+    if (tVenom > 0) {
+      effects.push({
+        source: 'Torment',
+        trigger: { kind: 'OnFightStart' },
+        ops: [{ op: 'applyStatus', status: 'venom', stacks: tVenom, to: 'target' }],
+      });
+    }
     // Multi-hit enemies split their damage into N rapid sub-hits (anti-Ward, Vault §4).
     const hitsPerSwing = def.hitsPerSwing && def.hitsPerSwing > 1 ? def.hitsPerSwing : undefined;
     const perHit = hitsPerSwing ? Math.max(1, Math.trunc(dmg / hitsPerSwing)) : dmg;
@@ -301,7 +320,7 @@ export function buildEnemySpecs(enemyIds: string[], floor: number): CombatantSpe
       name: def.name,
       maxHp: hp,
       armor: def.armor ?? 0,
-      speedPct: 0,
+      speedPct: tSpeed,
       critChancePct: 0,
       critDamagePct: 0,
       dodgePct: def.dodgePct ?? 0,
@@ -404,6 +423,7 @@ export function buildCombatSpec(state: RunState, enemyIds: string[]): CombatSpec
   return {
     hero,
     enemies: buildEnemySpecs(enemyIds, state.floor),
-    doomfallStartTicks: haste ? DOOMFALL_START_TICKS_HASTE : DOOMFALL_START_TICKS,
+    // Doomrush (Torment ≥3) forces Doomfall to 35s; otherwise the Haste-Vow value applies.
+    doomfallStartTicks: tormentDoomfallStartTicks(state.floor, haste),
   };
 }
