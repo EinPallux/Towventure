@@ -11,16 +11,19 @@ import {
 import { VOW_IDS } from '../content/vows.js';
 import { runStartSchema } from '../protocol/schemas.js';
 import { simulate } from '../sim/index.js';
+import { biomeForFloor, getEnemy } from '../content/registry.js';
 import { applyBoon } from './boons.js';
-import { buildCombatSpec, buildDuelSpec, buildHeroSpec, snapshotOf, tagCounts } from './build.js';
-import { buildCodex } from './codex.js';
+import { activeTorments, tormentLevel } from './torments.js';
 import {
-  echoAiBonusPct,
-  echoBounty,
-  echoIsSpent,
-  echoMarks,
-  graveCopyOptions,
-} from './echo.js';
+  buildCombatSpec,
+  buildDuelSpec,
+  buildEnemySpecs,
+  buildHeroSpec,
+  snapshotOf,
+  tagCounts,
+} from './build.js';
+import { buildCodex } from './codex.js';
+import { echoAiBonusPct, echoBounty, echoIsSpent, echoMarks, graveCopyOptions } from './echo.js';
 import { generateDoors, isBossFloor, isShopFloor } from './doors.js';
 import {
   climbHonorForFloor,
@@ -34,6 +37,7 @@ import {
   killerName,
   makeSummary,
   prepareFight,
+  resolveFight,
   runPendingFight,
   startRun,
 } from './reducer.js';
@@ -128,7 +132,10 @@ describe('startRun', () => {
   it("activates the Kindlewhip's ★5 Solarlash (10+ Burn detonation) only at ★5", () => {
     const base = startRun('arcanist', [], 5);
     const hasSolarlash = (star: number): boolean => {
-      const s = { ...base, equipment: { ...base.equipment, weapon1: { uid: 'kw', itemId: 'kindlewhip', star } } };
+      const s = {
+        ...base,
+        equipment: { ...base.equipment, weapon1: { uid: 'kw', itemId: 'kindlewhip', star } },
+      };
       return buildHeroSpec(s).effects.some(
         (e) => e.trigger.kind === 'OnStatusApplied' && e.trigger.minStacks === 10,
       );
@@ -426,7 +433,10 @@ describe('events', () => {
         if (!out) break;
         s = out.state;
       } else if (s.phase === 'reward') {
-        const r = applyCommand(s, s.pendingItem ? { type: 'takeLoot', take: false } : { type: 'proceed' });
+        const r = applyCommand(
+          s,
+          s.pendingItem ? { type: 'takeLoot', take: false } : { type: 'proceed' },
+        );
         if (!r.ok) break;
         s = r.state;
       } else if (s.phase === 'shop') {
@@ -506,10 +516,12 @@ describe('events', () => {
     const res = applyCommand(s, { type: 'resolveEvent', optionIndex: 1 });
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.state.floor).toBe(before + 1);
-    expect(applyCommand(eventState('shrine_of_mended_blade'), {
-      type: 'resolveEvent',
-      optionIndex: 9,
-    }).ok).toBe(false);
+    expect(
+      applyCommand(eventState('shrine_of_mended_blade'), {
+        type: 'resolveEvent',
+        optionIndex: 9,
+      }).ok,
+    ).toBe(false);
   });
 });
 
@@ -522,7 +534,10 @@ describe('item catalogue', () => {
       const key: EquipSlotId =
         slot === 'weapon' ? 'weapon1' : slot === 'trinket' ? 'trinket1' : slot;
       for (const star of [1, 5]) {
-        const s = { ...base, equipment: { ...base.equipment, [key]: { uid: 't', itemId: def.id, star } } };
+        const s = {
+          ...base,
+          equipment: { ...base.equipment, [key]: { uid: 't', itemId: def.id, star } },
+        };
         expect(() => buildHeroSpec(s)).not.toThrow();
       }
     }
@@ -577,7 +592,10 @@ describe('infusion sockets', () => {
 
   it('compiles a socketed material into the hero (Leadweave = +8 Armor, −3% Speed)', () => {
     const s = freshVanguard();
-    const bare = { ...s, equipment: { ...s.equipment, weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1 } } };
+    const bare = {
+      ...s,
+      equipment: { ...s.equipment, weapon1: { uid: 'k', itemId: 'kindlewhip', star: 1 } },
+    };
     const socketed = {
       ...s,
       equipment: {
@@ -618,7 +636,10 @@ describe('infusion sockets', () => {
     expect(applyCommand(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc' }).ok).toBe(false);
     // …but overwriting socket 0 works and destroys the old infusion.
     const over = apply(s, { type: 'infuse', itemUid: 'r1', materialUid: 'mc', socketIndex: 0 });
-    expect(over.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual(['glimmergrit', 'hollowfang']);
+    expect(over.backpack.find((i) => i.uid === 'r1')!.sockets).toEqual([
+      'glimmergrit',
+      'hollowfang',
+    ]);
   });
 
   it('keeps the better socket set when two copies fuse', () => {
@@ -1015,5 +1036,127 @@ describe('Echo fights (GDD §8)', () => {
     expect(out.state.deathInfo?.killerEnemyId).toBe('echo');
     expect(out.state.deathInfo?.echoOwnerName).toBe('Maro');
     expect(killerName(out.state)).toBe("Maro's Echo");
+  });
+});
+
+describe('biomes 6–10 — the tower endgame (CONTENT §4, ROADMAP Phase 4)', () => {
+  it('floors 51–100 map to the Menagerie → Crown, ending on the Sleepless Warden', () => {
+    expect(biomeForFloor(55).id).toBe('menagerie');
+    expect(biomeForFloor(65).id).toBe('vault');
+    expect(biomeForFloor(75).id).toBe('gallery');
+    expect(biomeForFloor(85).id).toBe('court');
+    expect(biomeForFloor(95).id).toBe('crown');
+    expect(biomeForFloor(100).bossId).toBe('the_sleepless_warden');
+    // Past floor 100 the Crown loops (Torments layer on top — Phase 4 B).
+    expect(biomeForFloor(140).id).toBe('crown');
+  });
+
+  it('every new enemy resolves and compiles into a scaled spec at depth', () => {
+    const ids = [
+      'gloom_panther',
+      'hollow_bear',
+      'vitrine_adder',
+      'collectors_favorite',
+      'the_collector',
+      'drowned_bailiff',
+      'pressure_wraith',
+      'deadbolt_sentinel',
+      'the_escrow',
+      'bailiff_of_the_deep',
+      'mirrorkin',
+      'frame_ghoul',
+      'salon_shade',
+      'the_understudy',
+      'the_curator',
+      'ember_courtier',
+      'duel_bond_twins',
+      'court_duelist',
+      'master_of_ceremonies',
+      'princess_of_cinders',
+      'somnambulist',
+      'dream_larva',
+      'crown_sleeper',
+      'the_apology',
+      'the_sleepless_warden',
+    ];
+    for (const id of ids) expect(() => getEnemy(id)).not.toThrow();
+    // The floor-100 boss scales to a genuine wall and keeps its Toll + flood effects.
+    const [warden] = buildEnemySpecs(['the_sleepless_warden'], 100);
+    expect(warden!.maxHp).toBeGreaterThan(50000);
+    expect(warden!.effects.length).toBe(2);
+  });
+
+  it('the new gated enemy mechanics reach the spec (immuneToStatus, hitsPerSwing)', () => {
+    const [courtier] = buildEnemySpecs(['ember_courtier'], 85);
+    expect(courtier!.immuneToStatus).toBe('burn');
+    const [wraith] = buildEnemySpecs(['pressure_wraith'], 65);
+    expect(wraith!.weapons[0]!.hitsPerSwing).toBe(5);
+    // A non-multi-hit enemy leaves the field unset (golden-neutral).
+    expect(buildEnemySpecs(['gloom_panther'], 55)[0]!.weapons[0]!.hitsPerSwing).toBeUndefined();
+  });
+
+  it('defeating the Sleepless Warden guarantees the Sleepless Crown drop (CONTENT §4.1)', () => {
+    // A run poised on the floor-100 boss; feed resolveFight a scripted hero win.
+    const state = startRun('vanguard', [], 3);
+    state.floor = 100;
+    state.phase = 'fight';
+    state.pendingFight = { kind: 'boss', enemyIds: ['the_sleepless_warden'] };
+    const win = {
+      winner: 'hero' as const,
+      endTick: 200,
+      heroHpRemaining: 40,
+      heroMaxHp: 100,
+      enemyHpRemaining: [0],
+      logHash: 0,
+      events: [],
+      firedOneShots: [],
+    };
+    const next = resolveFight(state, win);
+    expect(next.phase).toBe('reward');
+    expect(next.pendingItem).toBe('the_sleepless_crown'); // guaranteed, not rolled
+  });
+});
+
+describe('Torments — the floors-100+ escalation (GDD §11, BALANCE §6)', () => {
+  it('level is 0 through floor 100, then +1 every 10 floors', () => {
+    expect(tormentLevel(100)).toBe(0);
+    expect(tormentLevel(101)).toBe(1);
+    expect(tormentLevel(110)).toBe(1);
+    expect(tormentLevel(111)).toBe(2);
+    expect(tormentLevel(140)).toBe(4);
+  });
+
+  it('the deck reveals cards as the level rises', () => {
+    expect(activeTorments(100)).toHaveLength(0);
+    expect(activeTorments(105).map((c) => c.id)).toEqual(['quickening']);
+    expect(activeTorments(115).map((c) => c.id)).toContain('weeping_air');
+    expect(activeTorments(125).map((c) => c.id)).toContain('doomrush');
+  });
+
+  it('enemies scale up and gain mechanical cards past floor 100 — and nothing below is touched', () => {
+    // Floor 100 (Torment 0): baseline — no speed, no opening venom.
+    const [warden100] = buildEnemySpecs(['the_sleepless_warden'], 100);
+    expect(warden100!.speedPct).toBe(0);
+    expect(warden100!.effects.some((e) => e.source === 'Torment')).toBe(false);
+
+    // Floor 105 (Torment 1): the Quickening — enemies attack faster, and HP/dmg bump.
+    const [warden105] = buildEnemySpecs(['the_sleepless_warden'], 105);
+    expect(warden105!.speedPct).toBe(12);
+
+    // Floor 115 (Torment 2): the Weeping Air adds an opening-venom fight-start effect.
+    const [warden115] = buildEnemySpecs(['the_sleepless_warden'], 115);
+    expect(warden115!.effects.some((e) => e.source === 'Torment')).toBe(true);
+  });
+
+  it('Doomrush (Torment 3) forces Doomfall to 35s', () => {
+    const at125 = structuredClone(freshVanguard());
+    at125.floor = 125;
+    at125.phase = 'fight';
+    at125.pendingFight = { kind: 'boss', enemyIds: ['the_sleepless_warden'] };
+    expect(buildCombatSpec(at125, ['the_sleepless_warden']).doomfallStartTicks).toBe(350);
+
+    const at105 = structuredClone(freshVanguard());
+    at105.floor = 105;
+    expect(buildCombatSpec(at105, ['gloom_panther']).doomfallStartTicks).toBe(450);
   });
 });

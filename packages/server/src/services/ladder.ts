@@ -52,7 +52,12 @@ async function rankedPage(db: Db, opts: RankedOpts): Promise<LadderPage> {
   const withTier = metric === 'honor';
   const tierOf = (v: number): string | null => (withTier ? honorTier(v).name : null);
 
-  const ranked = await db.execute<{ account_id: string; name: string; value: number; rank: number }>(sql`
+  const ranked = await db.execute<{
+    account_id: string;
+    name: string;
+    value: number;
+    rank: number;
+  }>(sql`
     SELECT account_id, name, value, rank FROM (
       SELECT account_id, name, value,
              rank() OVER (ORDER BY value DESC)::int AS rank
@@ -97,7 +102,12 @@ async function rankedPage(db: Db, opts: RankedOpts): Promise<LadderPage> {
 }
 
 /** Global season ladder — season Honor descending. */
-export function globalLadder(db: Db, season: number, page: number, selfId: string | null): Promise<LadderPage> {
+export function globalLadder(
+  db: Db,
+  season: number,
+  page: number,
+  selfId: string | null,
+): Promise<LadderPage> {
   return rankedPage(db, {
     board: 'global',
     metric: 'honor',
@@ -114,7 +124,12 @@ export function globalLadder(db: Db, season: number, page: number, selfId: strin
 }
 
 /** The Unnumbered — the top 100 by season Honor (GDD §7). */
-export function unnumberedLadder(db: Db, season: number, page: number, selfId: string | null): Promise<LadderPage> {
+export function unnumberedLadder(
+  db: Db,
+  season: number,
+  page: number,
+  selfId: string | null,
+): Promise<LadderPage> {
   return rankedPage(db, {
     board: 'unnumbered',
     metric: 'honor',
@@ -155,7 +170,12 @@ export function weeklyLadder(
 }
 
 /** Echo kills — climbers each account's Echo has slain (GDD §8/§10). */
-export function echoKillsLadder(db: Db, season: number, page: number, selfId: string | null): Promise<LadderPage> {
+export function echoKillsLadder(
+  db: Db,
+  season: number,
+  page: number,
+  selfId: string | null,
+): Promise<LadderPage> {
   return rankedPage(db, {
     board: 'echo-kills',
     metric: 'kills',

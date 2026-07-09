@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buildDuelSpec } from '@towventure/shared/run';
+import { downloadCard } from '../engine/shareCard.js';
 import { buildFloor, buildHero, buildLantern } from '../engine/meshes.js';
 import { paletteForBiome } from '../engine/palettes.js';
 import { Playback } from '../engine/playback.js';
@@ -114,7 +115,9 @@ function DuelReplay({ res }: { res: SkirmishResult }) {
                 </span>
               </div>
               <div className={`bar ${b.side === 'enemy' ? 'enemy' : ''}`}>
-                <span style={{ width: `${b.maxHp > 0 ? Math.max(0, (b.hp / b.maxHp) * 100) : 0}%` }} />
+                <span
+                  style={{ width: `${b.maxHp > 0 ? Math.max(0, (b.hp / b.maxHp) * 100) : 0}%` }}
+                />
               </div>
             </div>
           ))}
@@ -129,13 +132,32 @@ function DuelReplay({ res }: { res: SkirmishResult }) {
               </div>
               {res.outcome.defenderReward && (
                 <div className="muted">
-                  {res.defender.name} defended — they earn +{res.outcome.defenderReward.honor} Honor,
-                  ◈{res.outcome.defenderReward.marks}
+                  {res.defender.name} defended — they earn +{res.outcome.defenderReward.honor}{' '}
+                  Honor, ◈{res.outcome.defenderReward.marks}
                 </div>
               )}
-              <button className="primary" onClick={clear}>
-                Back to the Board
-              </button>
+              <div className="row" style={{ gap: 8 }}>
+                <button className="primary" onClick={clear}>
+                  Back to the Board
+                </button>
+                <button
+                  className="ghost"
+                  title="Download a PNG to share"
+                  onClick={() =>
+                    downloadCard({
+                      kind: 'duel',
+                      attacker: res.attacker.name,
+                      defender: res.defender.name,
+                      won,
+                      honorDelta: delta,
+                      keyAwarded: res.outcome.keyAwarded,
+                      accent: '#e6b64a',
+                    })
+                  }
+                >
+                  ⤓ Duel card
+                </button>
+              </div>
             </div>
           ) : (
             <>

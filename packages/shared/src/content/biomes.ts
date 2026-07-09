@@ -1,8 +1,9 @@
 /**
- * Biomes. The climb now runs the first five biomes (floors 1–50), ending on the
- * Prior of Teeth — the mid-game wall (CONTENT §4.1, ROADMAP Phase 2). Past floor 50
- * the last biome loops with scaling until Menagerie…Crown are authored. Accent per
- * ART_DIRECTION §1; each biome's palette is data in the client (engine/palettes.ts).
+ * Biomes. The climb now runs all ten biomes (floors 1–100), from the Gatehouse to
+ * the Crown, ending on the Sleepless Warden — the tower's last wall (CONTENT §4.1,
+ * ROADMAP Phase 4). Past floor 100 the Crown loops with scaling (Torments layer on
+ * top). Accent per ART_DIRECTION §1; each biome's palette is data in the client
+ * (engine/palettes.ts).
  */
 
 import type { BiomeDef } from './types.js';
@@ -57,5 +58,55 @@ export const BIOMES: BiomeDef[] = [
     eliteId: 'warden_of_chains',
     bossId: 'prior_of_teeth',
     bossFloor: 50,
+  },
+  {
+    id: 'menagerie',
+    name: 'The Menagerie',
+    floors: [51, 60],
+    accent: 'bruise-violet',
+    regularIds: ['gloom_panther', 'hollow_bear', 'vitrine_adder'],
+    eliteId: 'collectors_favorite',
+    bossId: 'the_collector',
+    bossFloor: 60,
+  },
+  {
+    id: 'vault',
+    name: 'The Vault',
+    floors: [61, 70],
+    accent: 'drowned-teal',
+    regularIds: ['drowned_bailiff', 'pressure_wraith', 'deadbolt_sentinel'],
+    eliteId: 'the_escrow',
+    bossId: 'bailiff_of_the_deep',
+    bossFloor: 70,
+  },
+  {
+    id: 'gallery',
+    name: 'The Gallery of Mirrors',
+    floors: [71, 80],
+    accent: 'mirror-silver',
+    regularIds: ['mirrorkin', 'frame_ghoul', 'salon_shade'],
+    eliteId: 'the_understudy',
+    bossId: 'the_curator',
+    bossFloor: 80,
+  },
+  {
+    id: 'court',
+    name: 'The Court',
+    floors: [81, 90],
+    accent: 'court-gold',
+    regularIds: ['ember_courtier', 'duel_bond_twins', 'court_duelist'],
+    eliteId: 'master_of_ceremonies',
+    bossId: 'princess_of_cinders',
+    bossFloor: 90,
+  },
+  {
+    id: 'crown',
+    name: 'The Crown',
+    floors: [91, 100],
+    accent: 'crown-pale',
+    regularIds: ['somnambulist', 'dream_larva', 'crown_sleeper'],
+    eliteId: 'the_apology',
+    bossId: 'the_sleepless_warden',
+    bossFloor: 100,
   },
 ];

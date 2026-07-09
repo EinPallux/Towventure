@@ -151,6 +151,7 @@ export const DEFERRED: Record<string, string> = {
   'venom(2)': 'Venom ramps faster — needs per-tag ramp modifier',
   'venom(6)': 'enemy heals 50% less while Venomed — needs heal-reduction',
   'frost(2)': '+15% Chill effectiveness — needs status-effectiveness modifier',
-  'frost(6)': 'Chilled enemies take +20% crit damage — needs vs-status CRIT-damage (buffDamageVsStatusPct is flat, not crit-only)',
+  'frost(6)':
+    'Chilled enemies take +20% crit damage — needs vs-status CRIT-damage (buffDamageVsStatusPct is flat, not crit-only)',
   'shadow(6)': 'first hit from stealth: guaranteed crit ×2.5 — needs stealth',
 };

@@ -31,7 +31,15 @@ import {
   recordEchoDefense,
   recordEchoKill,
 } from './services/echoes.js';
-import { decayPct, eloDelta, ticketCap, upsertDefense } from './services/skirmish.js';
+import {
+  decayPct,
+  eloDelta,
+  settleSkirmish,
+  ticketCap,
+  upsertDefense,
+} from './services/skirmish.js';
+import { buyMerchantItem } from './services/merchant.js';
+import { seasonMarks } from './services/marks.js';
 import { publish, subscribe, subscriberCount } from './services/bus.js';
 import { emitFeed } from './services/social.js';
 import { lifetimeHonor, placementHonor, runSeasonRollover } from './services/season.js';
@@ -53,6 +61,7 @@ d('server API — the Heartbeat loop', () => {
   beforeAll(async () => {
     const env = loadEnv({
       ...process.env,
+      NODE_ENV: 'test',
       SESSION_SECRET: 'test-secret-at-least-16-chars-long-000',
     });
     season = env.HONOR_SEASON;
@@ -171,7 +180,10 @@ d('server API — the Heartbeat loop', () => {
           method: 'POST',
           url: '/api/run/command',
           headers: { cookie },
-          payload: { expectedStateVersion: version, command: { type: 'resolveEvent', optionIndex: 1 } },
+          payload: {
+            expectedStateVersion: version,
+            command: { type: 'resolveEvent', optionIndex: 1 },
+          },
         });
         expect(r.statusCode).toBe(200);
         state = r.json().state;
@@ -371,7 +383,9 @@ d('server API — the Heartbeat loop', () => {
     const bId = await makeAccount(`hb_echoB_${Date.now().toString(36)}`);
 
     // A dies on floor 8 with 250 season Honor → banks an Echo.
-    await database.db.transaction((tx) => bankEcho(tx, aId, 'Aowner', season, deadRunOn('duelist', 8), 250));
+    await database.db.transaction((tx) =>
+      bankEcho(tx, aId, 'Aowner', season, deadRunOn('duelist', 8), 250),
+    );
     const own = await getOwnEcho(database.db, aId);
     expect(own).toEqual({ floor: 8, kills: 0, defeats: 0, expired: false });
 
@@ -457,7 +471,10 @@ d('server API — the Heartbeat loop', () => {
           method: 'POST',
           url: '/api/run/command',
           headers: { cookie },
-          payload: { expectedStateVersion: version, command: { type: 'chooseDoor', doorIndex: idx } },
+          payload: {
+            expectedStateVersion: version,
+            command: { type: 'chooseDoor', doorIndex: idx },
+          },
         });
         expect(r.statusCode).toBe(200);
         state = r.json().state;
@@ -517,7 +534,10 @@ d('server API — the Heartbeat loop', () => {
           method: 'POST',
           url: '/api/run/command',
           headers: { cookie },
-          payload: { expectedStateVersion: version, command: { type: 'resolveEvent', optionIndex: 1 } },
+          payload: {
+            expectedStateVersion: version,
+            command: { type: 'resolveEvent', optionIndex: 1 },
+          },
         });
         state = r.json().state;
         version = r.json().stateVersion;
@@ -528,10 +548,7 @@ d('server API — the Heartbeat loop', () => {
   });
 
   // A strong build (deep, so high HP) or a weak one (floor 1) — to rig duel outcomes.
-  function buildFor(
-    classId: 'vanguard' | 'duelist' | 'arcanist',
-    floorsCleared: number,
-  ): RunState {
+  function buildFor(classId: 'vanguard' | 'duelist' | 'arcanist', floorsCleared: number): RunState {
     const run = startRun(classId, [], 77);
     run.floorsCleared = floorsCleared;
     run.floor = floorsCleared + 1;
@@ -659,7 +676,10 @@ d('server API — the Heartbeat loop', () => {
   async function makeSession(name: string): Promise<{ id: string; cookie: string }> {
     const id = await makeAccount(name);
     const sid = await createSession(database.db, id);
-    return { id, cookie: `${SESSION_COOKIE}=${(app as unknown as { signCookie(v: string): string }).signCookie(sid)}` };
+    return {
+      id,
+      cookie: `${SESSION_COOKIE}=${(app as unknown as { signCookie(v: string): string }).signCookie(sid)}`,
+    };
   }
 
   it('Honor Merchant: buy a cosmetic + arm a boon with Marks; the boon fires at run start (GDD §10.2)', async () => {
@@ -669,7 +689,11 @@ d('server API — the Heartbeat loop', () => {
       .insert(marksLedger)
       .values({ accountId: me.id, season, delta: 200, reason: 'test', refId: null });
 
-    const shop = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    const shop = await app.inject({
+      method: 'GET',
+      url: '/api/merchant',
+      headers: { cookie: me.cookie },
+    });
     expect(shop.statusCode).toBe(200);
     expect(shop.json().marks).toBe(200);
     expect(shop.json().items.length).toBeGreaterThan(0);
@@ -713,7 +737,11 @@ d('server API — the Heartbeat loop', () => {
     });
     expect(start.statusCode).toBe(201);
     expect((start.json().state as RunState).gold).toBe(50);
-    const shop2 = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    const shop2 = await app.inject({
+      method: 'GET',
+      url: '/api/merchant',
+      headers: { cookie: me.cookie },
+    });
     expect(shop2.json().armedBoon).toBeNull(); // consumed
   });
 
@@ -732,7 +760,11 @@ d('server API — the Heartbeat loop', () => {
         seed: i + 1,
       });
     }
-    const shop = await app.inject({ method: 'GET', url: '/api/merchant', headers: { cookie: me.cookie } });
+    const shop = await app.inject({
+      method: 'GET',
+      url: '/api/merchant',
+      headers: { cookie: me.cookie },
+    });
     expect(shop.json().keys).toBe(3);
 
     const buy = await app.inject({
@@ -759,7 +791,11 @@ d('server API — the Heartbeat loop', () => {
     const a = await makeSession(`hb_gaunt_a_${Date.now().toString(36)}`);
     const b = await makeSession(`hb_gaunt_b_${Date.now().toString(36)}`);
 
-    const infoA = await app.inject({ method: 'GET', url: '/api/gauntlet', headers: { cookie: a.cookie } });
+    const infoA = await app.inject({
+      method: 'GET',
+      url: '/api/gauntlet',
+      headers: { cookie: a.cookie },
+    });
     expect(infoA.statusCode).toBe(200);
     const { seed, classId, day } = infoA.json();
     expect(typeof seed).toBe('number');
@@ -797,7 +833,11 @@ d('server API — the Heartbeat loop', () => {
     expect(dupA.statusCode).toBe(409);
 
     // The Gauntlet ladder now lists both entrants (best floor = 1 so far).
-    const info2 = await app.inject({ method: 'GET', url: '/api/gauntlet', headers: { cookie: a.cookie } });
+    const info2 = await app.inject({
+      method: 'GET',
+      url: '/api/gauntlet',
+      headers: { cookie: a.cookie },
+    });
     expect(info2.json().entered).toBe(true);
     expect(info2.json().board.total).toBeGreaterThanOrEqual(2);
     expect(info2.json().day).toBe(day);
@@ -847,7 +887,11 @@ d('server API — the Heartbeat loop', () => {
     expect(reqRes.json().status).toBe('pending');
 
     // B sees an incoming request and accepts it.
-    const bFriends = await app.inject({ method: 'GET', url: '/api/friends', headers: { cookie: b.cookie } });
+    const bFriends = await app.inject({
+      method: 'GET',
+      url: '/api/friends',
+      headers: { cookie: b.cookie },
+    });
     expect(bFriends.json().incoming.some((r: { id: string }) => r.id === a.id)).toBe(true);
     const acc = await app.inject({
       method: 'POST',
@@ -858,30 +902,63 @@ d('server API — the Heartbeat loop', () => {
     expect(acc.statusCode).toBe(200);
 
     // Now each lists the other as a friend.
-    const aFriends = await app.inject({ method: 'GET', url: '/api/friends', headers: { cookie: a.cookie } });
+    const aFriends = await app.inject({
+      method: 'GET',
+      url: '/api/friends',
+      headers: { cookie: a.cookie },
+    });
     expect(aFriends.json().friends.some((f: { name: string }) => f.name === bName)).toBe(true);
 
     // B hits a milestone → A's feed shows it (friends' union).
     await emitFeed(database.db, b.id, 'floor', 'reached Floor 30');
-    const aFeed = await app.inject({ method: 'GET', url: '/api/feed', headers: { cookie: a.cookie } });
-    expect(aFeed.json().feed.some((f: { name: string; body: string }) => f.name === bName && f.body.includes('Floor 30'))).toBe(true);
+    const aFeed = await app.inject({
+      method: 'GET',
+      url: '/api/feed',
+      headers: { cookie: a.cookie },
+    });
+    expect(
+      aFeed
+        .json()
+        .feed.some(
+          (f: { name: string; body: string }) => f.name === bName && f.body.includes('Floor 30'),
+        ),
+    ).toBe(true);
 
     // Public profile resolves by name.
-    const prof = await app.inject({ method: 'GET', url: `/api/profile/${bName}`, headers: { cookie: a.cookie } });
+    const prof = await app.inject({
+      method: 'GET',
+      url: `/api/profile/${bName}`,
+      headers: { cookie: a.cookie },
+    });
     expect(prof.statusCode).toBe(200);
     expect(prof.json().name).toBe(bName);
   });
 
   it('Inbox: unread count + mark-read (GDD §11)', async () => {
     const me = await makeSession(`hb_inbox_${Date.now().toString(36)}`);
-    await database.db
-      .insert(inbox)
-      .values({ accountId: me.id, kind: 'echo_defense', body: 'Your Echo slew someone.', refId: null });
-    const before = await app.inject({ method: 'GET', url: '/api/me/inbox', headers: { cookie: me.cookie } });
+    await database.db.insert(inbox).values({
+      accountId: me.id,
+      kind: 'echo_defense',
+      body: 'Your Echo slew someone.',
+      refId: null,
+    });
+    const before = await app.inject({
+      method: 'GET',
+      url: '/api/me/inbox',
+      headers: { cookie: me.cookie },
+    });
     expect(before.json().unread).toBe(1);
-    const read = await app.inject({ method: 'POST', url: '/api/me/inbox/read', headers: { cookie: me.cookie } });
+    const read = await app.inject({
+      method: 'POST',
+      url: '/api/me/inbox/read',
+      headers: { cookie: me.cookie },
+    });
     expect(read.statusCode).toBe(200);
-    const after = await app.inject({ method: 'GET', url: '/api/me/inbox', headers: { cookie: me.cookie } });
+    const after = await app.inject({
+      method: 'GET',
+      url: '/api/me/inbox',
+      headers: { cookie: me.cookie },
+    });
     expect(after.json().unread).toBe(0);
   });
 
@@ -923,7 +1000,13 @@ d('server API — the Heartbeat loop', () => {
     const aPlace = await database.db
       .select()
       .from(honorLedger)
-      .where(and(eq(honorLedger.accountId, a), eq(honorLedger.season, to), eq(honorLedger.reason, 'placement')));
+      .where(
+        and(
+          eq(honorLedger.accountId, a),
+          eq(honorLedger.season, to),
+          eq(honorLedger.reason, 'placement'),
+        ),
+      );
     expect(aPlace[0]!.delta).toBe(placementHonor(5000));
 
     // Lifetime Honor counts the earned 5000, not the placement carry-over.
@@ -939,7 +1022,11 @@ d('server API — the Heartbeat loop', () => {
     await database.db
       .insert(honorLedger)
       .values({ accountId: me.id, season, delta: 900, reason: 'climb', refId: null });
-    const r = await app.inject({ method: 'GET', url: '/api/season', headers: { cookie: me.cookie } });
+    const r = await app.inject({
+      method: 'GET',
+      url: '/api/season',
+      headers: { cookie: me.cookie },
+    });
     expect(r.statusCode).toBe(200);
     expect(r.json().season.number).toBe(season);
     expect(typeof r.json().season.endsAt).toBe('string');
@@ -951,5 +1038,291 @@ d('server API — the Heartbeat loop', () => {
   it('rejects unauthenticated run access with 401', async () => {
     const r = await app.inject({ method: 'GET', url: '/api/run' });
     expect(r.statusCode).toBe(401);
+  });
+
+  // ── Live-ops admin (OPERATIONS §6) ──────────────────────────────────────────
+  const adminReg = async (name: string): Promise<string> => {
+    const r = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { name, password: 'password123' },
+    });
+    return cookieFrom(r);
+  };
+  const grantAdmin = async (name: string): Promise<void> => {
+    await database.sql`UPDATE accounts SET flags = '{"admin":true}'::jsonb WHERE lower(name) = ${name.toLowerCase()}`;
+  };
+
+  it('admin surface is invisible (404) to non-admins and open to admins', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_admin_${uid}`);
+    const userCookie = await adminReg(`hb_user_${uid}`);
+    const denied = await app.inject({
+      method: 'GET',
+      url: `/api/admin/account/hb_user_${uid}`,
+      headers: { cookie: userCookie },
+    });
+    expect(denied.statusCode).toBe(404); // hidden, not 403
+    await grantAdmin(`hb_admin_${uid}`);
+    const ok = await app.inject({
+      method: 'GET',
+      url: `/api/admin/account/hb_user_${uid}`,
+      headers: { cookie: adminCookie },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().account.name).toBe(`hb_user_${uid}`);
+    expect(ok.json()).toHaveProperty('honor');
+    expect(ok.json()).toHaveProperty('recentRuns');
+  });
+
+  it('ban: instant logout (401), re-login blocked (403), unban restores (200)', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_ban_admin_${uid}`);
+    await grantAdmin(`hb_ban_admin_${uid}`);
+    const victim = `hb_victim_${uid}`;
+    const victimCookie = await adminReg(victim);
+    const me1 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: victimCookie },
+    });
+    expect(me1.statusCode).toBe(200);
+
+    const banned = await app.inject({
+      method: 'POST',
+      url: '/api/admin/ban',
+      headers: { cookie: adminCookie },
+      payload: { name: victim, reason: 'cheating' },
+    });
+    expect(banned.statusCode).toBe(200);
+    // old session destroyed → 401
+    const me2 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: victimCookie },
+    });
+    expect(me2.statusCode).toBe(401);
+    // re-login succeeds but every action is 403 while banned
+    const relog = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: victim, password: 'password123' },
+    });
+    const me3 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: cookieFrom(relog) },
+    });
+    expect(me3.statusCode).toBe(403);
+    // double-ban → 409
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/admin/ban',
+      headers: { cookie: adminCookie },
+      payload: { name: victim, reason: 'again' },
+    });
+    expect(again.statusCode).toBe(409);
+    // unban restores access
+    const unban = await app.inject({
+      method: 'POST',
+      url: '/api/admin/unban',
+      headers: { cookie: adminCookie },
+      payload: { name: victim },
+    });
+    expect(unban.statusCode).toBe(200);
+    const relog2 = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { name: victim, password: 'password123' },
+    });
+    const me4 = await app.inject({
+      method: 'GET',
+      url: '/api/me',
+      headers: { cookie: cookieFrom(relog2) },
+    });
+    expect(me4.statusCode).toBe(200);
+  });
+
+  it('broadcast: admin sets it, the public endpoint serves it, clear takes it down', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_bc_admin_${uid}`);
+    await grantAdmin(`hb_bc_admin_${uid}`);
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/broadcast',
+      headers: { cookie: adminCookie },
+      payload: { message: 'Season ends in 24h' },
+    });
+    const pub = await app.inject({ method: 'GET', url: '/api/broadcast' });
+    expect(pub.statusCode).toBe(200);
+    expect(pub.json().broadcast.message).toBe('Season ends in 24h');
+    await app.inject({
+      method: 'POST',
+      url: '/api/admin/broadcast/clear',
+      headers: { cookie: adminCookie },
+    });
+    const gone = await app.inject({ method: 'GET', url: '/api/broadcast' });
+    expect(gone.json().broadcast).toBeNull();
+  });
+
+  it('content kill-switch: rejects unknown items, records real ones', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_cf_admin_${uid}`);
+    await grantAdmin(`hb_cf_admin_${uid}`);
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/admin/content-flags',
+      headers: { cookie: adminCookie },
+      payload: { itemId: 'not_a_real_item', disabled: true },
+    });
+    expect(bad.statusCode).toBe(400);
+    const good = await app.inject({
+      method: 'POST',
+      url: '/api/admin/content-flags',
+      headers: { cookie: adminCookie },
+      payload: { itemId: 'rusty_cleaver', disabled: true, reason: 'bugged' },
+    });
+    expect(good.statusCode).toBe(200);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/admin/content-flags',
+      headers: { cookie: adminCookie },
+    });
+    expect(list.json().flags.some((f: { itemId: string }) => f.itemId === 'rusty_cleaver')).toBe(
+      true,
+    );
+  });
+
+  it('echo takedown removes the account Echo', async () => {
+    const uid = Date.now().toString(36);
+    const adminCookie = await adminReg(`hb_et_admin_${uid}`);
+    await grantAdmin(`hb_et_admin_${uid}`);
+    const ownerName = `hb_echo_owner_${uid}`;
+    const ownerId = await makeAccount(ownerName);
+    await database.db.transaction((tx) =>
+      bankEcho(tx, ownerId, ownerName, season, deadRunOn('vanguard', 5), 100),
+    );
+    expect(await getOwnEcho(database.db, ownerId)).not.toBeNull();
+    const td = await app.inject({
+      method: 'POST',
+      url: '/api/admin/echo-takedown',
+      headers: { cookie: adminCookie },
+      payload: { name: ownerName },
+    });
+    expect(td.statusCode).toBe(200);
+    expect(td.json().removed).toBe(1);
+    expect(await getOwnEcho(database.db, ownerId)).toBeNull();
+  });
+
+  it('concurrent run starts: exactly one 201, the other a clean 409 not a 500 (audit #6)', async () => {
+    const uid = Date.now().toString(36);
+    const cookie = await adminReg(`hb_start_${uid}`);
+    const payload = { classId: 'vanguard', vows: [] };
+    const [a, b] = await Promise.all([
+      app.inject({ method: 'POST', url: '/api/run/start', headers: { cookie }, payload }),
+      app.inject({ method: 'POST', url: '/api/run/start', headers: { cookie }, payload }),
+    ]);
+    expect([a.statusCode, b.statusCode].sort()).toEqual([201, 409]);
+  });
+
+  it('Skirmish settle is concurrency-safe: parallel attacks cannot overrun the ticket cap (audit #2)', async () => {
+    const uid = Date.now().toString(36);
+    const attackerId = await makeAccount(`hb_skc_att_${uid}`);
+    const cap = ticketCap(0); // 5 at tier rank 0
+    // cap + 3 distinct defenders, so more attacks are fired than the daily cap allows.
+    const defenders = await Promise.all(
+      Array.from({ length: cap + 3 }, (_, i) => makeAccount(`hb_skc_def_${uid}_${i}`)),
+    );
+    const nowMs = Date.now();
+    const attacks = defenders.map((defenderId) =>
+      database.db.transaction((tx) =>
+        settleSkirmish(tx, {
+          season,
+          attackerId,
+          defenderId,
+          attackerWon: true,
+          hAtt: 100,
+          hDef: 100,
+          tierRank: 0,
+          seed: 1,
+          nowMs,
+        }),
+      ),
+    );
+    const results = await Promise.allSettled(attacks);
+    // Exactly the ticket cap lands — the rest lose the race and are rejected.
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(cap);
+    const rows = await database.db
+      .select({ id: skirmishes.id })
+      .from(skirmishes)
+      .where(eq(skirmishes.attackerId, attackerId));
+    expect(rows).toHaveLength(cap); // no extra attack rows (no extra Keys minted)
+  });
+
+  it('Merchant buy is concurrency-safe: two parallel buys cannot overspend Marks (audit #1)', async () => {
+    const uid = Date.now().toString(36);
+    const id = await makeAccount(`hb_buy_${uid}`);
+    // Exactly one boon's worth of Marks (boon_purse / boon_wide_pack are 40 each).
+    await database.db
+      .insert(marksLedger)
+      .values({ accountId: id, season, delta: 40, reason: 'test_grant', refId: null });
+    const [a, b] = await Promise.all([
+      buyMerchantItem(database.db, id, season, 'boon_purse'),
+      buyMerchantItem(database.db, id, season, 'boon_wide_pack'),
+    ]);
+    // Exactly one succeeds; the other loses the race cleanly — never both.
+    expect([a, b].filter((r) => r.ok).length).toBe(1);
+    const failed = [a, b].find((r) => !r.ok) as { ok: false; error: string };
+    expect(failed.error).toBe('not_enough_marks');
+    // The balance never goes negative.
+    expect(await seasonMarks(database.db, id, season)).toBe(0);
+  });
+
+  it('admin IP allowlist blocks a non-allowlisted IP even for an admin', async () => {
+    const uid = Date.now().toString(36);
+    const env = loadEnv({
+      ...process.env,
+      NODE_ENV: 'test',
+      SESSION_SECRET: 'test-secret-at-least-16-chars-long-000',
+      ADMIN_IP_ALLOWLIST: '9.9.9.9',
+    });
+    const gatedApp = await buildApp(database, env);
+    await gatedApp.ready();
+    try {
+      const reg = await gatedApp.inject({
+        method: 'POST',
+        url: '/api/auth/register',
+        payload: { name: `hb_ip_${uid}`, password: 'password123' },
+      });
+      const cookie = cookieFrom(reg);
+      await grantAdmin(`hb_ip_${uid}`);
+      const blocked = await gatedApp.inject({
+        method: 'GET',
+        url: `/api/admin/account/hb_ip_${uid}`,
+        headers: { cookie, 'x-forwarded-for': '1.2.3.4' },
+      });
+      expect(blocked.statusCode).toBe(404);
+      const allowed = await gatedApp.inject({
+        method: 'GET',
+        url: `/api/admin/account/hb_ip_${uid}`,
+        headers: { cookie, 'x-forwarded-for': '9.9.9.9' },
+      });
+      expect(allowed.statusCode).toBe(200);
+      // /metrics is gated by the same allowlist (audit #7): 404 off-list, 200 on-list.
+      const mBlocked = await gatedApp.inject({
+        method: 'GET',
+        url: '/metrics',
+        headers: { 'x-forwarded-for': '1.2.3.4' },
+      });
+      expect(mBlocked.statusCode).toBe(404);
+      const mOk = await gatedApp.inject({
+        method: 'GET',
+        url: '/metrics',
+        headers: { 'x-forwarded-for': '9.9.9.9' },
+      });
+      expect(mOk.statusCode).toBe(200);
+    } finally {
+      await gatedApp.close();
+    }
   });
 });

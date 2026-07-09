@@ -28,7 +28,11 @@ export interface SeasonMeta {
 }
 
 /** Ensure a season row exists (idempotent); returns its metadata. */
-export async function ensureSeason(db: Db, number: number, nowMs = Date.now()): Promise<SeasonMeta> {
+export async function ensureSeason(
+  db: Db,
+  number: number,
+  nowMs = Date.now(),
+): Promise<SeasonMeta> {
   const existing = await db.select().from(seasons).where(eq(seasons.number, number)).limit(1);
   if (existing[0]) {
     const s = existing[0];
@@ -45,7 +49,12 @@ export async function ensureSeason(db: Db, number: number, nowMs = Date.now()): 
     .insert(seasons)
     .values({ number, startsAt, endsAt, status: 'active' })
     .onConflictDoNothing();
-  return { number, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), status: 'active' };
+  return {
+    number,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+    status: 'active',
+  };
 }
 
 /** Lifetime Honor — every earned delta across all seasons, minus placement carry-overs. */

@@ -11,6 +11,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { accountForSession, readSessionId, type AuthedAccount } from './auth/session.js';
 import type { Database } from './db/client.js';
 import type { Env } from './env.js';
+import { adminRoutes, broadcastRoutes } from './routes/admin.js';
 import { authRoutes } from './routes/auth.js';
 import { gauntletRoutes } from './routes/gauntlet.js';
 import { healthRoutes } from './routes/health.js';
@@ -39,7 +40,12 @@ export async function buildApp(database: Database, env: Env): Promise<FastifyIns
 
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cookie, { secret: env.SESSION_SECRET });
-  await app.register(rateLimit, { global: true, max: 300, timeWindow: '1 minute' });
+  // Generous global bucket; per-route classes tighten auth/commands (OPERATIONS §5).
+  // Skipped entirely under test — without the plugin the routes' per-route rateLimit
+  // config is inert, so the integration suite's request volume never 429s.
+  if (env.NODE_ENV !== 'test') {
+    await app.register(rateLimit, { global: true, max: 300, timeWindow: '1 minute' });
+  }
 
   // Resolve the session → account on every request (null if unauthenticated).
   app.decorateRequest('account', null);
@@ -59,6 +65,8 @@ export async function buildApp(database: Database, env: Env): Promise<FastifyIns
   await app.register(socialRoutes(ctx), { prefix: '/api' });
   await app.register(streamRoutes(ctx), { prefix: '/api' });
   await app.register(seasonRoutes(ctx), { prefix: '/api/season' });
+  await app.register(broadcastRoutes(ctx), { prefix: '/api' });
+  await app.register(adminRoutes(ctx), { prefix: '/api/admin' });
 
   return app;
 }

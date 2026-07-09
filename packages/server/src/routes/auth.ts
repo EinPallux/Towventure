@@ -16,16 +16,7 @@ import {
   setSessionCookie,
 } from '../auth/session.js';
 import { accounts } from '../db/schema.js';
-import { parseBody, type AppContext } from './helpers.js';
-
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: string }).code === '23505'
-  );
-}
+import { isUniqueViolation, parseBody, type AppContext } from './helpers.js';
 
 export function authRoutes(ctx: AppContext) {
   return async (fastify: FastifyInstance): Promise<void> => {
@@ -79,18 +70,22 @@ export function authRoutes(ctx: AppContext) {
       },
     );
 
-    fastify.post('/guest', async (req, reply) => {
-      parseBody(guestSchema, req, reply); // shape-only; guests take no input
-      const name = `guest-${randomBytes(4).toString('hex')}`;
-      const passHash = await hashPassword(randomBytes(24).toString('hex'));
-      const [acc] = await ctx.db
-        .insert(accounts)
-        .values({ name, passHash, isGuest: true })
-        .returning({ id: accounts.id, name: accounts.name, isGuest: accounts.isGuest });
-      const sid = await createSession(ctx.db, acc!.id);
-      setSessionCookie(reply, sid, secure);
-      return reply.code(201).send({ account: acc });
-    });
+    fastify.post(
+      '/guest',
+      { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+      async (req, reply) => {
+        parseBody(guestSchema, req, reply); // shape-only; guests take no input
+        const name = `guest-${randomBytes(4).toString('hex')}`;
+        const passHash = await hashPassword(randomBytes(24).toString('hex'));
+        const [acc] = await ctx.db
+          .insert(accounts)
+          .values({ name, passHash, isGuest: true })
+          .returning({ id: accounts.id, name: accounts.name, isGuest: accounts.isGuest });
+        const sid = await createSession(ctx.db, acc!.id);
+        setSessionCookie(reply, sid, secure);
+        return reply.code(201).send({ account: acc });
+      },
+    );
 
     fastify.post('/logout', async (req, reply) => {
       const sid = readSessionId(req);

@@ -1,7 +1,34 @@
 import { findEvent } from '@towventure/shared/content';
+import { activeTorments, tormentLevel } from '@towventure/shared/run';
 import { useStore } from '../store.js';
 import { HeroPanel } from './HeroPanel.js';
+import { Onboarding } from './Onboarding.js';
 import { describeItem } from './itemText.js';
+
+/** Past floor 100, the Torment banner names the escalation the tower has stacked on. */
+function TormentBanner() {
+  const floor = useStore((s) => s.run?.floor ?? 0);
+  const level = tormentLevel(floor);
+  if (level <= 0) return null;
+  const cards = activeTorments(floor);
+  return (
+    <div className="card col" style={{ margin: '12px 12px 0', gap: 4, borderColor: '#7a3a4a' }}>
+      <div className="row spread">
+        <div className="title" style={{ fontSize: 15 }}>
+          ✷ Torment {level}
+        </div>
+        <div className="muted" style={{ fontSize: 12 }}>
+          the Crown loops · the tower does not
+        </div>
+      </div>
+      {cards.map((c) => (
+        <div key={c.id} className="muted" style={{ fontSize: 12 }}>
+          <strong>{c.name}</strong> — {c.blurb}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Doors() {
   const run = useStore((s) => s.run)!;
@@ -30,7 +57,8 @@ function Doors() {
           </div>
           {door.kind === 'echo' && door.echo && (
             <div className="muted" style={{ fontSize: 12, fontStyle: 'italic' }}>
-              {door.echo.classId} · fell {door.echo.ageDays === 0 ? 'today' : `${door.echo.ageDays}d ago`}
+              {door.echo.classId} · fell{' '}
+              {door.echo.ageDays === 0 ? 'today' : `${door.echo.ageDays}d ago`}
               {door.echo.bonusPct > 0 ? ` · +${door.echo.bonusPct}% fury` : ''}
             </div>
           )}
@@ -53,7 +81,9 @@ function GraveCopy() {
       <div className="row spread">
         <div className="title">❂ Grave-Copy</div>
         <div className="muted">
-          {reward ? `the Echo falls · +${reward.bounty} Honor · ◈${reward.marks}` : 'the Echo falls'}
+          {reward
+            ? `the Echo falls · +${reward.bounty} Honor · ◈${reward.marks}`
+            : 'the Echo falls'}
         </div>
       </div>
       <div className="muted" style={{ fontStyle: 'italic' }}>
@@ -235,6 +265,8 @@ export function RunScreen() {
   const phase = useStore((s) => s.run?.phase);
   return (
     <div className="col grow" style={{ overflow: 'auto' }}>
+      <Onboarding />
+      <TormentBanner />
       {phase === 'doors' && <Doors />}
       {phase === 'reward' && <Reward />}
       {phase === 'shop' && <Shop />}

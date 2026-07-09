@@ -7,6 +7,7 @@ export function TopBar() {
   const setView = useStore((s) => s.setView);
   const logout = useStore((s) => s.logout);
   const unread = useStore((s) => s.unread);
+  const toggleSettings = useStore((s) => s.toggleSettings);
   if (!me) return null;
 
   return (
@@ -61,6 +62,14 @@ export function TopBar() {
             Back
           </button>
         )}
+        {me.account.isAdmin && view !== 'admin' && (
+          <button className="small ghost" title="Live-ops admin" onClick={() => setView('admin')}>
+            ⚔ Admin
+          </button>
+        )}
+        <button className="small ghost" title="Settings" onClick={() => toggleSettings()}>
+          ⚙
+        </button>
         <button className="small ghost" onClick={() => void logout()}>
           Sign out
         </button>

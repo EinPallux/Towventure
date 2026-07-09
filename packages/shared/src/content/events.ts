@@ -14,7 +14,10 @@ export const EVENTS: EventDef[] = [
     name: 'Shrine of the Mended Blade',
     flavor: 'Leave something whole; take something sharper.',
     options: [
-      { label: 'Accept the mending', blurb: 'Upgrade a random item +1★; a random material is consumed' },
+      {
+        label: 'Accept the mending',
+        blurb: 'Upgrade a random item +1★; a random material is consumed',
+      },
       { label: 'Leave it be', blurb: 'Touch nothing; lose nothing' },
     ],
   },

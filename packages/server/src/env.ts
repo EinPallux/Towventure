@@ -14,6 +14,9 @@ const schema = z.object({
   HOST: z.string().default('0.0.0.0'),
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   HONOR_SEASON: z.coerce.number().int().min(1).default(1),
+  /** Comma-separated IP allowlist for /api/admin (OPERATIONS §6). Empty = allow any IP
+   *  (dev); production sets the operator's IPs so the admin surface needs flag AND IP. */
+  ADMIN_IP_ALLOWLIST: z.string().default(''),
 });
 
 export type Env = z.infer<typeof schema>;

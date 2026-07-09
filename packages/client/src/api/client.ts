@@ -3,7 +3,13 @@
  * Cookies carry the session, so every call is `credentials: 'include'`.
  */
 
-import type { CodexProgress, Command, HeroBuild, RunState, RunSummary } from '@towventure/shared/run';
+import type {
+  CodexProgress,
+  Command,
+  HeroBuild,
+  RunState,
+  RunSummary,
+} from '@towventure/shared/run';
 
 export type ClassChoice = 'vanguard' | 'duelist' | 'arcanist';
 
@@ -33,6 +39,8 @@ export interface Account {
   id: string;
   name: string;
   isGuest: boolean;
+  /** Live-ops admin (OPERATIONS §6) — surfaces the Admin panel in the client. */
+  isAdmin?: boolean;
 }
 export interface OwnEcho {
   floor: number;
@@ -181,7 +189,61 @@ export const api = {
   inbox: () => req<{ inbox: InboxEntry[]; unread: number }>('GET', '/api/me/inbox'),
   inboxRead: () => req<{ ok: true }>('POST', '/api/me/inbox/read'),
   season: () => req<SeasonInfo>('GET', '/api/season'),
+
+  /** Public live banner (OPERATIONS §6) — polled by every client. */
+  broadcast: () => req<{ broadcast: PublicBroadcast | null }>('GET', '/api/broadcast'),
+
+  // Live-ops admin (OPERATIONS §6). Every call is 404 unless the account is an admin
+  // from an allowlisted IP — the client only ever calls these when me.account.isAdmin.
+  admin: {
+    lookup: (name: string) =>
+      req<AdminAccountView>('GET', `/api/admin/account/${encodeURIComponent(name)}`),
+    ban: (name: string, reason: string) =>
+      req<{ ok: true }>('POST', '/api/admin/ban', { name, reason }),
+    unban: (name: string) => req<{ ok: true }>('POST', '/api/admin/unban', { name }),
+    echoTakedown: (name: string) =>
+      req<{ ok: true; removed: number }>('POST', '/api/admin/echo-takedown', { name }),
+    broadcastGet: () => req<{ broadcast: LiveBroadcast | null }>('GET', '/api/admin/broadcast'),
+    broadcastSet: (message: string, expiresInHours?: number) =>
+      req<{ ok: true }>('POST', '/api/admin/broadcast', { message, expiresInHours }),
+    broadcastClear: () => req<{ ok: true }>('POST', '/api/admin/broadcast/clear'),
+    contentFlags: () => req<{ flags: ContentFlag[] }>('GET', '/api/admin/content-flags'),
+    setContentFlag: (itemId: string, disabled: boolean, reason?: string) =>
+      req<{ ok: true }>('POST', '/api/admin/content-flags', { itemId, disabled, reason }),
+  },
 };
+
+export interface PublicBroadcast {
+  message: string;
+  expiresAt: string | null;
+}
+export interface LiveBroadcast extends PublicBroadcast {
+  id: string;
+  createdAt: string;
+}
+export interface ContentFlag {
+  itemId: string;
+  disabled: boolean;
+  reason: string | null;
+  updatedAt: string;
+}
+export interface AdminAccountView {
+  account: { id: string; name: string; isGuest: boolean; isAdmin: boolean; createdAt: string };
+  ban: { id: string; reason: string; createdAt: string } | null;
+  season: number;
+  honor: number;
+  marks: number;
+  lifetime: number;
+  echo: OwnEcho | null;
+  recentRuns: {
+    id: string;
+    class: string;
+    floor: number;
+    status: string;
+    startedAt: string;
+    endedAt: string | null;
+  }[];
+}
 
 export interface SeasonInfo {
   season: { number: number; startsAt: string; endsAt: string; status: string };

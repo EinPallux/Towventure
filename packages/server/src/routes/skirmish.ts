@@ -17,6 +17,7 @@ import {
   keyCount,
   precheck,
   settleSkirmish,
+  SkirmishGuardError,
   ticketState,
   KEYS_FOR_VAULT,
 } from '../services/skirmish.js';
@@ -43,9 +44,7 @@ export function skirmishRoutes(ctx: AppContext) {
         tickets,
         keys,
         keysForVault: KEYS_FOR_VAULT,
-        defense: mine
-          ? { class: mine.class, floor: mine.floor, honor: mine.honor }
-          : null,
+        defense: mine ? { class: mine.class, floor: mine.floor, honor: mine.honor } : null,
       });
     });
 
@@ -66,13 +65,16 @@ export function skirmishRoutes(ctx: AppContext) {
       const foe = await getDefense(ctx.db, body.defenderId);
       if (!foe) return reply.code(404).send({ error: 'no such defender' });
 
+      const nowMs = Date.now();
       const hAtt = await seasonHonor(ctx.db, account.id, season);
       const rank = honorTierRank(hAtt);
-      const tickets = await ticketState(ctx.db, account.id, rank);
+      // Advisory fast-path checks (reject the common case without a transaction/sim);
+      // settleSkirmish re-validates both under the account row lock — that is the boundary.
+      const tickets = await ticketState(ctx.db, account.id, rank, nowMs);
       if (tickets.remaining <= 0) {
         return reply.code(429).send({ error: 'out of Skirmish tickets today' });
       }
-      const { attackedToday, priorWins } = await precheck(ctx.db, account.id, body.defenderId);
+      const { attackedToday } = await precheck(ctx.db, account.id, body.defenderId, nowMs);
       if (attackedToday) {
         return reply.code(409).send({ error: 'you already skirmished them today' });
       }
@@ -83,18 +85,28 @@ export function skirmishRoutes(ctx: AppContext) {
       const attackerWon = result.winner === 'hero';
       const hDef = await seasonHonor(ctx.db, body.defenderId, season);
 
-      const outcome = await ctx.db.transaction((tx) =>
-        settleSkirmish(tx, {
-          season,
-          attackerId: account.id,
-          defenderId: body.defenderId,
-          attackerWon,
-          hAtt,
-          hDef,
-          priorWins,
-          seed,
-        }),
-      );
+      let outcome;
+      try {
+        outcome = await ctx.db.transaction((tx) =>
+          settleSkirmish(tx, {
+            season,
+            attackerId: account.id,
+            defenderId: body.defenderId,
+            attackerWon,
+            hAtt,
+            hDef,
+            tierRank: rank,
+            seed,
+            nowMs,
+          }),
+        );
+      } catch (e) {
+        // Lost the race to a concurrent attack — the in-transaction guard rejected it.
+        if (e instanceof SkirmishGuardError) {
+          return reply.code(e.code === 'out_of_tickets' ? 429 : 409).send({ error: e.code });
+        }
+        throw e;
+      }
 
       const keys = await keyCount(ctx.db, account.id, season);
       return reply.send({

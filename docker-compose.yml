@@ -47,7 +47,7 @@ services:
     depends_on:
       - app
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS::80}
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
       - '80:80'
       - '443:443'

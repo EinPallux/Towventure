@@ -173,7 +173,9 @@ describe('biomes 2–5 enemy mechanics', () => {
           },
         ],
       }),
-      enemies: [combatant({ id: 'e0', name: 'Unshelved', maxHp: 400, critImmune: true, weapons: [] })],
+      enemies: [
+        combatant({ id: 'e0', name: 'Unshelved', maxHp: 400, critImmune: true, weapons: [] }),
+      ],
     });
     const r = simulate(s, 3);
     const crits = r.events.filter((e) => e.type === 'hit' && e.crit === 1);

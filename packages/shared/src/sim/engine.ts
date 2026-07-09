@@ -353,6 +353,9 @@ class Sim {
     applier?: Combatant,
   ): void {
     if (stacks <= 0 || !c.alive) return;
+    // Status immunity: the affliction simply never lands (Ember Courtier ← Burn). Guarded
+    // on an optional field + draws no RNG, so specs without it are golden-identical.
+    if (c.spec.immuneToStatus === kind) return;
     if (kind === 'ward') {
       // "ward" as a status op adds Ward magnitude equal to stacks.
       this.addWard(c, stacks, t);
@@ -421,7 +424,9 @@ class Sim {
 
     // 2. crit (Shock guarantees it) — unless the target is crit-immune, which
     // even Shock cannot pierce (The Unshelved's honest-damage check, CONTENT §4).
-    const crit = target.spec.critImmune ? false : shocked || this.rng.chance(att.spec.critChancePct);
+    const crit = target.spec.critImmune
+      ? false
+      : shocked || this.rng.chance(att.spec.critChancePct);
 
     // Extra damage%: the next-hit buffer (consumed now the hit lands) plus any
     // conditional "+% vs a target afflicted with X" bonuses. Both are attacker-local
@@ -429,7 +434,8 @@ class Sim {
     let bonusPct = att.nextHitBuffPct;
     att.nextHitBuffPct = 0;
     for (const kind of STATUS_ORDER) {
-      if (att.vsStatus[kind] > 0 && target.statuses[kind].stacks > 0) bonusPct += att.vsStatus[kind];
+      if (att.vsStatus[kind] > 0 && target.statuses[kind].stacks > 0)
+        bonusPct += att.vsStatus[kind];
     }
 
     // 3. base × buffs × Weaken × crit
@@ -595,7 +601,15 @@ class Sim {
           .slice(0, op.targets);
         for (const tgt of pool) {
           const toHp = this.damageThroughWard(tgt, dmg, t);
-          this.emit({ type: 'hit', t, from: self.idx, to: tgt.idx, dmg: toHp, crit: 0, blocked: 0 });
+          this.emit({
+            type: 'hit',
+            t,
+            from: self.idx,
+            to: tgt.idx,
+            dmg: toHp,
+            crit: 0,
+            blocked: 0,
+          });
           this.checkDeath(tgt, t);
           if (this.ended) return;
         }
@@ -631,7 +645,15 @@ class Sim {
           const dmg = Math.trunc((op.pctPerStack * stacks * perSec) / 100);
           if (dmg > 0) {
             const toHp = this.damageThroughWard(tgt, dmg, t);
-            this.emit({ type: 'hit', t, from: self.idx, to: tgt.idx, dmg: toHp, crit: 0, blocked: 0 });
+            this.emit({
+              type: 'hit',
+              t,
+              from: self.idx,
+              to: tgt.idx,
+              dmg: toHp,
+              crit: 0,
+              blocked: 0,
+            });
           }
           this.checkDeath(tgt, t);
         }

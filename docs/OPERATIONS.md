@@ -52,6 +52,8 @@ Config via env vars only (`.env` never committed; `.env.example` always current)
 
 `/admin` (separate credential + IP allowlist): account lookup (runs, ledger, fights), ban/unban with reason log, Echo takedown, run-repair (replay event log with a patched command), broadcast banner ("Season ends in 24h"), content kill-switch (disable a broken item's drop without deploy — content flags table read by drop tables), season controls, Gauntlet seed preview.
 
+*(Phase 5, Slice A — **the admin spine is live** at `/api/admin`. Credential = the `accounts.flags.admin` flag; allowlist = the `ADMIN_IP_ALLOWLIST` env; non-admins/off-list IPs get 404 (invisible, not 403). Live: **account lookup**, **ban/unban** (reason-logged, sessions killed on ban; a banned account is 403 on every request via an active-ban join + one-active-ban partial unique index), **broadcast** (public `GET /api/broadcast` feeds the client banner), **Echo takedown**, and the **content kill-switch** flags CRUD (drop-exclusion enforcement is the follow-up — it must not perturb the deterministic drop RNG the client re-sims, so it filters server-side at the loot layer). Every act writes an `admin_actions` audit row (migration `0010_admin.sql`). **Run-repair, season controls, and the Gauntlet-seed preview are the next admin slice.** The tighter per-route rate-limit classes §5 calls for and the anomaly report are the remaining hardening.)*
+
 ## 7. Observability
 
 - **Logs:** pino JSON → docker json-file with rotation; `docker compose logs` is the launch-scale log stack. Every request logged with account id + route + ms.

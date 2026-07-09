@@ -436,19 +436,23 @@ input {
   text-shadow: 0 2px 6px #000;
 }
 .dmgnum.crit {
-  font-size: 26px;
+  font-size: 30px;
   color: #ffd27a;
+  letter-spacing: -0.02em;
+  -webkit-text-stroke: 1px #7a3a10;
+  animation: crit-pop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
 }
 .dmgnum.hit {
-  font-size: 17px;
+  font-size: 18px;
   color: #f6ede0;
 }
 .dmgnum.dot {
   font-size: 15px;
+  font-style: italic;
   color: #ff9a6a;
 }
 .dmgnum.heal {
-  font-size: 16px;
+  font-size: 17px;
   color: var(--good);
 }
 @keyframes drift {
@@ -458,6 +462,92 @@ input {
   }
   to {
     transform: translateY(-40px);
+    opacity: 0;
+  }
+}
+@keyframes crit-pop {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 1;
+  }
+  25% {
+    transform: translateY(-8px) scale(1.25);
+  }
+  100% {
+    transform: translateY(-46px) scale(1);
+    opacity: 0;
+  }
+}
+/* A brief colour pulse at the screen edge when a status lands (status VFX vocabulary). */
+.status-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: status-pulse 0.5s ease-out forwards;
+}
+@keyframes status-pulse {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* The Fusion Ceremony overlay (ART_DIRECTION §5) — a bright forge flash; ★5 is grandest. */
+.ceremony {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 210, 122, 0.28),
+    rgba(13, 11, 17, 0) 60%
+  );
+  animation: ceremony-fade 1.5s ease-out forwards;
+}
+.ceremony .rune {
+  font-size: 64px;
+  color: #ffd27a;
+  text-shadow:
+    0 0 40px #ffb84a,
+    0 4px 12px #000;
+  animation: ceremony-rune 1.5s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
+}
+.ceremony.zenith {
+  background: radial-gradient(circle at 50% 50%, rgba(255, 120, 51, 0.4), rgba(13, 11, 17, 0) 65%);
+  animation-duration: 2.4s;
+}
+.ceremony.zenith .rune {
+  font-size: 96px;
+  animation-duration: 2.4s;
+}
+@keyframes ceremony-fade {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ceremony-rune {
+  0% {
+    transform: scale(0.2) rotate(-20deg);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.15) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
     opacity: 0;
   }
 }
@@ -566,4 +656,91 @@ tr.self {
 .gold {
   color: var(--amber);
   font-weight: 700;
+}
+
+/* ── Accessibility: reduced motion (ART_DIRECTION §9). The JS loop also gates camera
+   shake / hit-stop / killcam on the same setting; this covers the CSS-driven motion. ── */
+:root[data-reduced-motion='on'] *,
+:root[data-reduced-motion='on'] *::before,
+:root[data-reduced-motion='on'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ceremony,
+  .ceremony .rune,
+  .status-flash,
+  .dmgnum {
+    animation-duration: 0.001ms;
+  }
+}
+
+/* Settings modal */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 5, 9, 0.6);
+  backdrop-filter: blur(3px);
+}
+.modal-scrim select {
+  background: #141019;
+  color: var(--text);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  padding: 5px 8px;
+}
+
+/* ── Colourblind-safe palettes (ART_DIRECTION §9). Remap the semantic + rarity vars so
+   the red-green and blue-yellow confusions carry distinct hues. Status VFX in the fight
+   swap via a JS palette keyed on the same setting. ── */
+:root[data-cb='deuteranopia'],
+:root[data-cb='protanopia'] {
+  --good: #3aa0ff; /* green → blue */
+  --uncommon: #3aa0ff;
+  --danger: #e0662a; /* red → orange, distinct from the new blue */
+  --rare: #7fb2ff;
+  --epic: #c77dff;
+  --mythic: #e8a13a;
+}
+:root[data-cb='tritanopia'] {
+  --rare: #23b5b5; /* blue → teal */
+  --amber: #ff9a3a;
+  --mythic: #ff7ac0; /* yellow → pink */
+  --good: #4fbf73;
+  --danger: #e5484d;
+}
+
+/* Onboarding coach-mark (GDD §12) — a one-time, dismissible first-run hint banner. */
+.coachmark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--amber-dim);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--amber) 12%, var(--panel));
+  font-size: 14px;
+}
+.coachmark .glyph {
+  color: var(--amber);
+  font-size: 18px;
+}
+
+/* Live broadcast banner (OPERATIONS §6) — a slim operator notice above the view. */
+.broadcast-banner {
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(210, 160, 70, 0.14);
+  border: 1px solid rgba(210, 160, 70, 0.4);
+  color: #e8c98a;
+  font-size: 13px;
+  text-align: center;
 }

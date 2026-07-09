@@ -615,7 +615,11 @@ export const SCENARIOS: Scenario[] = [
         dodgePct: 40,
         weapons: [{ name: 'Kris', cooldownTicks: 12, damage: 12 }],
         effects: [
-          { source: 'Shadow (4)', trigger: { kind: 'OnDodge' }, ops: [{ op: 'buffNextHitPct', pct: 40 }] },
+          {
+            source: 'Shadow (4)',
+            trigger: { kind: 'OnDodge' },
+            ops: [{ op: 'buffNextHitPct', pct: 40 }],
+          },
         ],
       }),
       [
@@ -813,6 +817,43 @@ export const SCENARIOS: Scenario[] = [
           name: 'Puncher',
           maxHp: 300,
           weapons: [{ name: 'Jab', cooldownTicks: 8, damage: 8 }],
+        }),
+      ],
+    ),
+  },
+  {
+    // Biomes 6–10: a Burn-immune enemy (Ember Courtier, Court §4) — the hero applies
+    // Burn on hit, which simply never lands, so the DoT never ticks.
+    name: 'immune-to-burn',
+    seed: 606,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Ember Hero',
+        weapons: [{ name: 'Brand', cooldownTicks: 10, damage: 10 }],
+        effects: [bindOnHit([{ op: 'applyStatus', status: 'burn', stacks: 3, to: 'target' }])],
+      }),
+      [c({ id: 'e0', name: 'Ember Courtier', maxHp: 220, immuneToStatus: 'burn' })],
+    ),
+  },
+  {
+    // Biomes 6–10: a multi-hit enemy (Pressure Wraith, Vault §4) — its swing lands as
+    // five rapid sub-hits, leaking through a Ward the hero starts with.
+    name: 'enemy-multi-hit-vs-ward',
+    seed: 616,
+    spec: fight(
+      c({
+        id: 'hero',
+        name: 'Warded Hero',
+        startWardPct: 25,
+        weapons: [{ name: 'Blade', cooldownTicks: 14, damage: 10 }],
+      }),
+      [
+        c({
+          id: 'e0',
+          name: 'Pressure Wraith',
+          maxHp: 260,
+          weapons: [{ name: 'Press', cooldownTicks: 16, damage: 3, hitsPerSwing: 5 }],
         }),
       ],
     ),

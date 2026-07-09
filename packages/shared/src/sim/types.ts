@@ -127,6 +127,8 @@ export interface CombatantSpec {
   selfHealPctPerSec?: number;
   /** …halved once this many total status stacks sit on the combatant. */
   healHalvedAtStacks?: number;
+  /** A status that simply never lands on this combatant (Ember Courtier ← Burn, Court). */
+  immuneToStatus?: StatusKind;
   weapons: WeaponSpec[];
   effects: EffectBinding[];
 }

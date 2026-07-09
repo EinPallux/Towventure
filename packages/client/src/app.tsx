@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { useStore } from './store.js';
+import { Admin } from './ui/Admin.js';
+import { BroadcastBanner } from './ui/BroadcastBanner.js';
 import { Codex } from './ui/Codex.js';
 import { Death } from './ui/Death.js';
 import { Fight } from './ui/Fight.js';
@@ -6,6 +9,7 @@ import { Gate } from './ui/Gate.js';
 import { Ladder } from './ui/Ladder.js';
 import { Merchant } from './ui/Merchant.js';
 import { RunScreen } from './ui/RunScreen.js';
+import { Settings } from './ui/Settings.js';
 import { Skirmish } from './ui/Skirmish.js';
 import { Social } from './ui/Social.js';
 import { TopBar } from './ui/TopBar.js';
@@ -36,6 +40,24 @@ function LiveToasts() {
   );
 }
 
+/** The Fusion Ceremony — a forge flash on any ★-up, grandest at ★5 (the Zenith forge). */
+function Ceremony() {
+  const ceremony = useStore((s) => s.ceremony);
+  const dismiss = useStore((s) => s.dismissCeremony);
+  const zenith = (ceremony?.star ?? 0) >= 5;
+  useEffect(() => {
+    if (!ceremony) return;
+    const id = window.setTimeout(dismiss, zenith ? 2400 : 1500);
+    return () => window.clearTimeout(id);
+  }, [ceremony, zenith, dismiss]);
+  if (!ceremony) return null;
+  return (
+    <div className={`ceremony ${zenith ? 'zenith' : ''}`} aria-hidden>
+      <div className="rune">{zenith ? '✷' : '✦'}</div>
+    </div>
+  );
+}
+
 export function App() {
   const me = useStore((s) => s.me);
   const run = useStore((s) => s.run);
@@ -55,6 +77,8 @@ export function App() {
     body = <Merchant />;
   } else if (view === 'social') {
     body = <Social />;
+  } else if (view === 'admin') {
+    body = <Admin />;
   } else if (playback) {
     body = <Fight />;
   } else if (run && run.status === 'dead') {
@@ -69,10 +93,13 @@ export function App() {
     <div className="app">
       <div className="overlay">
         {me && <TopBar />}
+        {me && <BroadcastBanner />}
         {body}
       </div>
       <ErrorToast />
       <LiveToasts />
+      <Ceremony />
+      <Settings />
     </div>
   );
 }

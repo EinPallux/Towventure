@@ -214,10 +214,15 @@ export async function recordEchoDefense(
   const owner = rows[0];
   if (!owner) return null;
   const body = `Your Echo on Floor ${owner.floor} has slain ${slainName}.`;
-  await tx.update(echoes).set({ kills: sql`${echoes.kills} + 1` }).where(eq(echoes.id, echo.echoId));
+  await tx
+    .update(echoes)
+    .set({ kills: sql`${echoes.kills} + 1` })
+    .where(eq(echoes.id, echo.echoId));
   await awardHonor(tx, owner.accountId, season, ECHO_DEFENSE_HONOR, 'echo_defense', echo.echoId);
   await awardMarks(tx, owner.accountId, season, ECHO_DEFENSE_MARKS, 'echo_defense', echo.echoId);
-  await tx.insert(inbox).values({ accountId: owner.accountId, kind: 'echo_defense', body, refId: echo.echoId });
+  await tx
+    .insert(inbox)
+    .values({ accountId: owner.accountId, kind: 'echo_defense', body, refId: echo.echoId });
   // A feed milestone friends can see ("Your Echo slew Bram").
   await tx.insert(feed).values({ accountId: owner.accountId, kind: 'echo_kill', body });
   return { ownerId: owner.accountId, body };

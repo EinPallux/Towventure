@@ -45,7 +45,12 @@ export async function gauntletLadder(
   selfId: string | null,
 ): Promise<LadderPage> {
   const offset = page * PAGE_SIZE;
-  const ranked = await db.execute<{ account_id: string; name: string; value: number; rank: number }>(sql`
+  const ranked = await db.execute<{
+    account_id: string;
+    name: string;
+    value: number;
+    rank: number;
+  }>(sql`
     SELECT account_id, name, value, rank FROM (
       SELECT a.id AS account_id, a.name AS name, max(r.floor)::int AS value,
              rank() OVER (ORDER BY max(r.floor) DESC)::int AS rank
@@ -80,7 +85,17 @@ export async function gauntletLadder(
       ) t WHERE account_id = ${selfId}
     `);
     const srow = selfRows[0];
-    if (srow) self = { rank: srow.rank, name: srow.name, value: srow.value, tier: null, isSelf: true };
+    if (srow)
+      self = { rank: srow.rank, name: srow.name, value: srow.value, tier: null, isSelf: true };
   }
-  return { board: 'gauntlet', metric: 'floor', season, page, pageSize: PAGE_SIZE, total, rows, self };
+  return {
+    board: 'gauntlet',
+    metric: 'floor',
+    season,
+    page,
+    pageSize: PAGE_SIZE,
+    total,
+    rows,
+    self,
+  };
 }

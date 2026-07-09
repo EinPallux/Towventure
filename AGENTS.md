@@ -32,7 +32,7 @@ If a task conflicts with these docs, stop and surface the conflict; don't silent
 
 ## 4. How to work
 
-- **Session shape:** prefer completing one meaningful vertical unit (a system, a biome, a boss, a screen) over scattering small edits. Leave the tree green: typecheck, lint, tests, and (once it exists) the harness must pass before you stop.
+- **Session shape:** prefer completing one meaningful vertical unit (a system, a biome, a boss, a screen) over scattering small edits. Leave the tree green: typecheck, lint, **`format:check`** (CI runs it and fail-fasts the rest on a Prettier miss), tests, and (once it exists) the harness must pass before you stop.
 - **Testing bar:** sim/run logic → unit + golden tests; routes → integration tests against a real PG (compose); content → harness gates. UI gets tested by running it — when you touch playback/UI, actually launch and watch a fight before declaring done.
 - **Commits:** imperative, scoped (`sim: add Shock consumption on hit resolution`), body explains *why* when non-obvious. Never mention AI models/tools in commits, code, or comments.
 - **Changelog:** every completed phase or notable player-facing change adds a [CHANGELOG.md](CHANGELOG.md) entry under `[Unreleased]` (Keep-a-Changelog format).
