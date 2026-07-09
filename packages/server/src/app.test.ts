@@ -32,6 +32,8 @@ import {
   recordEchoKill,
 } from './services/echoes.js';
 import { decayPct, eloDelta, ticketCap, upsertDefense } from './services/skirmish.js';
+import { buyMerchantItem } from './services/merchant.js';
+import { seasonMarks } from './services/marks.js';
 import { publish, subscribe, subscriberCount } from './services/bus.js';
 import { emitFeed } from './services/social.js';
 import { lifetimeHonor, placementHonor, runSeasonRollover } from './services/season.js';
@@ -1204,6 +1206,25 @@ d('server API — the Heartbeat loop', () => {
     expect(td.statusCode).toBe(200);
     expect(td.json().removed).toBe(1);
     expect(await getOwnEcho(database.db, ownerId)).toBeNull();
+  });
+
+  it('Merchant buy is concurrency-safe: two parallel buys cannot overspend Marks (audit #1)', async () => {
+    const uid = Date.now().toString(36);
+    const id = await makeAccount(`hb_buy_${uid}`);
+    // Exactly one boon's worth of Marks (boon_purse / boon_wide_pack are 40 each).
+    await database.db
+      .insert(marksLedger)
+      .values({ accountId: id, season, delta: 40, reason: 'test_grant', refId: null });
+    const [a, b] = await Promise.all([
+      buyMerchantItem(database.db, id, season, 'boon_purse'),
+      buyMerchantItem(database.db, id, season, 'boon_wide_pack'),
+    ]);
+    // Exactly one succeeds; the other loses the race cleanly — never both.
+    expect([a, b].filter((r) => r.ok).length).toBe(1);
+    const failed = [a, b].find((r) => !r.ok) as { ok: false; error: string };
+    expect(failed.error).toBe('not_enough_marks');
+    // The balance never goes negative.
+    expect(await seasonMarks(database.db, id, season)).toBe(0);
   });
 
   it('admin IP allowlist blocks a non-allowlisted IP even for an admin', async () => {

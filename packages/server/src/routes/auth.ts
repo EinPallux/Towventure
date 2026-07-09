@@ -79,18 +79,22 @@ export function authRoutes(ctx: AppContext) {
       },
     );
 
-    fastify.post('/guest', async (req, reply) => {
-      parseBody(guestSchema, req, reply); // shape-only; guests take no input
-      const name = `guest-${randomBytes(4).toString('hex')}`;
-      const passHash = await hashPassword(randomBytes(24).toString('hex'));
-      const [acc] = await ctx.db
-        .insert(accounts)
-        .values({ name, passHash, isGuest: true })
-        .returning({ id: accounts.id, name: accounts.name, isGuest: accounts.isGuest });
-      const sid = await createSession(ctx.db, acc!.id);
-      setSessionCookie(reply, sid, secure);
-      return reply.code(201).send({ account: acc });
-    });
+    fastify.post(
+      '/guest',
+      { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+      async (req, reply) => {
+        parseBody(guestSchema, req, reply); // shape-only; guests take no input
+        const name = `guest-${randomBytes(4).toString('hex')}`;
+        const passHash = await hashPassword(randomBytes(24).toString('hex'));
+        const [acc] = await ctx.db
+          .insert(accounts)
+          .values({ name, passHash, isGuest: true })
+          .returning({ id: accounts.id, name: accounts.name, isGuest: accounts.isGuest });
+        const sid = await createSession(ctx.db, acc!.id);
+        setSessionCookie(reply, sid, secure);
+        return reply.code(201).send({ account: acc });
+      },
+    );
 
     fastify.post('/logout', async (req, reply) => {
       const sid = readSessionId(req);

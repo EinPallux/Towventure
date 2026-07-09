@@ -97,6 +97,14 @@ export async function buyMerchantItem(
 
   try {
     const result = await db.transaction(async (tx) => {
+      // Serialize every currency mutation for this account: take the account row lock
+      // before reading any balance. Without it, two concurrent buys both read the same
+      // pre-spend balance under READ COMMITTED and each insert a debit — driving Marks
+      // negative and granting both items (likewise the Keys path). The lock makes the
+      // second buy wait, then read the first's committed balance and fail cleanly.
+      await tx.execute(
+        sql`SELECT 1 FROM ${accounts} WHERE ${accounts.id} = ${accountId} FOR UPDATE`,
+      );
       let spentMarks = 0;
       let spentKeys = 0;
       if (item.vault) {
