@@ -18,4 +18,4 @@ Read **[AGENTS.md](AGENTS.md)** first — it is the full working agreement (proj
 
 ## Verification bar
 
-Before ending a session: `pnpm typecheck && pnpm lint && pnpm test` green (plus `pnpm harness` once it exists, for content changes), and if you touched fight playback or UI, actually run the client and watch a fight. Prefer finishing one vertical unit over many fragments.
+Before ending a session: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test` green (plus `pnpm harness` once it exists, for content changes), and if you touched fight playback or UI, actually run the client and watch a fight. Prefer finishing one vertical unit over many fragments. **`format:check` is in the bar because CI runs it and fail-fasts the rest on a Prettier miss — omitting it lets formatting drift silently redden CI.**
